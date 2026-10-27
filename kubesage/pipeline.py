@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,14 +63,22 @@ class AnalysisResult(BaseModel):
 
 
 def write_run(result: AnalysisResult, run_dir: Path) -> Path:
-    """Persist a run as report.json + manifests/, the layout `apply` and `gitops` read."""
-    (run_dir / "manifests").mkdir(parents=True, exist_ok=True)
-    files = {name: text for w in result.workloads for name, text in w.manifests.items()}
-    if result.node_pool:
-        files.update(result.node_pool.migrations)
-    for name, text in files.items():
-        (run_dir / "manifests" / name).write_text(text)
-    (run_dir / "report.json").write_text(result.model_dump_json(indent=2))
+    """Publish a complete immutable report + manifests snapshot with an atomic directory rename."""
+    if run_dir.exists():
+        raise FileExistsError(f"analysis run already exists: {run_dir}")
+    run_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".run-", dir=run_dir.parent))
+    try:
+        (staging / "manifests").mkdir()
+        files = {name: text for w in result.workloads for name, text in w.manifests.items()}
+        if result.node_pool:
+            files.update(result.node_pool.migrations)
+        for name, text in files.items():
+            (staging / "manifests" / name).write_text(text)
+        (staging / "report.json").write_text(result.model_dump_json(indent=2))
+        staging.rename(run_dir)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
     return run_dir
 
 
@@ -137,6 +147,10 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
     node_pool = None
     if done:
         node_pool = _plan_nodes(llm, catalog, stats, _demand(before_rows), _demand(after_rows), ledger)
+        if node_pool and any(w.recommendation and w.recommendation.scaling
+                             and w.recommendation.scaling.cpu_utilization_target is not None for w in results):
+            node_pool.notes.append("Node capacity includes CPU autoscalers at their maximum replicas. Workload costs "
+                                   "use scheduled average replicas and exclude unpredictable CPU scale-out.")
 
     llm_cost = sum(e.cost_usd for e in ledger)
     strategist = llm.models.tiers["strategist"]

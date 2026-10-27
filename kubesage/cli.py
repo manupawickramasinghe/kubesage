@@ -75,7 +75,8 @@ def cmd_apply(args: argparse.Namespace) -> None:
         run_dir = Path(args.run) if args.run else apply.latest_run(args.out_dir)
     except FileNotFoundError as exc:
         sys.exit(str(exc))
-    steps = apply.plan(run_dir, dry_run=args.dry_run, available_skus=apply.node_skus(load_skus().node_label))
+    steps = apply.plan(run_dir, dry_run=args.dry_run,
+                       available_node_counts=apply.ready_node_counts(load_skus().node_label))
     if not steps:
         sys.exit(f"{run_dir} has no manifests to apply")
     console.print(f"applying {run_dir}{' (server dry-run)' if args.dry_run else ''}")

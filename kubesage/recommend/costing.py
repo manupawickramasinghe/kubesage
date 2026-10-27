@@ -19,14 +19,20 @@ def average_replicas(plan: ScalingPlan | None, fixed: int) -> float:
     """Expected replica count over a week. CPU-triggered scale-out is not modelled (unknown in advance)."""
     if plan is None:
         return float(fixed)
-    extra = sum((w.desired_replicas - plan.min_replicas) * cron.window_hours_per_week(w.start, w.end) / 168
-                for w in plan.cron_windows)
-    return plan.min_replicas + max(extra, 0.0)
+    replicas = [plan.min_replicas] * cron.MINUTES_PER_WEEK
+    for w in plan.cron_windows:
+        # HPA uses the largest active trigger, rather than adding overlapping cron targets together.
+        for minute in cron.active_minutes(w.start, w.end):
+            replicas[minute] = max(replicas[minute], w.desired_replicas)
+    return sum(replicas) / cron.MINUTES_PER_WEEK
 
 
 def peak_replicas(plan: ScalingPlan | None, fixed: int) -> int:
     if plan is None:
         return fixed
+    if plan.cpu_utilization_target is not None:
+        # The node pool must have room for the autoscaler to reach its configured ceiling.
+        return plan.max_replicas
     return max([plan.min_replicas, 1, *(w.desired_replicas for w in plan.cron_windows)])
 
 

@@ -10,7 +10,7 @@ KUBESAGE_MODELS=cerebras .venv/bin/kubesage serve --host 0.0.0.0
 # open http://192.168.1.9:8600 (or http://localhost:8600 on the desktop)
 ```
 
-![The Control Center in the "before" state](images/ui-before.png)
+![The Control Center in the "before" state](images/ui-control-center.png)
 
 ## The page at a glance
 
@@ -42,14 +42,25 @@ solid once it's done.
 | step | press | what happens on screen | what to say |
 |---|---|---|---|
 | **1 · Find the waste** | **Analyze** | The progress line runs across the top. The headline re-animates and the savings strip, charts and recommendation rows fill in (~5 s with Cerebras). | "It read 30 days of metrics. Four of five workloads need changes, and finding that cost about a cent." |
-| **2 · Fix it on the cluster** | **Apply fixes** | Pods on the desktop slab fade out, and new, shorter pods drop onto the laptop slab. The desktop goes empty and the laptop's CPU lights come on. | "It shrank the requests, added autoscaling, and moved everything onto the cheaper machine. The desktop is now idle capacity." |
-| **3 · Prove it still scales** | **Send traffic** | A `loadgen` pod appears. checkout-web's glowing cores grow as real CPU climbs, and the autoscaler adds checkout-web pods, up to its max. | "Smaller doesn't mean fragile. Under real load it scales out." |
+| **2 · Fix it on the cluster** | **Apply fixes** | Resources and scaling rules change. Pods move if enough Ready machines carry the target SKU. Status compares the latest plan with live specs, then reports rollout readiness. | "The guarded plan is applied, and we can check the live result." |
+| **3 · Prove it still scales** | **Send traffic** | A `loadgen` pod appears. checkout-web's glowing cores grow as real CPU climbs. The autoscaler can add pods when CPU exceeds its target and replicas are below the maximum. | "Watch CPU against the target and the available replica headroom." |
 
 **Reset demo** (top right) puts everything back: big requests, every pod on the 8600G, and no autoscaling
 objects. Use it between rehearsals. It takes about 30 s.
 
-The **Dry run** switch next to Apply asks the API server to validate every change without saving it. Use it
-to check a run before touching the cluster.
+The **Validate only** switch changes the button to **Validate plan**. Kubernetes checks the executable steps
+without saving changes. Validation does not mark the plan applied; skipped steps are listed separately.
+Open **Review the plan** to inspect machine placement, guardrail adjustments and migration manifests first.
+If the target pool lacks enough Ready, schedulable machines, migrations are skipped and the status explains
+the shortage. Activity records each written, skipped or failed step.
+
+Step 3 shows current/max replicas and CPU against the autoscaler target. **Traffic settings** exposes CPU work
+per request and estimates the load as `requests/s × milliseconds / 1000` CPU cores. The default 80 requests/s
+at 50 ms requests about four real cores. At the replica limit, CPU can rise without more pods. Active traffic
+jobs are rediscovered after a reload; the countdown is an estimate, not proof of successful requests.
+The traffic result panel shows successful and failed requests, plus the latest interval's p50/p95 latency.
+Request errors stay visibly marked even if Kubernetes reports the Job as completed. When logs are missing,
+the panel says results are unavailable. A busy autoscaler does not by itself prove requests are healthy.
 
 ## Section by section
 
@@ -62,19 +73,36 @@ to check a run before touching the cluster.
   instead of applying it.
 - **Sun/moon**: light/dark theme, remembered per browser.
 
+### Analysis runs and downloads
+
+The **Analysis run** selector lists completed reports, newest first. Choosing a historical report updates
+the figures, charts, reasoning and recommendations while live cluster polling continues. Apply and GitOps
+use the selected run even if a newer analysis appears. Live plan verification currently compares the latest
+analysis; historical views say that they are older rather than displaying its verification result.
+
+**Download report** saves the selected JSON snapshot. **Download manifests** saves its workload and migration
+manifests in one YAML bundle. Individual recommendation rows also offer workload manifest downloads.
+
 ### Savings strip
 
-The numbers come from the **last analysis run**, not from the live cluster.
+The numbers come from the **selected analysis snapshot**, not from the live cluster. The run and observation
+window appear above them; applying changes does not rewrite this evidence.
 
 | tile | meaning |
 |---|---|
-| **Saved per month · node pool** | The *billing view*: what the machines cost. Before = the current pool, after = the pool the model picked. Bars compare the two. |
-| **Reserved capacity** | The *allocation view*: what the workloads' requests cost at per-core and per-GiB prices, after vs before. |
+| **Potential monthly savings / Additional monthly capacity** | The *billing view*: modelled machine cost before and after. A higher cost is shown as additional capacity rather than savings. Bars compare the two. |
+| **Planned reservations** | The *allocation view*: what the workloads' requests cost at per-core and per-GiB prices, after vs before. |
 | **Cost to find it** | What this analysis spent on LLM calls, from each call's token counts and the configured prices. |
 | **Workloads** | How triage sorted them: healthy (no more tokens), routine (mid tier), complex (top tier). |
 
 Prices are a **cost model**: Azure list prices from `config/skus.yaml`. The 8600G stands in for a D8s_v5 node
 and the 3500U for an F8s_v2. The hardware itself isn't priced.
+
+The node pool must fit CPU autoscalers at their maximum replicas, so extra scaling headroom can require more
+machines. Workload costs use the scheduled average replica count, with overlapping cron windows taking the
+largest active target; unpredictable CPU scale-out is excluded from that average. A workload can also cost
+more when safety guardrails require more CPU, memory or replicas. These estimates are potential changes,
+not a measured bill reduction.
 
 ### Cluster (the isometric drawing)
 
@@ -103,7 +131,8 @@ or a new usage reading. Nothing moves just for decoration.
   right now. It also shows the cost-model label and its price.
 - **A pod or a legend chip (a workload)**: pods ready, its KEDA scaling (min–max, triggers), CPU against the
   autoscaler target, reserved and used, the cost before → after, the model's diagnosis, and each pod with its
-  machine. The workload is highlighted in every diagram on the page.
+  machine. The workload is highlighted in every diagram on the page. For the latest plan, **View differences
+  from this plan** lists fields whose live and planned values differ.
 
 Click empty space, press **Esc** or use the ✕ to go back to the whole cluster.
 
@@ -111,13 +140,14 @@ Click empty space, press **Esc** or use the ✕ to go back to the whole cluster.
 
 Two bullet charts, CPU and memory per pod, from the analysis window:
 
-- **Light bar**: what the pod reserves now (its request).
+- **Light bar**: what the pod reserved when this analysis ran (its request).
 - **Dark bar**: what it actually uses (CPU p95, memory p99).
 - **Violet tick**: what KubeSage recommends.
-- **Right column**: now → recommended.
+- **Right column**: at analysis → recommended.
 
 A long light bar with a short dark bar is waste. A dark bar longer than the light one means the pod uses more
-than it reserves (auth-api's memory: it leaks).
+than it reserved (auth-api's memory: it leaks). These charts stay fixed after Apply. Use the cluster inspector
+for current requests and usage.
 
 ### How it decided
 
@@ -144,9 +174,14 @@ One row per workload: status, the tier that handled it, risk, and monthly cost b
 - the **router trace** (the cost of this diagnosis);
 - the generated **manifests**.
 
+Search by workload name or filter to changes proposed, healthy, routine or complex workloads. A cost increase
+is labelled as an increase; read the guardrail notes and scaling plan to understand the extra capacity.
+
 ### Activity
 
 A log of what you did in this browser session: analysis runs, each apply step's result, spikes, resets, errors.
+Live plan status and active traffic are reconstructed from Kubernetes after a reload; this activity log and
+the browser's last validation result are session information.
 
 ## Interactions
 

@@ -3,7 +3,7 @@ import pytest
 import yaml
 
 from kubesage.llm.schemas import CronWindow, Recommendation, ResourceSpec, ScalingPlan
-from kubesage.recommend import cron, guardrails
+from kubesage.recommend import costing, cron, guardrails
 
 
 def test_stage1_detects_each_anti_pattern(stats):
@@ -40,7 +40,10 @@ def test_recommendations_and_manifests(result):
     assert {t["type"] for t in so["spec"]["triggers"]} == {"cron", "cpu"}
     patch = yaml.safe_load(by["payment-service"].manifests["payment-service.patch.yaml"])
     assert patch["spec"]["template"]["spec"]["containers"][0]["name"] == "payment-service"
-    assert result.node_pool.after_monthly_usd < result.node_pool.before_monthly_usd
+    # A safe pool may cost more when the CPU autoscaler needs extra capacity; never promise savings
+    # by ignoring its maximum replica count.
+    assert result.node_pool.after_monthly_usd == min(
+        c.monthly_usd for c in result.node_pool.candidates if c.family != "burstable")
     assert result.node_pool.choice.sku != "B4ms"  # sustained batch/peak load rules out burstable nodes
     assert len(result.node_pool.migrations) == len(result.workloads)  # every workload moves, healthy ones too
     migrate = yaml.safe_load(result.node_pool.migrations["catalog-api.migrate.yaml"])
@@ -96,3 +99,71 @@ def test_cron_subset():
     assert cron.window_hours_per_week("0 23 * * *", "0 1 * * *") == pytest.approx(14)
     with pytest.raises(ValueError):
         cron.parse("*/5 * * * *")
+
+
+def test_cron_windows_include_end_days_and_weekend_carry():
+    # A single Friday-to-Monday window is not a two-hour daily window.
+    assert cron.window_hours_per_week("0 23 * * 5", "0 1 * * 1") == 50
+    # The last weekday overnight start remains active until Monday's end event.
+    assert cron.window_hours_per_week("0 23 * * 1-5", "0 1 * * 1-5") == 58
+    active = cron.active_minutes("0 9 * * *", "0 11 * * *")
+    assert 9 * 60 in active
+    assert 11 * 60 not in active
+
+
+@pytest.mark.parametrize("start,end", [("0 9 * * *", "0 9 * * *"), ("0 9 * * 0,6", "0 9 * * 6,0")])
+def test_guardrails_drop_zero_length_cron_windows(stats, start, end):
+    rec = Recommendation(workload="report-worker", risk="low", diagnosis="x", scaling=ScalingPlan(
+        min_replicas=0, max_replicas=1,
+        cron_windows=[CronWindow(start=start, end=end, desired_replicas=1)]))
+    safe, notes = guardrails.apply(rec, stats["report-worker"])
+    assert not safe.scaling.cron_windows
+    assert safe.scaling.min_replicas == 1  # no valid wake-up trigger remains
+    assert any("dropped cron window" in n for n in notes)
+
+
+@pytest.mark.parametrize("day", ["7", "0-7", "1-"])
+def test_cron_rejects_days_the_keda_parser_cannot_use(day):
+    with pytest.raises(ValueError):
+        cron.parse(f"0 9 * * {day}")
+
+
+def test_overlapping_cron_costs_use_the_largest_target():
+    plan = ScalingPlan(min_replicas=1, max_replicas=5, cron_windows=[
+        CronWindow(start="0 9 * * *", end="0 12 * * *", desired_replicas=3),
+        CronWindow(start="0 11 * * *", end="0 13 * * *", desired_replicas=5),
+    ])
+    # Each day: 20h at 1 replica, 2h at 3, 2h at 5. The overlapping hour is counted once.
+    assert costing.average_replicas(plan, 1) == pytest.approx((20 + 2 * 3 + 2 * 5) / 24)
+    plan.cron_windows.append(plan.cron_windows[0].model_copy())
+    assert costing.average_replicas(plan, 1) == pytest.approx(1.5)
+
+
+def test_node_capacity_includes_cpu_scaling_ceiling(result):
+    expected_cpu = expected_mem = 0.0
+    stats_by_id = {s.id: s for s in result.stats}
+    for w in result.workloads:
+        s = stats_by_id[w.id]
+        rec = w.recommendation
+        r = rec.resources if rec else None
+        plan = rec.scaling if rec else None
+        replicas = costing.peak_replicas(plan, s.replicas)
+        if plan and plan.cpu_utilization_target is not None:
+            assert replicas == plan.max_replicas
+        expected_cpu += (r.cpu_request_m / 1000 if r else s.cpu_request_cores or 0) * replicas
+        expected_mem += (r.mem_request_mi if r else s.mem_request_mib or 0) * replicas
+    assert result.node_pool.demand_after.cpu_cores == pytest.approx(expected_cpu, abs=0.001)
+    assert result.node_pool.demand_after.mem_mib == pytest.approx(expected_mem, abs=0.1)
+
+
+def test_guardrails_cap_minimum_and_preserve_cpu_scaling_headroom(stats):
+    huge = Recommendation(workload="checkout-web", risk="low", diagnosis="x", scaling=ScalingPlan(
+        min_replicas=500, max_replicas=500, cpu_utilization_target=70))
+    safe, notes = guardrails.apply(huge, stats["checkout-web"])
+    assert safe.scaling.min_replicas == safe.scaling.max_replicas == guardrails.MAX_REPLICAS
+    assert any("min replicas capped" in n for n in notes)
+    # Existing CPU triggers need headroom too, not only triggers inserted by the guardrail.
+    huge.scaling.min_replicas = huge.scaling.max_replicas = 3
+    safe, notes = guardrails.apply(huge, stats["checkout-web"])
+    assert safe.scaling.max_replicas > safe.scaling.min_replicas
+    assert any("room to grow" in n for n in notes)
