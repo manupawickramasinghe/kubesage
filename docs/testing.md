@@ -75,6 +75,12 @@ Historical live Cerebras example from 2026-10-27 (before the capacity-sizing cor
    - 90–180 s: 6 pods, CPU 73–74%, **0 errors**, p50 ~75 ms, p95 170–240 ms, ~600 requests per 10 s.
    So 60 req/s is sustainable once checkout-web has scaled; expect a slow first minute, because the
    load starts at full rate.
+6. **Same at 60 req/s on the laptop** (2026-10-28, after Apply moved every pod to `manupa-hnx`; plan min 1 / max 4):
+   - checkout-web went 3 → 4 pods within ~30 s, and CPU settled at 105–109% of the 70% target. That is
+     the replica ceiling, but it kept serving.
+   - The laptop went from 1.2 to 4.2–4.6 cores of its 8 threads.
+   - First minute: 4 failed requests, p95 up to 9 s. After that: 0 errors, p50 ~140 ms, p95 330–410 ms.
+   - For comparison, the earlier 80 req/s run on a 4-pod ceiling had 12–35 errors per 10 s and a 7–11 s p95.
 
 For a new run, verify the current plan rather than expecting the historical SKU or savings above:
 
