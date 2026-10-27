@@ -137,7 +137,7 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const usd = (v) => (Math.abs(v) < 1 ? "$" + v.toFixed(4) : "$" + v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
 const tok = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
-const TIER = {triage: "Glimmer", worker: "Spark", strategist: "Wonder"};
+let TIER = {triage: "triage", worker: "worker", strategist: "strategist"};  // replaced by the report's labels
 // Workload identity colours; deliberately no status red/green.
 const PALETTE = ["#3657d6", "#d07a12", "#7a3ee0", "#0f8a8a", "#b0407e", "#6b7a1f", "#8a5a3c", "#4a5a78"];
 let config = {tiers: {}}, appColors = {};
@@ -179,6 +179,7 @@ function kpi(label, value, sub, cls = "") {
 }
 
 function render(run, r) {
+  TIER = {...TIER, ...(r.tiers || {})};
   $("#runinfo").textContent = `run ${run} · ${r.window_days}-day window · ${r.namespace}`;
   r.workloads.forEach((w) => colorFor(w.id.split("/")[1]));
   const before = r.workloads.reduce((a, w) => a + w.monthly_before_usd, 0);

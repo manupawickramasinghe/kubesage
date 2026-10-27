@@ -2,7 +2,7 @@
 import pytest
 import yaml
 
-from kubesage.llm.schemas import Recommendation, ResourceSpec, ScalingPlan
+from kubesage.llm.schemas import CronWindow, Recommendation, ResourceSpec, ScalingPlan
 from kubesage.recommend import cron, guardrails
 
 
@@ -57,9 +57,23 @@ def test_guardrails_raise_unsafe_model_output(stats):
     assert rec.workload == s.id
     assert rec.resources.mem_limit_mi >= s.mem_pod_max_mib * 1.15
     assert rec.resources.cpu_request_m >= s.cpu_pod_p50 * 1000
-    assert rec.scaling.min_replicas == 1 and rec.scaling.cpu_utilization_target is None
+    assert rec.scaling.min_replicas == 1  # not a batch workload, so no scale-to-zero
     assert rec.scaling.max_replicas == guardrails.MAX_REPLICAS
     assert len(notes) >= 5
+
+
+def test_scale_to_zero_only_for_batch_workloads(stats):
+    """Found in the first live run: the model scaled checkout-web (a web frontend) to zero off-peak."""
+    def plan_for(name):
+        rec = Recommendation(workload=name, risk="low", diagnosis="x", scaling=ScalingPlan(
+            min_replicas=0, max_replicas=3, cron_windows=[CronWindow(start="50 8 * * 1-5", end="0 11 * * 1-5",
+                                                                     desired_replicas=3)]))
+        return guardrails.apply(rec, stats[name])
+
+    web, notes = plan_for("checkout-web")
+    assert web.scaling.min_replicas >= 1 and any("not a batch workload" in n for n in notes)
+    batch, notes = plan_for("report-worker")
+    assert batch.scaling.min_replicas == 0 and not notes
 
 
 def test_cron_subset():

@@ -10,7 +10,6 @@ from kubesage.metrics.stats import WorkloadStats
 from kubesage.pipeline import AnalysisResult
 
 STATUS_STYLE = {"HEALTHY": "green", "ROUTINE": "yellow", "COMPLEX": "red"}
-TIER_LABEL = {"triage": "Glimmer", "worker": "Spark", "strategist": "Wonder"}
 
 
 def _usd(v: float) -> str:
@@ -41,6 +40,7 @@ def print_stats(console: Console, stats: list[WorkloadStats]) -> None:
 
 
 def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, out_dir: str | None) -> None:
+    label = {name: res.tiers.get(name, name) for name in models.tiers}
     mode = "[bold red]MOCK[/] (no API key: deterministic stand-ins, token counts estimated)" if res.mode == "mock" else "live"
     console.rule(f"KubeSage · {res.window_days}-day analysis of namespace [bold]{res.namespace}[/]")
     console.print(f"LLM mode: {mode}\n")
@@ -50,7 +50,7 @@ def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, 
     console.print(f"\n[bold]Stage 2 · triage[/] on {tri.model}: in {_tok(tri.input_tokens)} tok, "
                   f"out {_tok(tri.output_tokens)} tok, {_usd(tri.cost_usd)}")
     for w in res.workloads:
-        route = f"-> {TIER_LABEL[w.tier]} ({models.tiers[w.tier].model})" if w.tier else "-> stop (no more tokens)"
+        route = f"-> {label[w.tier]} ({models.tiers[w.tier].model})" if w.tier else "-> stop (no more tokens)"
         console.print(f"  [{STATUS_STYLE[w.triage.status]}]{w.triage.status:<8}[/] {w.id:<26} {route}")
 
     console.print("\n[bold]Stage 3 · recommendations[/]")
@@ -67,7 +67,7 @@ def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, 
         body += [f"[blue]follow-up[/] {f}" for f in rec.follow_ups]
         if out_dir:
             body += [f"[dim]{out_dir}/manifests/{name}[/]" for name in w.manifests]
-        trace = (f"Glimmer share {_usd(triage_share)} -> {TIER_LABEL[w.tier]} {_tok(e.input_tokens)} in / "
+        trace = (f"{label['triage']} share {_usd(triage_share)} -> {label[w.tier]} {_tok(e.input_tokens)} in / "
                  f"{_tok(e.output_tokens)} out {_usd(e.cost_usd)} | diagnosis {_usd(triage_share + e.cost_usd)} | {money}")
         body.append(f"[dim]router trace: {trace}[/]")
         console.print(Panel("\n".join(body), title=f"{w.id} · risk {rec.risk} · "
@@ -79,7 +79,7 @@ def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, 
     if res.node_pool:
         np_ = res.node_pool
         console.print(f"[bold]Node pool (billing view, {np_.choice.sku} chosen by "
-                      f"{TIER_LABEL['strategist']}):[/] {np_.before_nodes}x {np_.before_sku} {_usd(np_.before_monthly_usd)}/mo "
+                      f"{label['strategist']}):[/] {np_.before_nodes}x {np_.before_sku} {_usd(np_.before_monthly_usd)}/mo "
                       f"-> {np_.choice.nodes}x {np_.choice.sku} {_usd(np_.after_monthly_usd)}/mo "
                       f"([green]saves {_usd(np_.before_monthly_usd - np_.after_monthly_usd)}/mo[/])")
         console.print(f"  {np_.choice.rationale}")

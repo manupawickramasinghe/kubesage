@@ -12,6 +12,7 @@ CONFIG_DIR = Path(os.environ.get("KUBESAGE_CONFIG_DIR", Path(__file__).resolve()
 
 class TierConfig(BaseModel):
     model: str
+    label: str = ""  # short display name for the tier, e.g. "Spark"; defaults to the tier key
     input_per_mtok: float
     output_per_mtok: float
     cached_input_per_mtok: float | None = None
@@ -82,8 +83,10 @@ def _load(name: str) -> dict:
     return yaml.safe_load((CONFIG_DIR / name).read_text())
 
 
-def load_models() -> ModelsConfig:
-    return ModelsConfig.model_validate(_load("models.yaml"))
+def load_models(profile: str | None = None) -> ModelsConfig:
+    """config/models.yaml (Meta) by default; KUBESAGE_MODELS=<name> selects config/models.<name>.yaml."""
+    profile = profile or os.environ.get("KUBESAGE_MODELS")
+    return ModelsConfig.model_validate(_load(f"models.{profile}.yaml" if profile else "models.yaml"))
 
 
 def load_skus() -> SkuCatalog:

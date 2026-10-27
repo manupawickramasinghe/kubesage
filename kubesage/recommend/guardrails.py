@@ -6,6 +6,7 @@ Each clamp is recorded so the UI can show exactly where the guardrails overrode 
 from __future__ import annotations
 
 import math
+import statistics
 
 from kubesage.llm.schemas import Recommendation
 from kubesage.metrics.stats import WorkloadStats
@@ -40,6 +41,16 @@ def apply(rec: Recommendation, s: WorkloadStats) -> tuple[Recommendation, list[s
             except ValueError as exc:
                 notes.append(f"dropped cron window: {exc}")
         plan.cron_windows = valid
+        if plan.min_replicas == 0 and "batch-pattern" not in s.signals:
+            # Scale-to-zero is for workloads that are genuinely idle between runs. Anything with steady
+            # traffic (a web frontend, an API) would be offline outside its cron windows.
+            per_pod = max(rec.resources.cpu_request_m / 1000 if rec.resources else s.cpu_request_cores or 0,
+                          s.cpu_pod_p95, 0.01)  # a reckless tiny request must not inflate the replica count
+            typical = float(statistics.median(s.weekday_hourly_cpu + s.weekend_hourly_cpu))
+            floor = max(1, math.ceil(typical / per_pod))
+            notes.append(f"min replicas raised 0 -> {floor} (not a batch workload: median load {typical:.2f} cores "
+                         "never goes idle)")
+            plan.min_replicas = floor
         if plan.min_replicas == 0 and plan.cpu_utilization_target is not None:
             notes.append("dropped CPU target: KEDA cannot scale to zero on CPU")
             plan.cpu_utilization_target = None

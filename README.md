@@ -133,7 +133,25 @@ export MODEL_API_KEY=...             # Meta Model API key
 
 Tiers, model IDs, prices and provider knobs are in [`config/models.yaml`](config/models.yaml).
 **Verify the model IDs and prices there before demo day.** Glimmer/Wonder IDs and prices are unverified
-placeholders. Any OpenAI-compatible endpoint works if you change `base_url`.
+placeholders.
+
+**Provider profiles.** `KUBESAGE_MODELS=<name>` loads `config/models.<name>.yaml` instead, for `analyze` and
+`serve` alike. Any OpenAI-compatible endpoint works. A Cerebras profile ships with the repo:
+
+```bash
+echo 'CEREBRAS_API_KEY=...' > .env   # .env is gitignored
+set -a; . ./.env; set +a
+KUBESAGE_MODELS=cerebras .venv/bin/kubesage analyze --mode live
+```
+
+Cerebras' shared endpoint serves `gpt-oss-120b` ($0.35 / $0.75 per 1M tokens) and `qwen-3.8-27b`
+($0.99 / $1.49). The biggest model is also the cheapest, so all three tiers use `gpt-oss-120b`, at
+`reasoning_effort` low / medium / high. A full run (6 calls) takes ~4 s and costs ~$0.01. Because every tier has
+the same price, the "all calls on the strategist" baseline equals the routed cost in this profile.
+
+Live runs are where the guardrails matter. In the first Cerebras run the model put checkout-web (a web frontend)
+on `minReplicaCount: 0`, which would have taken it offline outside the 09:00 rush. The guardrail now allows
+scale-to-zero only for workloads Stage 1 flags as `batch-pattern`.
 
 ## The demo scenarios
 
