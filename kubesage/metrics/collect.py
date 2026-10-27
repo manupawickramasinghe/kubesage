@@ -8,6 +8,7 @@ from collections import defaultdict
 
 import numpy as np
 
+from kubesage.journal import log
 from kubesage.metrics.client import PromClient
 from kubesage.metrics.stats import WorkloadStats, summarize
 
@@ -63,6 +64,7 @@ def collect(client: PromClient, *, namespace: str, days: int, end: float, tz: st
             continue
         seen = np.isfinite(cpu_pod[name]) & np.isfinite(cpu_total[name]) & np.isfinite(mem_pod[name])
         if seen.sum() < MIN_SAMPLES:  # a debug pod or a just-deployed workload: no history worth analysing yet
+            log("collect", f"skipped {namespace}/{name}: {int(seen.sum())} samples, needs {MIN_SAMPLES}", stage=1)
             continue
         sp = spec.get(name, {})
         stats.append(summarize(

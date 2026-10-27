@@ -11,6 +11,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from kubesage.config import SkuCatalog
+from kubesage.journal import log
 from kubesage.llm import mock, prompts
 from kubesage.llm.client import LedgerEntry, LLMClient
 from kubesage.llm.schemas import Recommendation, SkuChoice, TriageItem, TriageReport
@@ -63,8 +64,9 @@ class AnalysisResult(BaseModel):
     baselines_usd: dict[str, float]
 
 
-def write_run(result: AnalysisResult, run_dir: Path) -> Path:
-    """Publish a complete immutable report + manifests snapshot with an atomic directory rename."""
+def write_run(result: AnalysisResult, run_dir: Path, trace: list[dict] | None = None) -> Path:
+    """Publish a complete immutable report + manifests snapshot with an atomic directory rename.
+    `trace` (the PromQL and LLM exchanges as sent) goes to trace.json, kept apart from the report it explains."""
     if run_dir.exists():
         raise FileExistsError(f"analysis run already exists: {run_dir}")
     run_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -78,6 +80,8 @@ def write_run(result: AnalysisResult, run_dir: Path) -> Path:
         for name, text in files.items():
             (staging / "manifests" / name).write_text(text)
         (staging / "report.json").write_text(result.model_dump_json(indent=2))
+        if trace is not None:
+            (staging / "trace.json").write_text(json.dumps(trace, indent=1, default=str))
         staging.rename(run_dir)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
@@ -124,6 +128,7 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
         if s.id not in by_id:
             notes.append(f"triage omitted {s.id}; used deterministic triage")
         triage[s.id] = by_id.get(s.id) or mock.triage_one(s)
+        log("router", f"triage {s.id}: {triage[s.id].status}", stage=2)
 
     # Stage 3: only non-healthy workloads reach a bigger model, in parallel.
     def remediate(s: WorkloadStats) -> tuple[WorkloadStats, Recommendation, LedgerEntry, str]:
@@ -148,6 +153,8 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
             raw, e, tier = done[s.id]
             ledger.append(e)
             rec, gnotes = guardrails.apply(raw, s)
+            for note in gnotes:
+                log("guardrails", f"{s.id}: {note}", stage=3)
             cpu_new = rec.resources.cpu_request_m / 1000 if rec.resources else cpu_now
             mem_new = rec.resources.mem_request_mi if rec.resources else mem_now
             after = costing.allocation_monthly(cpu_new, mem_new, costing.average_replicas(rec.scaling, s.replicas), catalog)
@@ -168,6 +175,10 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
         if node_pool and (burst.cpu_cores, burst.mem_mib) != (node_pool.demand_after.cpu_cores, node_pool.demand_after.mem_mib):
             node_pool.demand_burst = burst
             node_pool.notes.append(_burst_note(burst, node_pool, catalog))
+        if node_pool:
+            log("planner", f"node pool {node_pool.before_nodes}x {node_pool.before_sku} ${node_pool.before_monthly_usd:.2f}/mo -> "
+                           f"{node_pool.choice.nodes}x {node_pool.choice.sku} ${node_pool.after_monthly_usd:.2f}/mo, "
+                           f"{len(node_pool.migrations)} migrations", stage=3)
 
     llm_cost = sum(e.cost_usd for e in ledger)
     strategist = llm.models.tiers["strategist"]

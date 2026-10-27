@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import time
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
@@ -70,14 +71,40 @@ def to_jsonl(series: Iterable[Series]) -> Iterator[str]:
                           "timestamps": s.timestamps_ms.tolist()}, separators=(",", ":"))
 
 
-def import_to_vm(vm_url: str, series: list[Series], *, namespace: str, replace: bool = True) -> int:
-    """Backfill series into VictoriaMetrics and make them immediately queryable. Returns sample count."""
-    body = gzip.compress("\n".join(to_jsonl(series)).encode(), compresslevel=5)
+def import_to_vm(vm_url: str, series: list[Series], *, namespace: str, replace: bool = True,
+                 record: list[dict] | None = None) -> int:
+    """Backfill series into VictoriaMetrics and make them immediately queryable. Returns sample count.
+    `record` receives each HTTP request as sent (the import body as a short preview and its size)."""
+    lines = list(to_jsonl(series))
+    body = gzip.compress("\n".join(lines).encode(), compresslevel=5)
+
+    def call(http: httpx.Client, method: str, path: str, **kw) -> None:
+        started = time.perf_counter()
+        resp = http.request(method, path, **kw)
+        if record is not None:
+            entry = {"kind": "vm", "stage": 1, "request": {"method": method, "url": vm_url.rstrip("/") + path,
+                                                          "params": kw.get("params"), "headers": kw.get("headers")},
+                     "response": {"status": resp.status_code}, "latency_ms": int((time.perf_counter() - started) * 1000)}
+            if "content" in kw:
+                entry["request"]["body_preview"] = [preview_line(line) for line in lines[:2]]
+                entry["request"]["body_bytes"] = {"gzip": len(body), "raw": sum(len(line) + 1 for line in lines),
+                                                  "series": len(lines)}
+            record.append(entry)
+        resp.raise_for_status()
+
     with httpx.Client(base_url=vm_url.rstrip("/"), timeout=120) as http:
         if replace:
             # Re-running the simulator must not interleave two datasets under the same labels.
-            http.post("/api/v1/admin/tsdb/delete_series", params={"match[]": f'{{namespace="{namespace}"}}'}).raise_for_status()
-        http.post("/api/v1/import", content=body, headers={"Content-Encoding": "gzip"}).raise_for_status()
-        http.get("/internal/force_flush").raise_for_status()
-        http.get("/internal/resetRollupResultCache").raise_for_status()
+            call(http, "POST", "/api/v1/admin/tsdb/delete_series", params={"match[]": f'{{namespace="{namespace}"}}'})
+        call(http, "POST", "/api/v1/import", content=body, headers={"Content-Encoding": "gzip"})
+        call(http, "GET", "/internal/force_flush")
+        call(http, "GET", "/internal/resetRollupResultCache")
     return sum(len(s.values) for s in series)
+
+
+def preview_line(line: str, keep: int = 3) -> dict:
+    """One import line with its value/timestamp arrays cut to `keep` items, for display."""
+    item = json.loads(line)
+    total = len(item["values"])
+    return {"metric": item["metric"], "values": item["values"][:keep], "timestamps": item["timestamps"][:keep],
+            "points": total}

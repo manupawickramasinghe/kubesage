@@ -6,9 +6,11 @@ server never answers, so another site open in the same browser can't trigger app
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
+import socket
 import subprocess
 import threading
 import time
@@ -23,9 +25,10 @@ from urllib.parse import parse_qs, urlsplit
 
 import yaml
 
-from kubesage import apply, gitops, live
+from kubesage import apply, gitops, journal, live
 from kubesage.config import CONFIG_DIR, load_models, load_skus
 from kubesage.service import AnalysisError, analyze_now, resolve_mode
+from kubesage.web import shell
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -139,9 +142,15 @@ def _exclusive(method):
         if not self._operation.acquire(blocking=False):
             return 409, {"error": f"{(self.operation or {}).get('name', 'an operation')} is already running; wait for it to finish"}
         self.operation = {"name": method.__name__, "started_at": _now()}
+        started = time.monotonic()
+        journal.log("api", f"{method.__name__} started")
+        status = 500
         try:
-            return method(self, *args, **kwargs)
+            status, body = method(self, *args, **kwargs)
+            return status, body
         finally:
+            journal.log("api", f"{method.__name__} finished in {time.monotonic() - started:.1f} s (HTTP {status})",
+                        level=logging.INFO if status < 400 else logging.WARNING)
             self.operation = None
             self._cluster_gen += 1  # a cluster read already in flight saw the old state; don't cache it
             self._cluster_cached = None
@@ -181,6 +190,12 @@ class Api:
         self._cluster_cached = None
         self._cluster_gen = 0
         self._desired_cached = None
+        self.journal = journal.attach()
+        self._events_lock = threading.Lock()
+        self._events_read = 0.0
+        self._events_seen: dict[str, str] = {}
+        self._traffic_logged = None
+        self._backfill_trace: list[dict] | None = None
         self._traffic_cached = None
 
     def config(self) -> tuple[int, dict]:
@@ -267,6 +282,11 @@ class Api:
             return 400, {"error": str(exc)}
         steps = apply.run(apply.plan(run, dry_run=bool(body.get("dry_run")),
                                      available_node_counts=apply.ready_node_counts(load_skus().node_label)))
+        for step in steps:
+            outcome = f"skipped: {step.skipped}" if step.skipped else (step.output or "").splitlines()[-1:] or [""]
+            journal.log("kubectl", f"$ {_short_cmd(step.cmd, run)} -> {outcome if step.skipped else outcome[0]}",
+                        stage=4 if step.file.name.endswith(".keda.yaml") else 5,
+                        level=logging.INFO if step.skipped or step.returncode == 0 else logging.WARNING)
         ok = all(s.returncode == 0 or s.skipped for s in steps)
         return (200 if ok else 502), {"run": run.name, "dry_run": bool(body.get("dry_run")), "ok": ok,
                                     "error": None if ok else "Some changes failed; review the step output before retrying.", "steps": [
@@ -295,6 +315,8 @@ class Api:
         if proc.returncode:
             return 502, {"error": proc.stderr.strip()}
         env = {e["name"]: e["value"] for e in job["spec"]["template"]["spec"]["containers"][0]["env"]}
+        journal.log("loadgen", f"job {job['metadata']['name']} started: {env['RPS']} rps x {env['WORK_MS']} ms CPU -> "
+                               f"{env['TARGET']} for {env['SECONDS']} s", stage=4)
         return 200, {"job": job["metadata"]["name"], **env}
 
     @_exclusive
@@ -311,6 +333,8 @@ class Api:
             return 502, {"ok": False, "error": f"Could not run demo reset: {exc}", "output": []}
         output = (proc.stdout + proc.stderr).strip().splitlines()[-8:]
         ok = proc.returncode == 0
+        for line in output:
+            journal.log("demo-reset", line, stage=5)
         return (200 if ok else 502), {"ok": ok, "output": output,
                                     "error": None if ok else f"Reset failed: {output[-1] if output else f'exit code {proc.returncode}'}"}
 
@@ -328,6 +352,133 @@ class Api:
         except ValueError as exc:
             return 400, {"error": str(exc)}
         return 200, {"branch": out.branch, "commit": out.commit, "pushed": out.pushed, "pr_url": out.pr_url}
+
+    def events(self, after: str | None) -> tuple[int, dict]:
+        try:
+            after_id = int(after or 0)
+        except ValueError:
+            return 400, {"error": "after must be an event id"}
+        self._ingest_k8s_events()
+        events, last = self.journal.since(after_id)
+        return 200, {"events": events, "last": last}
+
+    def _ingest_k8s_events(self) -> None:
+        """Journal the namespace's Kubernetes events (scheduling, HPA rescales, kills), each once, at most every 3 s."""
+        with self._events_lock:
+            if time.monotonic() - self._events_read < 3:
+                return
+            self._events_read = time.monotonic()
+            data = _kubectl_json("-n", self.s.namespace, "get", "events")
+            if not data:
+                return
+            first, fresh = not self._events_seen, []
+            cutoff = datetime.now(timezone.utc).timestamp() - 600
+            seen = {}
+            for e in data.get("items", []):
+                uid = e.get("metadata", {}).get("uid")
+                at = (e.get("series") or {}).get("lastObservedTime") or e.get("lastTimestamp") or e.get("eventTime") \
+                    or e.get("firstTimestamp") or e.get("metadata", {}).get("creationTimestamp")
+                if not uid or not at:
+                    continue
+                seen[uid] = f"{at}|{e.get('count')}"
+                if self._events_seen.get(uid) == seen[uid]:
+                    continue
+                try:
+                    stamp = datetime.fromisoformat(at.replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    continue
+                if first and stamp < cutoff:  # on first read, only the last ten minutes
+                    continue
+                fresh.append((stamp, at, e))
+            self._events_seen = seen
+            for _, at, e in sorted(fresh, key=lambda f: f[0]):
+                obj = e.get("involvedObject", {})
+                kind = obj.get("kind", "")
+                count = e.get("count") or 1
+                self.journal.add(f"{e.get('reason')} {kind.lower()}/{obj.get('name')}: {e.get('message', '').strip()}"
+                                 + (f" (x{count})" if count > 1 else ""), unit=f"k8s/{kind.lower() or 'event'}",
+                                 stage=4 if kind in ("HorizontalPodAutoscaler", "ScaledObject", "Job") else
+                                 5 if kind in ("Pod", "ReplicaSet", "Deployment", "Node") else None,
+                                 level="warning" if e.get("type") == "Warning" else "info", at=at)
+
+    def trace(self, name: str | None) -> tuple[int, dict]:
+        """What the selected run sent and received: PromQL, LLM exchanges, and the kubectl calls Apply makes."""
+        try:
+            run = self._run(name)
+        except FileNotFoundError as exc:
+            return 404, {"error": str(exc)}
+        except ValueError as exc:
+            return 400, {"error": str(exc)}
+        try:
+            exchanges = json.loads((run / "trace.json").read_text())
+        except FileNotFoundError:
+            exchanges = []  # runs from before traces were recorded
+        report, manifests = self._desired(run)
+        texts = {p.name: p.read_text() for p in sorted((run / "manifests").glob("*.yaml"))}
+        kubectl = [{"file": step.file.name, "cmd": _short_cmd(step.cmd, run), "manifest": texts.get(step.file.name, "")}
+                   for step in apply.plan(run, kubectl=["kubectl"])]
+        return 200, {"run": run.name, "mode": report.get("mode"), "exchanges": exchanges, "kubectl": kubectl,
+                     "backfill": self._backfill_trace}
+
+    def lab(self) -> tuple[int, dict]:
+        """Live status for the dataflow diagram that /api/cluster doesn't carry: the TSDB and the model provider."""
+        models = load_models()
+        vm = {"url": self.s.vm, "ok": False}
+        try:
+            client = shell.PromClient(self.s.vm, timeout=5)
+            series = client.query(f'count(container_memory_working_set_bytes{{namespace="{self.s.namespace}"}})')
+            newest = client.query(f'time() - max(timestamp(container_memory_working_set_bytes{{namespace="{self.s.namespace}"}}))')
+            vm.update(ok=True, series=int(float(series[0]["value"][1])) if series else 0,
+                      last_sample_age_s=round(float(newest[0]["value"][1])) if newest else None)
+        except (shell.PromError, KeyError, IndexError, ValueError) as exc:
+            vm["error"] = str(exc)
+        provider = models.provider
+        return 200, {"vm": vm, "host": socket.gethostname(), "pid": os.getpid(), "namespace": self.s.namespace,
+                     "mode": resolve_mode(self.s.mode, models),
+                     "provider": {"base_url": provider.base_url, "api_key_env": provider.api_key_env,
+                                  "profile": os.environ.get("KUBESAGE_MODELS") or "default"},
+                     "tiers": {name: {"label": t.label or name, "model": t.model, "input_per_mtok": t.input_per_mtok,
+                                      "output_per_mtok": t.output_per_mtok, "extra": t.extra_body}
+                               for name, t in models.tiers.items()}}
+
+    def shell(self, body: dict) -> tuple[int, dict]:
+        line = body.get("cmd")
+        if not isinstance(line, str) or len(line) > 1000:
+            return 400, {"error": "cmd must be a string of at most 1000 characters"}
+        result = shell.run(line, namespace=self.s.namespace, vm=self.s.vm, out_dir=self.s.out_dir)
+        if line.strip():
+            journal.log("shell", f"$ {line.strip()[:160]} -> exit {result['exit']} in {result['ms']} ms",
+                        level=logging.INFO if result["exit"] == 0 else logging.WARNING)
+        return 200, result
+
+    @_exclusive
+    def backfill(self, body: dict) -> tuple[int, dict]:
+        """Regenerate the synthetic history (kubesage simulate). Replaces the namespace's series, live tail included."""
+        from kubesage.simulate.backfill import generate, import_to_vm
+        from kubesage.simulate.scenarios import DEMO_WORKLOADS
+
+        days = body.get("days", 30)
+        if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 60:
+            return 400, {"error": "days must be a whole number from 1 to 60"}
+        if self.s.namespace != "demo":
+            return 400, {"error": "Backfill writes the demo scenarios, so it is only available for the demo namespace"}
+        started = time.monotonic()
+        end = int(time.time()) // 60 * 60
+        series = generate(DEMO_WORKLOADS, namespace=self.s.namespace, days=days, end=end, step=60, tz=self.s.tz, seed=42)
+        journal.log("backfill", f"generated {len(series)} series, {days} days at 60 s, for {len(DEMO_WORKLOADS)} workloads", stage=1)
+        record: list[dict] = []
+        try:
+            samples = import_to_vm(self.s.vm, series, namespace=self.s.namespace, record=record)
+        except Exception as exc:  # httpx errors and HTTP status errors alike
+            self._backfill_trace = record
+            return 502, {"error": f"Backfill failed: {exc}"}
+        self._backfill_trace = record
+        for call in record:
+            journal.log("backfill", f"{call['request']['method']} {call['request']['url']} -> {call['response']['status']} "
+                                    f"in {call['latency_ms']} ms", stage=1)
+        seconds = round(time.monotonic() - started, 1)
+        journal.log("backfill", f"imported {samples:,} samples into {self.s.vm} in {seconds} s", stage=1)
+        return 200, {"samples": samples, "series": len(series), "days": days, "seconds": seconds}
 
     def _desired(self, run: Path) -> tuple[dict, list[dict]]:
         """A run's report and manifests, parsed once per run rather than on every 3-second poll."""
@@ -403,8 +554,14 @@ class Api:
             "completed" if status.get("succeeded") or "Complete" in conditions else "running" if status.get("active") else "pending"
         key = (meta["name"], meta.get("uid"), state)
         if not self._traffic_cached or self._traffic_cached[0] != key or time.monotonic() - self._traffic_cached[1] >= 10:
-            numbers = _traffic_numbers(_kubectl_logs(self.s.namespace, meta["name"]))
+            logs = _kubectl_logs(self.s.namespace, meta["name"])
+            numbers = _traffic_numbers(logs)
             self._traffic_cached = (key, time.monotonic(), numbers)
+            last = next((line for line in reversed((logs or "").splitlines()) if _TRAFFIC_LINE.fullmatch(line)), None)
+            if last and self._traffic_logged != (meta["name"], last):
+                self._traffic_logged = (meta["name"], last)
+                journal.log("loadgen", f"{meta['name']}: {last.strip()}", stage=4,
+                            level=logging.WARNING if " err=0 " not in last else logging.INFO)
         return {"job": meta["name"], "status": state, **self._traffic_cached[2]}
 
     def cluster(self) -> tuple[int, dict]:
@@ -562,6 +719,19 @@ def _api_key_names() -> set[str]:
     return names
 
 
+def _short_cmd(cmd: list[str], run: Path) -> str:
+    """A kubectl call as a person would type it: no binary path or kubeconfig, manifests relative to the run."""
+    args = list(cmd)
+    if not args:
+        return ""
+    if "--kubeconfig" in args:
+        i = args.index("--kubeconfig")
+        del args[i:i + 2]
+    args[0] = "kubectl"
+    return " ".join(a.replace(str(run) + "/", "") if a.startswith(str(run)) else
+                    (a if re.fullmatch(r"[-\w./=:,@]+", a) else "'" + a.replace("'", "'\\''") + "'") for a in args)
+
+
 def make_handler(api: Api):
     key_names = _api_key_names()
     static = resources.files("kubesage.web").joinpath("static")
@@ -583,8 +753,11 @@ def make_handler(api: Api):
 
         def do_GET(self):
             path = urlsplit(self.path)
-            routes = {"/api/config": api.config, "/api/report": lambda: api.report(parse_qs(path.query).get("run", [None])[0]),
-                      "/api/reports": api.reports, "/api/cluster": api.cluster}
+            query = parse_qs(path.query)
+            routes = {"/api/config": api.config, "/api/report": lambda: api.report(query.get("run", [None])[0]),
+                      "/api/reports": api.reports, "/api/cluster": api.cluster, "/api/lab": api.lab,
+                      "/api/events": lambda: api.events(query.get("after", [None])[0]),
+                      "/api/trace": lambda: api.trace(query.get("run", [None])[0])}
             if path.path in ("/", "/index.html"):
                 self._send(200, page, "text/html; charset=utf-8")
             elif path.path in fonts:
@@ -621,7 +794,8 @@ def make_handler(api: Api):
                 return
             routes = {"/api/analyze": lambda: api.analyze(), "/api/apply": lambda: api.apply(body),
                       "/api/spike": lambda: api.spike(body), "/api/reset": lambda: api.reset(),
-                      "/api/gitops": lambda: api.gitops(body)}
+                      "/api/gitops": lambda: api.gitops(body), "/api/shell": lambda: api.shell(body),
+                      "/api/backfill": lambda: api.backfill(body)}
             if self.path not in routes:
                 self._send(404, {"error": "not found"})
                 return
