@@ -122,7 +122,7 @@ everything by "would a hackathon judge get this in 10 seconds?"
      cluster instead, e.g. "pods are on the F8s_v2 machine"?
    - Is Dry run understood?
 6. **Send traffic.** It only adds pods if checkout-web is below its max (3 in the latest plan) and the load
-   crosses the 70% target, so 80 req/s is the default. Is that understandable on screen, or should the UI show
+   crosses the 70% target, so 60 req/s is the default (80 overloaded a 4-replica plan). Is that understandable on screen, or should the UI show
    the autoscaler target and current CPU next to step 3?
 7. **Numbers that look wrong.** In some runs a workload's monthly cost *rises* after the change, because the
    guardrails add a replica or CPU. Is that explained well enough by the guardrail notes?

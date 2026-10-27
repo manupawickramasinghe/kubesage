@@ -55,8 +55,9 @@ If the target pool lacks enough Ready, schedulable machines, migrations are skip
 the shortage. Activity records each written, skipped or failed step.
 
 Step 3 shows current/max replicas and CPU against the autoscaler target. **Traffic settings** exposes CPU work
-per request and estimates the load as `requests/s × milliseconds / 1000` CPU cores. The default 80 requests/s
-at 50 ms requests about four real cores. At the replica limit, CPU can rise without more pods. Active traffic
+per request and estimates the load as `requests/s × milliseconds / 1000` CPU cores. The default 60 requests/s
+at 50 ms is about three real cores: enough to make checkout-web scale out (80 requests/s hit the replica
+ceiling with HTTP errors in a live run). At the replica limit, CPU can rise without more pods. Active traffic
 jobs are rediscovered after a reload; the countdown is an estimate, not proof of successful requests.
 The traffic result panel shows successful and failed requests, plus the latest interval's p50/p95 latency.
 Request errors stay visibly marked even if Kubernetes reports the Job as completed. When logs are missing,

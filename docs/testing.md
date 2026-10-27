@@ -67,7 +67,14 @@ Historical live Cerebras example from 2026-10-27 (before the capacity-sizing cor
    slab went empty.
 4. **Send traffic** (40 req/s × 50 ms for 150 s): checkout-web CPU rose from 10% to ~60% of its 70% target, and
    the laptop's whole-machine CPU from 1.7 to ~3.4 cores. No pods were added: the plan's max was 3 and
-   three pods were already running. The UI default is now 80 req/s, which crosses the target.
+   three pods were already running.
+5. **Send traffic at 60 req/s** (the UI default since the code review of PR #10; 80 req/s hit a 4-replica
+   ceiling with HTTP errors and 7–11 s p95). Live run on 2026-10-27, checkout-web min 2 / max 6, CPU target 70%:
+   - 0–80 s: the load arrives all at once on 2–3 pods. CPU reached 130% of target, the autoscaler went
+     2 → 4 → 6, and the sampled intervals showed 23 failed requests with p95 up to 15 s.
+   - 90–180 s: 6 pods, CPU 73–74%, **0 errors**, p50 ~75 ms, p95 170–240 ms, ~600 requests per 10 s.
+   So 60 req/s is sustainable once checkout-web has scaled; expect a slow first minute, because the
+   load starts at full rate.
 
 For a new run, verify the current plan rather than expecting the historical SKU or savings above:
 
