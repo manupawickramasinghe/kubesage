@@ -38,7 +38,7 @@ export KUBECONFIG=$PWD/.bin/kubeconfig PATH=$PWD/.bin:$PATH
 kubectl label --overwrite node <8600G-hostname> kubesage.io/sku=D8s_v5
 kubectl label --overwrite node <3500U-hostname> kubesage.io/sku=F4s_v2
 kubectl apply --server-side -f https://github.com/kedacore/keda/releases/download/v2.21.0/keda-2.21.0.yaml
-kubectl apply -f deploy/k8s/demo/
+kubectl apply -k deploy/k8s/demo/
 ```
 
 From there the demo is the same: `kubesage analyze`, then `kubesage apply`. The `*.migrate.yaml` patches move
