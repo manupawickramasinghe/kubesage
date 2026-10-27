@@ -19,7 +19,7 @@ def spike_job(*, namespace: str, target: str, rps: float, work_ms: int, seconds:
         "metadata": {"name": name, "namespace": namespace, "labels": {"app.kubernetes.io/managed-by": "kubesage"}},
         "spec": {
             "backoffLimit": 0, "ttlSecondsAfterFinished": 600,
-            "template": {"spec": {
+            "template": {"metadata": {"labels": {"app": "loadgen"}}, "spec": {
                 "restartPolicy": "Never",
                 "containers": [{
                     "name": "loadgen", "image": APP_IMAGE, "command": ["python", "/app/app.py", "loadgen"],

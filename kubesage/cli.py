@@ -5,12 +5,11 @@ import argparse
 import os
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
 
-from kubesage.config import load_models, load_skus
+from kubesage.config import load_skus
 
 console = Console()
 
@@ -42,24 +41,14 @@ def cmd_simulate(args: argparse.Namespace) -> None:
         console.print(f"  [cyan]{w.name:<16}[/] {w.story}")
 
 
-def _collect(args: argparse.Namespace):
-    from kubesage.metrics.client import PromClient, PromError
-    from kubesage.metrics.collect import collect
-
-    try:
-        stats, raw_points = collect(PromClient(args.vm), namespace=args.namespace, days=args.days,
-                                    end=time.time(), tz=args.tz)
-    except PromError as exc:
-        sys.exit(f"metrics query failed: {exc}")
-    if not stats:
-        sys.exit(f"no workloads found in namespace {args.namespace!r} at {args.vm}; run `kubesage simulate` first")
-    return stats, raw_points
-
-
 def cmd_stats(args: argparse.Namespace) -> None:
     from kubesage.report import print_stats
+    from kubesage.service import AnalysisError, collect_stats
 
-    stats, _ = _collect(args)
+    try:
+        stats, _ = collect_stats(vm=args.vm, namespace=args.namespace, days=args.days, tz=args.tz)
+    except AnalysisError as exc:
+        sys.exit(str(exc))
     if args.json:
         print("[" + ",".join(s.model_dump_json() for s in stats) + "]")
     else:
@@ -67,25 +56,16 @@ def cmd_stats(args: argparse.Namespace) -> None:
 
 
 def cmd_analyze(args: argparse.Namespace) -> None:
-    from kubesage.llm.client import LLMClient, LLMError
-    from kubesage.pipeline import analyze, write_run
     from kubesage.report import print_analysis
+    from kubesage.service import AnalysisError, analyze_now
 
-    models = load_models()
-    mode = args.mode
-    if mode == "auto":
-        mode = "live" if os.environ.get(models.provider.api_key_env) else "mock"
-    stats, raw_points = _collect(args)
     try:
-        llm = LLMClient(models, mode)
-        result = analyze(stats, llm=llm, catalog=load_skus(), namespace=args.namespace, days=args.days,
-                         tz=args.tz, raw_points=raw_points)
-    except LLMError as exc:
-        sys.exit(f"LLM call failed: {exc}")
-
-    out_dir = write_run(result, Path(args.out_dir) / datetime.now().strftime("%Y%m%d-%H%M%S"))
-    print_analysis(console, result, models, str(out_dir))
-    console.print(f"\nreport: {out_dir}/report.json")
+        result, run_dir, models = analyze_now(vm=args.vm, namespace=args.namespace, days=args.days, tz=args.tz,
+                                              mode=args.mode, out_dir=args.out_dir)
+    except AnalysisError as exc:
+        sys.exit(str(exc))
+    print_analysis(console, result, models, str(run_dir))
+    console.print(f"\nreport: {run_dir}/report.json")
 
 
 def cmd_apply(args: argparse.Namespace) -> None:
@@ -128,6 +108,22 @@ def cmd_gitops(args: argparse.Namespace) -> None:
         console.print(f"pushed {out.branch} to {args.remote}")
     else:
         console.print("not pushed; re-run with --push or --open-pr when ready")
+
+
+def cmd_serve(args: argparse.Namespace) -> None:
+    from kubesage.web.server import Settings, serve
+
+    settings = Settings(vm=args.vm, namespace=args.namespace, days=args.days, tz=args.tz, mode=args.mode,
+                        out_dir=Path(args.out_dir), gitops_repo=Path(args.gitops_repo) if args.gitops_repo else None,
+                        gitops_base=args.gitops_base, gitops_path=args.gitops_path)
+    server = serve(settings, args.host, args.port)
+    console.print(f"KubeSage AI Control Center on http://{args.host}:{args.port}  (Ctrl+C to stop)")
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        console.print("[yellow]warning[/] anyone who can reach this address can apply changes to the cluster")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
 
 
 def cmd_spike(args: argparse.Namespace) -> None:
@@ -189,6 +185,17 @@ def main(argv: list[str] | None = None) -> None:
     go.add_argument("--push", action="store_true", help="push the branch")
     go.add_argument("--open-pr", action="store_true", help="push and open a PR with gh")
     go.set_defaults(func=cmd_gitops)
+
+    sv = sub.add_parser("serve", help="web UI: analyze, apply, spike and watch the cluster live")
+    _common(sv)
+    sv.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to present from another machine (e.g. over Tailscale)")
+    sv.add_argument("--port", type=int, default=8600)
+    sv.add_argument("--mode", choices=("auto", "mock", "live"), default="auto")
+    sv.add_argument("--out-dir", default="out")
+    sv.add_argument("--gitops-repo", help="enable the GitOps PR button for this local repo clone")
+    sv.add_argument("--gitops-base", help="kustomize base relative to --gitops-path, e.g. ../base")
+    sv.add_argument("--gitops-path", default="kubesage/demo")
+    sv.set_defaults(func=cmd_serve)
 
     sp = sub.add_parser("spike", help="live demo: send a burst of CPU-heavy traffic to a demo Service")
     sp.add_argument("--namespace", default="demo")

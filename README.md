@@ -85,6 +85,29 @@ The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
 `export KUBECONFIG=$PWD/.bin/kubeconfig PATH=$PWD/.bin:$PATH` to run kubectl yourself.
 `kubesage apply` uses `$KUBECONFIG` when set, so it can target any cluster.
 
+### Web UI: the AI Control Center
+
+```bash
+.venv/bin/kubesage serve             # http://127.0.0.1:8600
+.venv/bin/kubesage serve --host 0.0.0.0 --gitops-repo ~/src/my-gitops --gitops-base ../base   # present from the laptop
+```
+
+![KubeSage AI Control Center](docs/control-center.png)
+
+One page for the whole pitch:
+- savings KPIs (node pool, requested capacity, LLM cost of the run vs the all-Wonder and raw-series baselines)
+- the model-router funnel for the run
+- a card per workload with diagnosis, guardrail clamps, follow-ups, a router-trace badge and the manifests
+- a live cluster panel, polled every 3 s, showing pods per SKU-labelled node and KEDA min/max/current replicas with CPU %
+
+Buttons: **Analyze cluster**, **Apply optimization** (with dry run), **Spike traffic**, **Reset demo**, and
+**Open GitOps PR** when a GitOps repo is configured.
+
+Stdlib HTTP server and one self-contained HTML file with no CDN, so it still works on bad venue Wi-Fi. It binds
+to 127.0.0.1 by default. POSTs require an `X-KubeSage` header, so another website open in the same browser
+can't trigger actions. With `--host 0.0.0.0`, anyone who can reach the port can apply changes. Keep that to
+Tailscale.
+
 ### GitOps: open a PR instead of applying
 
 `kubesage gitops` writes a run into a local clone of your GitOps repo as a kustomize overlay
@@ -141,6 +164,8 @@ kubesage/
   live.py     `kubesage spike` load-generator Job
   gitops.py   kustomize overlay -> branch -> commit -> push -> PR
   summary.py  markdown report (PR body, REPORT.md)
+  service.py  collect + analyze + persist, shared by CLI and web
+  web/        `kubesage serve`: stdlib server + single-file UI
 config/       model tiers + SKU catalog
 deploy/       Grafana provisioning + dashboard, demo k8s manifests
 scripts/      pinned tool install, cluster up/down/reset
@@ -150,6 +175,6 @@ scripts/      pinned tool install, cluster up/down/reset
 
 - [x] k3d cluster + KEDA + demo Deployments matching the scenarios; `kubesage apply`
 - [x] Live mode: vmagent scraping the cluster, plus a load spike for the demo
-- [ ] Web UI ("AI Control Center") on top of `report.json`, with the router-trace badges
+- [x] Web UI ("AI Control Center") on top of `report.json`, with the router-trace badges
 - [x] GitOps: open a PR with the manifests instead of applying directly
 - [x] Two-node mode: label nodes as SKUs and migrate pods to the cheap node live
