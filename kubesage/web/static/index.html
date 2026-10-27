@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KubeSage · AI Control Center</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --ink: #151821; --muted: #5d6677; --line: #e2e5eb; --chip: #eef1f6;
+    --accent: #3657d6; --ok: #23843a; --warn: #c76a00; --bad: #c42b2b; --code: #10151f; --code-ink: #d5deec;
+    --glimmer: #0f8a8a; --spark: #c76a00; --wonder: #7a3ee0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1016; --panel: #151a23; --ink: #e6e9ef; --muted: #98a1b2; --line: #252c39; --chip: #1e2532;
+      --accent: #7f9cff; --ok: #4fca6a; --warn: #ffa24d; --bad: #ff6b6b; --code: #0a0e15; --code-ink: #c8d3e4;
+      --glimmer: #3cc7c7; --spark: #ffa24d; --wonder: #b48cff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header.top { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .brand { font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+  .brand small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; letter-spacing: .04em; }
+  .badge.mock { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .badge.live { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .meta { color: var(--muted); font-size: 12px; }
+  .actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    padding: 7px 12px; border-radius: 8px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: progress; }
+  label.inline { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; }
+  main { max-width: 1440px; margin: 0 auto; padding: 18px 20px 40px; display: grid; gap: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .kpi .value { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 4px; }
+  .kpi .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .good { color: var(--ok); } .bad { color: var(--bad); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .funnel { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+  .stage { flex: 1 1 180px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--chip); }
+  .stage b { display: block; }
+  .stage .meta { display: block; }
+  .arrow { align-self: center; color: var(--muted); font-size: 18px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: start; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+  .workloads { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+  @media (max-width: 480px) { .workloads { grid-template-columns: 1fr; } }
+  .wl { border-left: 4px solid var(--line); }
+  .wl.HEALTHY { border-left-color: var(--ok); } .wl.ROUTINE { border-left-color: var(--warn); } .wl.COMPLEX { border-left-color: var(--bad); }
+  .wl header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .wl h3 { margin: 0 6px 0 0; font-size: 16px; display: inline-flex; align-items: center; gap: 7px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .pill { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; background: var(--chip); }
+  .pill.HEALTHY { color: var(--ok); } .pill.ROUTINE { color: var(--warn); } .pill.COMPLEX { color: var(--bad); }
+  .tier { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; color: #fff; }
+  .tier.triage { background: var(--glimmer); } .tier.worker { background: var(--spark); } .tier.strategist { background: var(--wonder); }
+  .money { margin: 8px 0 4px; font-size: 15px; }
+  .money .before { color: var(--muted); text-decoration: line-through; }
+  .stats { color: var(--muted); font-size: 12px; }
+  .diag { margin: 8px 0; }
+  ul.notes { margin: 6px 0; padding-left: 18px; font-size: 13px; }
+  ul.notes .guard::marker { content: "⛨  "; color: var(--accent); }
+  ul.notes .follow::marker { content: "→  "; color: var(--wonder); }
+  .trace { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--chip); border-radius: 8px;
+    padding: 6px 8px; margin-top: 8px; overflow-wrap: anywhere; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; }
+  pre { background: var(--code); color: var(--code-ink); padding: 10px; border-radius: 8px; overflow: auto; font-size: 12px; max-height: 320px; }
+  pre .file { color: #8fa3c7; }
+  .side { display: grid; gap: 12px; position: sticky; top: 72px; }
+  .node { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+  .node-h { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+  .node-h .sku { margin-left: auto; font-weight: 700; color: var(--accent); }
+  .pods { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .pod { font-size: 11px; padding: 2px 6px; border-radius: 5px; color: #fff; transition: opacity .3s; }
+  .pod.notready { opacity: .45; } .pod.Terminating { opacity: .25; text-decoration: line-through; }
+  .pod.Pending { background: transparent !important; color: var(--muted); border: 1px dashed var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .spikeform { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .spikeform input { width: 64px; font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  ol.log { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow: auto; font-size: 12px; }
+  ol.log li { padding: 4px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  ol.log li.err { color: var(--bad); } ol.log li.ok { color: var(--ok); }
+  ol.log time { color: var(--muted); margin-right: 6px; }
+  .empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">KubeSage <small>AI Control Center</small></div>
+  <span id="mode" class="badge"></span>
+  <span id="runinfo" class="meta"></span>
+  <div class="actions">
+    <button id="btn-analyze" class="primary">Analyze cluster</button>
+    <label class="inline"><input type="checkbox" id="dryrun"> dry run</label>
+    <button id="btn-apply">Apply optimization</button>
+    <button id="btn-gitops" hidden>Open GitOps PR</button>
+    <button id="btn-reset" title="Put the demo back in its oversized 'before' state">Reset demo</button>
+  </div>
+</header>
+
+<main>
+  <section class="kpis" id="kpis"></section>
+  <section class="card"><h2>Model router · this run</h2><div class="funnel" id="funnel"></div></section>
+  <div class="layout">
+    <section>
+      <h2>Workloads</h2>
+      <div class="workloads" id="workloads"><div class="card empty">No analysis yet. Press <b>Analyze cluster</b>.</div></div>
+    </section>
+    <aside class="side">
+      <section class="card">
+        <h2>Live cluster</h2>
+        <div id="nodes" class="meta">connecting…</div>
+        <table id="scaling"></table>
+        <div class="spikeform">
+          <button id="btn-spike">Spike traffic</button>
+          <label class="inline">rps <input id="rps" type="number" value="40" min="1" max="200"></label>
+          <label class="inline">ms/req <input id="workms" type="number" value="50" min="1" max="500"></label>
+          <label class="inline">sec <input id="secs" type="number" value="180" min="10" max="900"></label>
+        </div>
+      </section>
+      <section class="card"><h2>Activity</h2><ol class="log" id="log"></ol></section>
+    </aside>
+  </div>
+</main>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const usd = (v) => (Math.abs(v) < 1 ? "$" + v.toFixed(4) : "$" + v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+const tok = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
+const TIER = {triage: "Glimmer", worker: "Spark", strategist: "Wonder"};
+// Workload identity colours; deliberately no status red/green.
+const PALETTE = ["#3657d6", "#d07a12", "#7a3ee0", "#0f8a8a", "#b0407e", "#6b7a1f", "#8a5a3c", "#4a5a78"];
+let config = {tiers: {}}, appColors = {};
+
+async function api(path, body) {
+  const opts = body === undefined ? {headers: {"X-KubeSage": "1"}}
+    : {method: "POST", headers: {"Content-Type": "application/json", "X-KubeSage": "1"}, body: JSON.stringify(body)};
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({error: res.statusText}));
+  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), {status: res.status});
+  return data;
+}
+
+function log(msg, kind = "") {
+  const li = document.createElement("li");
+  li.className = kind;
+  li.innerHTML = `<time>${new Date().toLocaleTimeString()}</time>${esc(msg)}`;
+  $("#log").prepend(li);
+}
+
+async function busy(button, fn) {
+  const label = button.textContent;
+  document.querySelectorAll(".actions button, #btn-spike").forEach((b) => (b.disabled = true));
+  button.textContent = label + "…";
+  try { await fn(); } catch (e) { log(e.message, "err"); }
+  finally {
+    button.textContent = label;
+    document.querySelectorAll(".actions button, #btn-spike").forEach((b) => (b.disabled = false));
+  }
+}
+
+function colorFor(app) {
+  if (!(app in appColors)) appColors[app] = PALETTE[Object.keys(appColors).length % PALETTE.length];
+  return appColors[app];
+}
+
+function kpi(label, value, sub, cls = "") {
+  return `<div class="card kpi"><div class="label">${esc(label)}</div><div class="value ${cls}">${value}</div><div class="sub">${sub}</div></div>`;
+}
+
+function render(run, r) {
+  $("#runinfo").textContent = `run ${run} · ${r.window_days}-day window · ${r.namespace}`;
+  r.workloads.forEach((w) => colorFor(w.id.split("/")[1]));
+  const before = r.workloads.reduce((a, w) => a + w.monthly_before_usd, 0);
+  const after = r.workloads.reduce((a, w) => a + w.monthly_after_usd, 0);
+  const np = r.node_pool;
+  const counts = {HEALTHY: 0, ROUTINE: 0, COMPLEX: 0};
+  r.workloads.forEach((w) => counts[w.triage.status]++);
+  $("#kpis").innerHTML = [
+    np ? kpi("Node pool (billing)", usd(np.before_monthly_usd - np.after_monthly_usd) + "/mo",
+      `${np.before_nodes}× ${esc(np.before_sku)} ${usd(np.before_monthly_usd)} → ${np.choice.nodes}× ${esc(np.choice.sku)} ${usd(np.after_monthly_usd)}`, "good")
+      : kpi("Node pool (billing)", "—", "no change recommended"),
+    kpi("Requested capacity", usd(before - after) + "/mo", `${usd(before)} → ${usd(after)} per month (allocation view)`, before - after >= 0 ? "good" : "bad"),
+    kpi("LLM cost of this run", usd(r.llm_cost_usd),
+      `vs ${usd(r.baselines_usd.all_calls_on_strategist)} all on ${TIER.strategist} · ${usd(r.baselines_usd.raw_series_to_strategist)} raw series${r.mode === "mock" ? " · estimated (mock)" : ""}`),
+    kpi("Workloads triaged", String(r.workloads.length),
+      `<span class="good">${counts.HEALTHY} healthy</span> · <span style="color:var(--warn)">${counts.ROUTINE} routine</span> · <span class="bad">${counts.COMPLEX} complex</span>`),
+  ].join("");
+
+  const byTier = {};
+  r.ledger.filter((e) => e.stage !== "triage").forEach((e) => {
+    const t = (byTier[e.tier] ||= {calls: 0, inp: 0, out: 0, cost: 0, model: e.model});
+    t.calls++; t.inp += e.input_tokens; t.out += e.output_tokens; t.cost += e.cost_usd;
+  });
+  const tri = r.ledger.find((e) => e.stage === "triage");
+  const stage = (title, body) => `<div class="stage"><b>${title}</b><span class="meta">${body}</span></div>`;
+  $("#funnel").innerHTML = [
+    stage("Stage 1 · deterministic stats", `${r.stats.length} workloads · percentiles, peaks, leak slope · $0.00`),
+    `<div class="arrow">➔</div>`,
+    stage(`Stage 2 · <span class="tier triage">${TIER.triage}</span>`, `${esc(tri.model)} · ${tok(tri.input_tokens)} in / ${tok(tri.output_tokens)} out · ${usd(tri.cost_usd)}<br>${counts.HEALTHY} stopped here, 0 more tokens`),
+    `<div class="arrow">➔</div>`,
+    ...["worker", "strategist"].filter((t) => byTier[t]).map((t) => stage(`Stage 3 · <span class="tier ${t}">${TIER[t]}</span>`,
+      `${esc(byTier[t].model)} · ${byTier[t].calls} call${byTier[t].calls > 1 ? "s" : ""} · ${tok(byTier[t].inp)} in / ${tok(byTier[t].out)} out · ${usd(byTier[t].cost)}`)),
+  ].join("");
+
+  const stats = Object.fromEntries(r.stats.map((s) => [s.id, s]));
+  const recCalls = Object.fromEntries(r.ledger.filter((e) => e.stage === "recommend").map((e) => [e.workload, e]));
+  const triShare = tri.cost_usd / Math.max(r.workloads.length, 1);
+  $("#workloads").innerHTML = r.workloads.map((w) => {
+    const s = stats[w.id], rec = w.recommendation, e = recCalls[w.id];
+    const delta = w.monthly_before_usd - w.monthly_after_usd;
+    const name = w.id.split("/")[1];
+    const files = Object.entries(w.manifests);
+    return `<article class="card wl ${w.triage.status}">
+      <header><h3><span class="dot" style="background:${colorFor(name)}"></span>${esc(name)}</h3><span class="pill ${w.triage.status}">${w.triage.status}</span>
+        ${w.tier ? `<span class="tier ${w.tier}">${TIER[w.tier]}</span>` : ""}${rec ? `<span class="meta">risk ${esc(rec.risk)}</span>` : ""}</header>
+      <div class="money">${rec ? `<span class="before">${usd(w.monthly_before_usd)}</span> → <b>${usd(w.monthly_after_usd)}</b>/mo
+        <span class="${delta >= 0 ? "good" : "bad"}">${delta >= 0 ? "−" : "+"}${usd(Math.abs(delta))}</span>` : `<b>${usd(w.monthly_before_usd)}</b>/mo`}</div>
+      <div class="stats">CPU p95 ${s.cpu_pod_p95.toFixed(2)} of ${(s.cpu_request_cores ?? 0).toFixed(2)} cores · mem p99 ${Math.round(s.mem_pod_p99_mib)} of ${Math.round(s.mem_request_mib ?? 0)} MiB · ${s.replicas} pod${s.replicas === 1 ? "" : "s"} · ${s.restarts} restarts</div>
+      <p class="diag">${esc(rec ? rec.diagnosis : w.triage.summary)}</p>
+      ${rec && (w.guardrail_notes.length || rec.follow_ups.length) ? `<ul class="notes">
+        ${w.guardrail_notes.map((n) => `<li class="guard">${esc(n)}</li>`).join("")}
+        ${rec.follow_ups.map((f) => `<li class="follow">${esc(f)}</li>`).join("")}</ul>` : ""}
+      <div class="trace">${TIER.triage} share ${usd(triShare)}${e ? ` ➔ ${TIER[w.tier]} ${tok(e.input_tokens)} in / ${tok(e.output_tokens)} out ${usd(e.cost_usd)} | diagnosis ${usd(triShare + e.cost_usd)}${delta >= 0 ? ` | saves ${usd(delta)}/mo` : ` | costs ${usd(-delta)}/mo more`}` : " | stopped at triage"}</div>
+      ${files.length ? `<details><summary>Manifests (${files.length})</summary><pre>${files.map(([f, t]) => `<span class="file"># ${esc(f)}</span>\n${esc(t)}`).join("\n")}</pre></details>` : ""}
+    </article>`;
+  }).join("");
+}
+
+async function loadReport() {
+  try {
+    const {run, report} = await api("/api/report");
+    render(run, report);
+  } catch (e) {
+    if (e.status !== 404) log(e.message, "err");
+  }
+}
+
+async function refreshCluster() {
+  try {
+    const c = await api("/api/cluster");
+    if (!c.available) { $("#nodes").textContent = "cluster not reachable (scripts/cluster-up.sh)"; $("#scaling").innerHTML = ""; return; }
+    $("#nodes").innerHTML = c.nodes.map((n) => `<div class="node"><div class="node-h"><b>${esc(n.name)}</b><span class="meta">${n.pods.length} pods</span>
+      <span class="sku">${esc(n.sku ?? "")}</span></div><div class="pods">${n.pods.map((p) =>
+        `<span class="pod ${esc(p.phase)} ${p.ready ? "" : "notready"}" style="background:${colorFor(p.app)}" title="${esc(p.name)} · ${esc(p.phase)}">${esc(p.app)}</span>`).join("")}</div></div>`).join("");
+    const apps = {};
+    c.nodes.forEach((n) => n.pods.forEach((p) => { if (p.phase !== "Terminating") apps[p.app] = (apps[p.app] || 0) + 1; }));
+    const names = [...new Set([...Object.keys(apps), ...Object.keys(c.scaling)])].sort();
+    $("#scaling").innerHTML = `<tr><th>workload</th><th>pods</th><th>KEDA min–max</th><th>CPU / request</th></tr>` + names.map((a) => {
+      const s = c.scaling[a] || {};
+      return `<tr><td><span class="dot" style="background:${colorFor(a)}"></span> ${esc(a)}</td><td>${apps[a] || 0}${s.desired != null && s.desired !== (apps[a] || 0) ? ` → ${s.desired}` : ""}</td>
+        <td>${s.min != null ? `${s.min}–${s.max} <span class="meta">${esc((s.triggers || []).join("+"))}</span>` : "—"}</td><td>${s.cpu != null ? s.cpu + "%" : "—"}</td></tr>`;
+    }).join("");
+  } catch (e) {
+    $("#nodes").textContent = "cluster status unavailable: " + e.message;
+  }
+}
+
+$("#btn-analyze").onclick = (ev) => busy(ev.target, async () => {
+  log("analyzing: Stage 1 stats → triage → remediation → node pool");
+  const {run, report} = await api("/api/analyze", {});
+  render(run, report);
+  log(`analysis ${run} done · LLM ${usd(report.llm_cost_usd)}${report.mode === "mock" ? " (mock)" : ""}`, "ok");
+});
+$("#btn-apply").onclick = (ev) => busy(ev.target, async () => {
+  const dry = $("#dryrun").checked;
+  const res = await api("/api/apply", {dry_run: dry});
+  res.steps.forEach((s) => log(`${s.skipped ? "skip" : s.ok ? "ok" : "ERR"} ${s.file}: ${s.skipped || s.output}`, s.skipped ? "" : s.ok ? "ok" : "err"));
+  log(`${dry ? "dry run of" : "applied"} ${res.run}`, "ok");
+  refreshCluster();
+});
+$("#btn-spike").onclick = (ev) => busy(ev.target, async () => {
+  const res = await api("/api/spike", {rps: +$("#rps").value, work_ms: +$("#workms").value, seconds: +$("#secs").value});
+  log(`spike ${res.job}: ${res.RPS} rps × ${res.WORK_MS} ms on ${res.TARGET} for ${res.SECONDS}s`, "ok");
+});
+$("#btn-reset").onclick = (ev) => busy(ev.target, async () => {
+  const res = await api("/api/reset", {});
+  log("demo reset to the 'before' state", res.ok ? "ok" : "err");
+  refreshCluster();
+});
+$("#btn-gitops").onclick = (ev) => busy(ev.target, async () => {
+  const res = await api("/api/gitops", {open_pr: true});
+  log(res.pr_url ? `PR opened: ${res.pr_url}` : `committed ${res.commit.slice(0, 10)} on ${res.branch}`, "ok");
+});
+
+(async () => {
+  try {
+    config = await api("/api/config");
+    $("#mode").textContent = config.mode === "mock" ? "MOCK LLM" : "LIVE LLM";
+    $("#mode").className = "badge " + config.mode;
+    $("#btn-gitops").hidden = !config.gitops;
+  } catch (e) { log(e.message, "err"); }
+  await loadReport();
+  refreshCluster();
+  setInterval(refreshCluster, 3000);
+})();
+</script>
+</body>
+</html>
