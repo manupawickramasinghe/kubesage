@@ -38,6 +38,41 @@ def _kubectl_json(*args: str) -> dict | None:
     return json.loads(proc.stdout) if proc.returncode == 0 else None
 
 
+def _kubectl_raw(path: str) -> dict | None:
+    """A raw API GET, used for metrics.k8s.io (metrics-server). None when it isn't installed or not ready yet."""
+    proc = subprocess.run([*apply.kubectl_base(), "get", "--raw", path], capture_output=True, text=True, timeout=20)
+    return json.loads(proc.stdout) if proc.returncode == 0 else None
+
+
+_CPU_UNITS = {"n": 1e-6, "u": 1e-3, "m": 1.0}
+_MEM_UNITS = {"Ki": 1 / 1024, "Mi": 1.0, "Gi": 1024.0, "Ti": 1024.0 ** 2,
+              "k": 1e3 / 2 ** 20, "M": 1e6 / 2 ** 20, "G": 1e9 / 2 ** 20}
+
+
+def cpu_m(quantity) -> float:
+    """A Kubernetes CPU quantity ("250m", "2", "60429740n") in millicores."""
+    q = str(quantity)
+    return float(q[:-1]) * _CPU_UNITS[q[-1]] if q[-1] in _CPU_UNITS else float(q) * 1000
+
+
+def mem_mi(quantity) -> float:
+    """A Kubernetes memory quantity ("512Mi", "4Gi", "13824Ki", bytes) in MiB."""
+    q = str(quantity)
+    for suffix in sorted(_MEM_UNITS, key=len, reverse=True):  # "Mi" before "M"
+        if q.endswith(suffix):
+            return float(q[:-len(suffix)]) * _MEM_UNITS[suffix]
+    return float(q) / 2 ** 20
+
+
+def _resources(containers: list[dict], kind: str, key: str, parse) -> float | None:
+    values = [parse(c["resources"][kind][key]) for c in containers if key in c.get("resources", {}).get(kind, {})]
+    return round(sum(values), 1) if values else None
+
+
+def _ready(obj: dict) -> bool:
+    return any(c["type"] == "Ready" and c["status"] == "True" for c in obj["status"].get("conditions", []))
+
+
 def _clamp(value, lo, hi, default):
     try:
         return min(max(type(default)(value), lo), hi)
@@ -115,20 +150,43 @@ class Api:
         nodes = _kubectl_json("get", "nodes")
         if nodes is None:
             return 200, {"available": False}
-        objs = _kubectl_json("-n", self.s.namespace, "get", "pods,scaledobjects.keda.sh,hpa") \
-            or _kubectl_json("-n", self.s.namespace, "get", "pods") or {"items": []}
-        label = load_skus().node_label
-        by_node = {n["metadata"]["name"]: {"name": n["metadata"]["name"], "sku": n["metadata"].get("labels", {}).get(label),
-                                           "pods": []} for n in nodes["items"]}
-        unscheduled = {"name": "(pending)", "sku": None, "pods": []}
+        ns = self.s.namespace
+        objs = _kubectl_json("-n", ns, "get", "pods,scaledobjects.keda.sh,hpa") \
+            or _kubectl_json("-n", ns, "get", "pods") or {"items": []}
+        usage = {}
+        for m in (_kubectl_raw(f"/apis/metrics.k8s.io/v1beta1/namespaces/{ns}/pods") or {}).get("items", []):
+            cs = m.get("containers", [])
+            usage[m["metadata"]["name"]] = (round(sum(cpu_m(c["usage"]["cpu"]) for c in cs), 1),
+                                            round(sum(mem_mi(c["usage"]["memory"]) for c in cs), 1))
+        catalog = load_skus()
+        skus = {s.name: s for s in catalog.skus}
+        by_node = {}
+        for n in nodes["items"]:
+            labels = n["metadata"].get("labels", {})
+            sku = skus.get(labels.get(catalog.node_label))
+            by_node[n["metadata"]["name"]] = {
+                "name": n["metadata"]["name"], "sku": labels.get(catalog.node_label), "ready": _ready(n),
+                "role": "control-plane" if "node-role.kubernetes.io/control-plane" in labels else "worker",
+                # Sizes come from the SKU the node is labelled as, not the k3d container's real (host-sized) capacity.
+                **({"family": sku.family, "vcpu": sku.vcpu, "memory_gib": sku.memory_gib,
+                    "allocatable_cpu_m": round(sku.vcpu * 1000 * catalog.allocatable_cpu),
+                    "allocatable_mem_mi": round(sku.memory_gib * 1024 * catalog.allocatable_mem),
+                    "monthly_usd": round(sku.hourly_usd * catalog.hours_per_month, 2)} if sku else {}),
+                "pods": []}
+        unscheduled = {"name": "(pending)", "sku": None, "ready": False, "role": "pending", "pods": []}
         scaling = {}
         for o in objs["items"]:
             kind, meta = o["kind"], o["metadata"]
             if kind == "Pod":
-                ready = any(c["type"] == "Ready" and c["status"] == "True" for c in o["status"].get("conditions", []))
+                containers, used = o["spec"].get("containers", []), usage.get(meta["name"])
                 pod = {"name": meta["name"], "app": meta.get("labels", {}).get("app", meta["name"]),
                        "phase": "Terminating" if meta.get("deletionTimestamp") else o["status"].get("phase"),
-                       "ready": ready}
+                       "ready": _ready(o),
+                       "cpu_request_m": _resources(containers, "requests", "cpu", cpu_m),
+                       "mem_request_mi": _resources(containers, "requests", "memory", mem_mi),
+                       "mem_limit_mi": _resources(containers, "limits", "memory", mem_mi),
+                       "cpu_used_m": used[0] if used else None, "mem_used_mi": used[1] if used else None,
+                       "restarts": sum(c.get("restartCount", 0) for c in o["status"].get("containerStatuses") or [])}
                 by_node.get(o["spec"].get("nodeName"), unscheduled)["pods"].append(pod)
             elif kind == "ScaledObject":
                 target = o["spec"]["scaleTargetRef"]["name"]
@@ -142,19 +200,24 @@ class Api:
                 scaling.setdefault(target, {}).update(current=o["status"].get("currentReplicas"),
                                                       desired=o["status"].get("desiredReplicas"), cpu=cpu)
         node_list = list(by_node.values()) + ([unscheduled] if unscheduled["pods"] else [])
-        return 200, {"available": True, "nodes": node_list, "scaling": scaling}
+        return 200, {"available": True, "namespace": ns, "metrics": bool(usage), "nodes": node_list,
+                     "scaling": scaling}
 
 
 def make_handler(api: Api):
-    page = resources.files("kubesage.web").joinpath("static/index.html").read_bytes()
+    static = resources.files("kubesage.web").joinpath("static")
+    page = static.joinpath("index.html").read_bytes()
+    # Vendored rather than loaded from a CDN, so the page still renders on bad venue Wi-Fi.
+    fonts = {f"/fonts/{f.name}": f.read_bytes() for f in static.joinpath("fonts").iterdir() if f.name.endswith(".woff2")}
 
     class Handler(BaseHTTPRequestHandler):
-        def _send(self, status: int, payload: dict | bytes, content_type: str = "application/json") -> None:
+        def _send(self, status: int, payload: dict | bytes, content_type: str = "application/json",
+                  cache: str = "no-store") -> None:
             body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", cache)
             self.end_headers()
             self.wfile.write(body)
 
@@ -162,6 +225,8 @@ def make_handler(api: Api):
             routes = {"/api/config": api.config, "/api/report": api.report, "/api/cluster": api.cluster}
             if self.path in ("/", "/index.html"):
                 self._send(200, page, "text/html; charset=utf-8")
+            elif self.path in fonts:
+                self._send(200, fonts[self.path], "font/woff2", cache="public, max-age=86400")
             elif self.path in routes:
                 self._send(*routes[self.path]())
             else:

@@ -5,142 +5,419 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KubeSage · AI Control Center</title>
 <style>
+  /* Inter + Instrument Serif (SIL OFL, see static/fonts), served by kubesage serve: no CDN. */
+  @font-face { font-family: "Inter"; src: url("/fonts/inter-latin-var.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+  @font-face { font-family: "Instrument Serif"; src: url("/fonts/instrument-serif-latin.woff2") format("woff2"); font-display: swap; }
+  @font-face { font-family: "Instrument Serif"; font-style: italic; src: url("/fonts/instrument-serif-italic-latin.woff2") format("woff2"); font-display: swap; }
+
   :root {
-    --bg: #f5f6f8; --panel: #ffffff; --ink: #151821; --muted: #5d6677; --line: #e2e5eb; --chip: #eef1f6;
-    --accent: #3657d6; --ok: #23843a; --warn: #c76a00; --bad: #c42b2b; --code: #10151f; --code-ink: #d5deec;
-    --glimmer: #0f8a8a; --spark: #c76a00; --wonder: #7a3ee0;
+    color-scheme: light;
+    --bg: #fdfdfc; --card: #ffffff; --fg: #22221f; --fg-2: #494946; --muted: #75756e;
+    --border: #e9e9e7; --input: #dcdcd9; --secondary: #f1f1ef; --ring: #8d8d86;
+    --primary: #22221f; --primary-fg: #fdfdfc; --track: #ecebe8;
+    --wire: #3a3a37; --glass: rgba(34, 34, 31, .035); --slab: #f7f7f5; --slab-l: #ecebe8; --slab-r: #e3e2df;
+    /* Workload identity, fixed order (validated for CVD on both surfaces); status colours are separate. */
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b; --rec: #7c5cff;
+    --shadow: 0 1px 2px rgba(16, 16, 14, .05);
+    --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "Instrument Serif", ui-serif, Georgia, serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0d1016; --panel: #151a23; --ink: #e6e9ef; --muted: #98a1b2; --line: #252c39; --chip: #1e2532;
-      --accent: #7f9cff; --ok: #4fca6a; --warn: #ffa24d; --bad: #ff6b6b; --code: #0a0e15; --code-ink: #c8d3e4;
-      --glimmer: #3cc7c7; --spark: #ffa24d; --wonder: #b48cff;
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #111110; --card: #191918; --fg: #eeeeec; --fg-2: #c3c2b7; --muted: #a1a09a;
+      --border: #2a2a28; --input: #3a3a37; --secondary: #232322; --ring: #6f6e69;
+      --primary: #eeeeec; --primary-fg: #111110; --track: #2c2c2a;
+      --wire: #d8d7d0; --glass: rgba(238, 238, 236, .045); --slab: #20201f; --slab-l: #1a1a19; --slab-r: #151514;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+      --rec: #9a88ff; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
     }
   }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111110; --card: #191918; --fg: #eeeeec; --fg-2: #c3c2b7; --muted: #a1a09a;
+    --border: #2a2a28; --input: #3a3a37; --secondary: #232322; --ring: #6f6e69;
+    --primary: #eeeeec; --primary-fg: #111110; --track: #2c2c2a;
+    --wire: #d8d7d0; --glass: rgba(238, 238, 236, .045); --slab: #20201f; --slab-l: #1a1a19; --slab-r: #151514;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --rec: #9a88ff; --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  }
+
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header.top { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
-    padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  .brand { font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
-  .brand small { font-weight: 500; color: var(--muted); margin-left: 6px; }
-  .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; letter-spacing: .04em; }
-  .badge.mock { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
-  .badge.live { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
-  .meta { color: var(--muted); font-size: 12px; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  .muted { color: var(--muted); }
+  .ic { width: 16px; height: 16px; flex: none; }
+  .spin { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Header */
+  header.top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .top-inner { max-width: 1200px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -.01em; margin-right: 4px; }
+  .brand .ic { width: 22px; height: 22px; }
+  .brand span { color: var(--muted); font-weight: 400; }
   .actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  button { font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
-    padding: 7px 12px; border-radius: 8px; cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button:disabled { opacity: .5; cursor: progress; }
-  label.inline { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; }
-  main { max-width: 1440px; margin: 0 auto; padding: 18px 20px 40px; display: grid; gap: 16px; }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
-  .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
-  .kpi .value { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 4px; }
-  .kpi .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
-  .good { color: var(--ok); } .bad { color: var(--bad); }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
-  .funnel { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
-  .stage { flex: 1 1 180px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--chip); }
-  .stage b { display: block; }
-  .stage .meta { display: block; }
-  .arrow { align-self: center; color: var(--muted); font-size: 18px; }
-  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: start; }
-  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
-  .workloads { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
-  @media (max-width: 480px) { .workloads { grid-template-columns: 1fr; } }
-  .wl { border-left: 4px solid var(--line); }
-  .wl.HEALTHY { border-left-color: var(--ok); } .wl.ROUTINE { border-left-color: var(--warn); } .wl.COMPLEX { border-left-color: var(--bad); }
-  .wl header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .wl h3 { margin: 0 6px 0 0; font-size: 16px; display: inline-flex; align-items: center; gap: 7px; }
-  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
-  .pill { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; background: var(--chip); }
-  .pill.HEALTHY { color: var(--ok); } .pill.ROUTINE { color: var(--warn); } .pill.COMPLEX { color: var(--bad); }
-  .tier { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; color: #fff; }
-  .tier.triage { background: var(--glimmer); } .tier.worker { background: var(--spark); } .tier.strategist { background: var(--wonder); }
-  .money { margin: 8px 0 4px; font-size: 15px; }
-  .money .before { color: var(--muted); text-decoration: line-through; }
-  .stats { color: var(--muted); font-size: 12px; }
-  .diag { margin: 8px 0; }
-  ul.notes { margin: 6px 0; padding-left: 18px; font-size: 13px; }
-  ul.notes .guard::marker { content: "⛨  "; color: var(--accent); }
-  ul.notes .follow::marker { content: "→  "; color: var(--wonder); }
-  .trace { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--chip); border-radius: 8px;
-    padding: 6px 8px; margin-top: 8px; overflow-wrap: anywhere; }
-  details { margin-top: 8px; }
-  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; }
-  pre { background: var(--code); color: var(--code-ink); padding: 10px; border-radius: 8px; overflow: auto; font-size: 12px; max-height: 320px; }
-  pre .file { color: #8fa3c7; }
-  .side { display: grid; gap: 12px; position: sticky; top: 72px; }
-  .node { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
-  .node-h { display: flex; gap: 8px; align-items: center; font-size: 13px; }
-  .node-h .sku { margin-left: auto; font-weight: 700; color: var(--accent); }
-  .pods { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-  .pod { font-size: 11px; padding: 2px 6px; border-radius: 5px; color: #fff; transition: opacity .3s; }
-  .pod.notready { opacity: .45; } .pod.Terminating { opacity: .25; text-decoration: line-through; }
-  .pod.Pending { background: transparent !important; color: var(--muted); border: 1px dashed var(--muted); }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
-  th { color: var(--muted); font-weight: 600; font-size: 12px; }
-  .spikeform { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-  .spikeform input { width: 64px; font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
-  ol.log { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow: auto; font-size: 12px; }
-  ol.log li { padding: 4px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
-  ol.log li.err { color: var(--bad); } ol.log li.ok { color: var(--ok); }
-  ol.log time { color: var(--muted); margin-right: 6px; }
-  .empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+  .progress { height: 2px; opacity: 0; transition: opacity .2s; background-size: 200% 100%;
+    background-image: linear-gradient(90deg, transparent, #7c5cff, #1fc8ff, #ff3dc0, transparent); }
+  body.busy .progress { opacity: 1; animation: pan 1.3s linear infinite; }
+  @keyframes pan { from { background-position: 200% 0; } to { background-position: -100% 0; } }
+
+  /* shadcn/ui-style primitives */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px;
+    border-radius: 8px; border: 1px solid transparent; font: 500 13.5px/1 var(--sans); white-space: nowrap; cursor: pointer;
+    transition: background-color .15s, border-color .15s, box-shadow .15s; }
+  .btn:focus-visible, .chip:focus-visible, .num:focus-visible, summary:focus-visible {
+    outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent); }
+  .btn:disabled { opacity: .5; pointer-events: none; }
+  .btn-primary { background: var(--primary); color: var(--primary-fg); box-shadow: var(--shadow); }
+  .btn-primary:hover { background: color-mix(in srgb, var(--primary) 88%, var(--bg)); }
+  .btn-outline { background: var(--card); color: var(--fg); border-color: var(--border); box-shadow: var(--shadow); }
+  .btn-ghost { background: transparent; color: var(--fg); }
+  .btn-outline:hover, .btn-ghost:hover { background: var(--secondary); }
+  .btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+  .btn-icon { width: 36px; padding: 0; }
+  .btn-icon.btn-sm { width: 28px; height: 28px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg-2); cursor: pointer; user-select: none; }
+  .switch input { appearance: none; -webkit-appearance: none; position: relative; width: 32px; height: 18px; margin: 0;
+    border-radius: 99px; background: var(--input); cursor: pointer; transition: background .15s; }
+  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--card); box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .15s; }
+  .switch input:checked { background: var(--primary); }
+  .switch input:checked::after { transform: translateX(14px); background: var(--primary-fg); }
+  .switch input:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--card); color: var(--fg-2); font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .badge .ic { width: 13px; height: 13px; }
+  .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
+  .num { width: 58px; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+    color: var(--fg); font: 13px var(--sans); font-variant-numeric: tabular-nums; }
+  .field { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+
+  /* Layout */
+  main { max-width: 1200px; margin: 0 auto; padding: 0 16px 72px; }
+  .hero { padding: 52px 0 8px; }
+  .eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; font-size: 12.5px; color: var(--muted); }
+  h1 { margin: 0; font: 400 clamp(38px, 6.4vw, 60px)/1.02 var(--serif); letter-spacing: -.015em; }
+  h1 em { font-style: italic; }
+  .sweeping { color: transparent; -webkit-background-clip: text; background-clip: text; }
+  .lede { max-width: 640px; margin: 16px 0 0; color: var(--fg-2); font-size: 15px; }
+  .figures { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)); margin-top: 32px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+  .fig { min-width: 0; padding: 18px 20px; border-left: 1px solid var(--border); }
+  .fig:first-child { border-left: 0; }
+  .fig .label { font-size: 12.5px; color: var(--muted); }
+  .fig .value { margin-top: 4px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; }
+  .fig .value small { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+  .fig.hero-fig .value { font-size: 46px; line-height: 1.05; }
+  .fig .sub { margin-top: 6px; font-size: 12.5px; color: var(--fg-2); }
+  .fig .sub .ic { width: 13px; height: 13px; vertical-align: -2px; }
+  .poolbars { display: block; width: 100%; max-width: 320px; margin-top: 12px; }
+  @media (max-width: 900px) {
+    .figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .fig.hero-fig { grid-column: 1 / -1; border-bottom: 1px solid var(--border); }
+    .fig:nth-child(2) { border-left: 0; }
+  }
+  @media (max-width: 600px) {
+    .figures { grid-template-columns: 1fr; }
+    .fig { border-left: 0; border-top: 1px solid var(--border); }
+    .fig.hero-fig { border-top: 0; border-bottom: 0; }
+  }
+
+  .card { margin-top: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+  .card-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; padding: 20px 20px 0; }
+  h2 { margin: 0; font: 400 28px/1.1 var(--serif); letter-spacing: -.01em; }
+  .desc { max-width: 600px; margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .card-body { padding: 16px 20px 20px; }
+  .empty { padding: 28px 8px; text-align: center; color: var(--muted); }
+  .charts { display: grid; gap: 24px; }
+  .charts.two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+  .decide { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+  @media (max-width: 900px) { .decide { grid-template-columns: 1fr; } }
+  .nw { white-space: nowrap; }
+  .tool-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* Isometric cluster */
+  .cluster { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .cluster { grid-template-columns: 1fr; } }
+  .stage-wrap { position: relative; min-width: 0; }
+  #iso { display: block; width: 100%; height: auto; overflow: visible; }
+  #iso [tabindex]:focus { outline: none; }
+  #iso [tabindex]:focus-visible .slab-t, #iso [tabindex]:focus-visible .glass polygon { stroke: var(--rec); stroke-width: 2; stroke-opacity: 1; }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 12.5px; color: var(--fg-2); }
+  .key svg { width: 18px; height: 18px; vertical-align: -4px; margin-right: 6px; }
+  .slab-t { fill: var(--slab); stroke: var(--wire); stroke-opacity: .45; stroke-linejoin: round; }
+  .slab-l { fill: var(--slab-l); stroke: var(--wire); stroke-opacity: .45; stroke-linejoin: round; }
+  .slab-r { fill: var(--slab-r); stroke: var(--wire); stroke-opacity: .45; stroke-linejoin: round; }
+  .vent { stroke: var(--wire); stroke-opacity: .25; stroke-linecap: round; }
+  .socket { fill: none; stroke: var(--wire); stroke-opacity: .13; stroke-linejoin: round; }
+  [data-node] { cursor: pointer; }
+  [data-node]:hover > .slab-t, .sel > .slab-t { stroke-opacity: .9; stroke-width: 1.4; }
+  .pending-node polygon { stroke-dasharray: 4 3; }
+  .led { fill: var(--good); filter: url(#glow); }
+  .led.off { fill: var(--muted); filter: none; }
+  .nl-name { font: 600 13px var(--sans); fill: var(--fg); text-anchor: middle; }
+  .nl-tag { font: 500 11px var(--sans); fill: var(--muted); }
+  .nl-sub { font: 400 11.5px var(--sans); fill: var(--muted); text-anchor: middle; font-variant-numeric: tabular-nums; }
+  .pod { cursor: pointer; transition: opacity .25s; }
+  .glass polygon { fill: var(--glass); stroke: var(--wire); stroke-opacity: .7; stroke-linejoin: round; }
+  .glass-back { fill: none; stroke: var(--wire); stroke-opacity: .18; }
+  .pod:hover .glass polygon { stroke-opacity: 1; stroke-width: 1.4; }
+  .cf-t { fill: var(--c); }
+  .cf-r { fill: color-mix(in srgb, var(--c) 80%, #000); }
+  .cf-l { fill: color-mix(in srgb, var(--c) 64%, #000); }
+  .pod.lit .core { filter: url(#glow); }
+  .pod.notready .core { opacity: .45; }
+  .pod.pending .glass polygon { stroke-dasharray: 3 3; animation: blink 1.2s ease-in-out infinite; }
+  .pod.terminating { opacity: .22; }
+  .pod.spike .core { animation: breathe 1s ease-in-out infinite; }
+  .pod.enter { animation: drop .7s cubic-bezier(.2, .8, .2, 1) both; }
+  .focus [data-app]:not(.hl) { opacity: .16; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-22px); } }
+  @keyframes blink { 50% { stroke-opacity: .2; } }
+  @keyframes breathe { 50% { opacity: .55; } }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border);
+    border-radius: 99px; background: var(--card); color: var(--fg-2); font: 500 12.5px var(--sans); cursor: pointer; }
+  .chip:hover { background: var(--secondary); }
+  .chip[aria-pressed="true"] { border-color: var(--fg); color: var(--fg); }
+  .chip .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* Inspector */
+  .inspector { min-height: 220px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 13px; }
+  .insp-h { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .insp-h b { font-size: 15px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  .insp-h .btn { margin-left: auto; }
+  .insp-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 10px; }
+  .big { font-size: 38px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; margin-top: 8px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 12px 0; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .meter { margin: 12px 0; }
+  .meter-h { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .meter-h span:last-child { color: var(--fg-2); font-variant-numeric: tabular-nums; text-align: right; }
+  .meter .bar { position: relative; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .meter .bar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+  .meter .req { background: color-mix(in srgb, var(--fg) 28%, var(--track)); }
+  .meter .use { background: var(--fg); }
+  table.mini { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.mini th { color: var(--muted); font-weight: 500; text-align: left; padding: 6px 0; }
+  table.mini td { padding: 6px 0; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  table.mini th:not(:first-child), table.mini td:not(:first-child) { text-align: right; }
+  .linkish { all: unset; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .linkish:hover { text-decoration: underline; }
+  .linkish:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+  .note { margin: 10px 0 0; color: var(--fg-2); }
+
+  /* Charts */
+  figure.chart { margin: 0; min-width: 0; }
+  figcaption { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+  figure.chart svg, #flow svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--fg-2); }
+  .chart-legend i { display: inline-block; margin-right: 6px; vertical-align: middle; }
+  .sw-trk { width: 16px; height: 12px; border-radius: 3px; background: var(--track); }
+  .sw-use { width: 16px; height: 6px; border-radius: 3px; background: var(--fg); }
+  .sw-rec { width: 2px; height: 14px; border-radius: 1px; background: var(--rec); }
+  .gridline { stroke: var(--border); }
+  .tick { font: 11px var(--sans); fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .lbl { font: 500 12px var(--sans); fill: var(--fg); }
+  .val { font: 11.5px var(--sans); fill: var(--fg-2); font-variant-numeric: tabular-nums; }
+  .trk { fill: var(--track); }
+  .usebar { fill: var(--fg); }
+  .recmark { stroke: var(--rec); stroke-width: 2; stroke-linecap: round; }
+  .row-hit { fill: transparent; }
+  .brow { cursor: pointer; transition: opacity .25s; }
+  .brow:hover .row-hit { fill: var(--secondary); }
+  .flow-col { font: 500 11px var(--sans); fill: var(--muted); letter-spacing: .02em; }
+  .flow-bar { fill: var(--fg); }
+  .flow-bar.stop { fill: var(--track); stroke: var(--wire); stroke-opacity: .3; }
+  .flow-out { font: 600 12px var(--sans); fill: var(--fg); }
+  .wlf { cursor: pointer; transition: opacity .25s; }
+  .wlf .path { fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; }
+  .wlf .hit { fill: none; stroke: transparent; stroke-width: 14; }
+  .wlf:hover .path { stroke-width: 3; }
+  .draw .path { stroke-dasharray: 1; animation: draw 1.1s cubic-bezier(.4, 0, .2, 1) both; }
+  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  .totals { margin-top: 12px; font-size: 12.5px; color: var(--fg-2); }
+
+  /* Recommendations */
+  .rows { border-top: 1px solid var(--border); }
+  details.wl { border-bottom: 1px solid var(--border); }
+  details.wl summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 4px; list-style: none;
+    cursor: pointer; border-radius: 6px; }
+  details.wl summary::-webkit-details-marker { display: none; }
+  details.wl summary:hover { background: var(--secondary); }
+  .wl .name { font-weight: 600; }
+  .wl .spacer { flex: 1; }
+  .wl .money { font-variant-numeric: tabular-nums; }
+  .wl .money s { color: var(--muted); }
+  .chev { color: var(--muted); transition: transform .2s; }
+  details[open] .chev { transform: rotate(180deg); }
+  .wl-body { padding: 2px 4px 18px 20px; color: var(--fg-2); }
+  .wl-body p { margin: 0 0 8px; }
+  .wl-body ul { margin: 8px 0; padding-left: 18px; }
+  li.guard::marker { content: "⛨  "; color: var(--fg); }
+  li.follow::marker { content: "→  "; color: var(--muted); }
+  .trace { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--secondary); font: 12px/1.5 var(--mono); overflow-wrap: anywhere; }
+  details.files summary { margin-top: 10px; font-size: 13px; font-weight: 500; color: var(--fg); cursor: pointer; }
+  pre { max-height: 340px; overflow: auto; padding: 12px; border-radius: 8px; background: #151514; color: #e9e9e7; font: 12px/1.5 var(--mono); }
+  pre .file { color: #8d8d86; }
+
+  ol.log { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; font-size: 12.5px; }
+  ol.log li { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+  ol.log time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+  ol.log li.err { color: var(--crit); }
+  ol.log:empty::before { content: "Nothing yet. Analyze, apply, spike and reset show up here."; color: var(--muted); }
+
+  .tip { position: fixed; z-index: 50; max-width: 270px; padding: 8px 10px; border-radius: 8px; pointer-events: none;
+    background: var(--primary); color: var(--primary-fg); font-size: 12px; line-height: 1.45; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+  .tip .t { font-weight: 600; overflow-wrap: anywhere; }
+  .tip .s { opacity: .65; margin-bottom: 4px; }
+  .tip .r { display: flex; justify-content: space-between; gap: 18px; }
+  .tip .r span { opacity: .7; }
+  .tip .r b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 <header class="top">
-  <div class="brand">KubeSage <small>AI Control Center</small></div>
-  <span id="mode" class="badge"></span>
-  <span id="runinfo" class="meta"></span>
-  <div class="actions">
-    <button id="btn-analyze" class="primary">Analyze cluster</button>
-    <label class="inline"><input type="checkbox" id="dryrun"> dry run</label>
-    <button id="btn-apply">Apply optimization</button>
-    <button id="btn-gitops" hidden>Open GitOps PR</button>
-    <button id="btn-reset" title="Put the demo back in its oversized 'before' state">Reset demo</button>
+  <div class="top-inner">
+    <div class="brand"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 2.5 20.5 7.4v9.2L12 21.5l-8.5-4.9V7.4z"/><path d="M12 12 20.5 7.4M12 12v9.5M12 12 3.5 7.4"/></svg>
+      KubeSage <span>AI Control Center</span></div>
+    <span id="mode" class="badge">…</span>
+    <div class="actions">
+      <button id="btn-analyze" class="btn btn-primary" data-act></button>
+      <button id="btn-apply" class="btn btn-outline" data-act></button>
+      <label class="switch"><input type="checkbox" id="dryrun" role="switch"> Dry run</label>
+      <button id="btn-gitops" class="btn btn-outline" data-act hidden></button>
+      <button id="btn-reset" class="btn btn-ghost" data-act title="Put the demo back in its oversized 'before' state"></button>
+      <button id="btn-theme" class="btn btn-ghost btn-icon" aria-label="Toggle dark mode"></button>
+    </div>
   </div>
+  <div class="progress"></div>
 </header>
 
 <main>
-  <section class="kpis" id="kpis"></section>
-  <section class="card"><h2>Model router · this run</h2><div class="funnel" id="funnel"></div></section>
-  <div class="layout">
-    <section>
-      <h2>Workloads</h2>
-      <div class="workloads" id="workloads"><div class="card empty">No analysis yet. Press <b>Analyze cluster</b>.</div></div>
-    </section>
-    <aside class="side">
-      <section class="card">
-        <h2>Live cluster</h2>
-        <div id="nodes" class="meta">connecting…</div>
-        <table id="scaling"></table>
-        <div class="spikeform">
-          <button id="btn-spike">Spike traffic</button>
-          <label class="inline">rps <input id="rps" type="number" value="40" min="1" max="200"></label>
-          <label class="inline">ms/req <input id="workms" type="number" value="50" min="1" max="500"></label>
-          <label class="inline">sec <input id="secs" type="number" value="180" min="10" max="900"></label>
+  <section class="hero">
+    <p class="eyebrow" id="runinfo">No analysis yet</p>
+    <h1><span id="headline">Your cluster, <em>right-sized.</em></span></h1>
+    <p class="lede">KubeSage reads 30 days of metrics, sends each workload to the cheapest model that can fix it,
+      and turns the answer into manifests you can apply.</p>
+    <div class="figures" id="figures"></div>
+  </section>
+
+  <section class="card" id="cluster-card">
+    <div class="card-head">
+      <div><h2>Cluster</h2>
+        <p class="desc">Each glass box is the CPU a pod reserves; the glowing core is what it uses right now. Taller glass,
+          smaller core: money left on the table. Click a node or pod.</p></div>
+      <div class="tool-row">
+        <label class="field">rps <input class="num" id="rps" type="number" value="40" min="1" max="200"></label>
+        <label class="field">ms <input class="num" id="workms" type="number" value="50" min="1" max="500"></label>
+        <label class="field">sec <input class="num" id="secs" type="number" value="180" min="10" max="900"></label>
+        <button id="btn-spike" class="btn btn-outline btn-sm" data-act></button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="cluster">
+        <div class="stage-wrap">
+          <div class="key" id="key"></div>
+          <p class="empty" id="cluster-empty">Connecting…</p>
+          <svg id="iso" viewBox="0 0 10 1" role="group" aria-label="Isometric view of the cluster nodes and pods">
+            <defs><filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+            <g id="scene" data-focus-scope></g>
+          </svg>
+          <div class="legend" id="legend"></div>
         </div>
-      </section>
-      <section class="card"><h2>Activity</h2><ol class="log" id="log"></ol></section>
-    </aside>
-  </div>
+        <aside class="inspector" id="inspector" aria-live="polite"></aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><div><h2>Reserved vs used</h2>
+      <p class="desc">Per pod, over the analysis window. The gap between the light bar and the dark bar is what you pay for and never use.</p></div>
+      <div class="chart-legend"><span><i class="sw-trk"></i>Reserved now</span><span><i class="sw-use"></i>Used (CPU p95, memory p99)</span>
+        <span><i class="sw-rec"></i>Recommended</span></div></div>
+    <div class="card-body"><div class="charts" id="bars" data-focus-scope></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><div><h2>How it decided</h2>
+      <p class="desc">Free statistics first, one cheap triage call for everything, and a bigger model only where a workload needs one.</p></div></div>
+    <div class="card-body"><div class="decide"><div><div id="flow" data-focus-scope></div><div class="totals" id="totals"></div></div>
+      <div id="ledger"></div></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><div><h2>Recommendations</h2><p class="desc">What changes, why, and what the guardrails overrode.</p></div></div>
+    <div class="card-body"><div class="rows" id="workloads"><p class="empty">No analysis yet. Press <b>Analyze</b>.</p></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><div><h2>Activity</h2></div></div>
+    <div class="card-body"><ol class="log" id="log"></ol></div>
+  </section>
 </main>
+<div class="tip" id="tip" role="tooltip" hidden></div>
 
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const usd = (v) => (Math.abs(v) < 1 ? "$" + v.toFixed(4) : "$" + v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
 const tok = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
+const cores = (m) => (m == null ? "—" : (m / 1000).toFixed(2));
+const mib = (v) => (v == null ? "—" : v >= 1024 ? (v / 1024).toFixed(1) + " GiB" : Math.round(v) + " MiB");
+const sum = (xs, key) => xs.reduce((a, x) => a + (x[key] ?? 0), 0);
+const shortNode = (n) => n.replace(/^k3d-[^-]+-/, "");
+const shortPod = (p, app) => (p.startsWith(app + "-") ? "…" + p.slice(app.length) : p);
+const appOf = (id) => id.split("/").pop();
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+const ICON = {
+  spark: '<path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.4l-1.9-5.6L4.5 10.9 10.1 9z"/><path d="M19 3v4M17 5h4"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
+  pr: '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5V21M13 6h3a2 2 0 0 1 2 2v7.5"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  chev: '<path d="m6 9 6 6 6-6"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  loader: '<path d="M21 12a9 9 0 1 1-6.2-8.6"/>',
+  healthy: '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.7 2.7L16 9.5"/>',
+  routine: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  complex: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+};
+const icon = (name, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`;
+const STATUS = {
+  HEALTHY: {label: "Healthy", icon: "healthy", color: "var(--good)"},
+  ROUTINE: {label: "Routine", icon: "routine", color: "var(--warn)"},
+  COMPLEX: {label: "Complex", icon: "complex", color: "var(--crit)"},
+};
+const statusBadge = (st) => `<span class="badge"><span style="color:${STATUS[st].color};display:inline-flex">${icon(STATUS[st].icon)}</span>${STATUS[st].label}</span>`;
+
 let TIER = {triage: "triage", worker: "worker", strategist: "strategist"};  // replaced by the report's labels
-// Workload identity colours; deliberately no status red/green.
-const PALETTE = ["#3657d6", "#d07a12", "#7a3ee0", "#0f8a8a", "#b0407e", "#6b7a1f", "#8a5a3c", "#4a5a78"];
-let config = {tiers: {}}, appColors = {};
+let config = {}, report = null, runId = null, cluster = null, sel = null, hoverApp = null, lastSig = "";
+const order = [];  // workload -> colour slot, first seen first; the report goes first so colours never shuffle
+const seenPods = new Set();
+
+function color(app) {
+  let i = order.indexOf(app);
+  if (i < 0) i = order.push(app) - 1;
+  return i < 8 ? `var(--s${i + 1})` : "var(--muted)";  // a 9th workload gets neutral grey, never a generated hue
+}
 
 async function api(path, body) {
   const opts = body === undefined ? {headers: {"X-KubeSage": "1"}}
@@ -154,155 +431,589 @@ async function api(path, body) {
 function log(msg, kind = "") {
   const li = document.createElement("li");
   li.className = kind;
-  li.innerHTML = `<time>${new Date().toLocaleTimeString()}</time>${esc(msg)}`;
+  const t = document.createElement("time");
+  t.textContent = new Date().toLocaleTimeString();
+  li.append(t, document.createTextNode(msg));
   $("#log").prepend(li);
 }
 
 async function busy(button, fn) {
-  const label = button.textContent;
-  document.querySelectorAll(".actions button, #btn-spike").forEach((b) => (b.disabled = true));
-  button.textContent = label + "…";
+  const acts = $$("[data-act]"), ic = button.querySelector(".ic"), original = ic && ic.outerHTML;
+  acts.forEach((b) => (b.disabled = true));
+  document.body.classList.add("busy");
+  if (ic) ic.outerHTML = icon("loader", "spin");
   try { await fn(); } catch (e) { log(e.message, "err"); }
   finally {
-    button.textContent = label;
-    document.querySelectorAll(".actions button, #btn-spike").forEach((b) => (b.disabled = false));
+    const cur = button.querySelector(".ic");
+    if (cur && original) cur.outerHTML = original;
+    acts.forEach((b) => (b.disabled = false));
+    document.body.classList.remove("busy");
   }
 }
 
-function colorFor(app) {
-  if (!(app in appColors)) appColors[app] = PALETTE[Object.keys(appColors).length % PALETTE.length];
-  return appColors[app];
+/* Headline reveal: a violet-cyan-pink edge sweeps across the text and settles into ink. */
+function sweep(el) {
+  if (reduceMotion.matches) return;
+  const t0 = performance.now(), dur = 1600;
+  el.classList.add("sweeping");
+  const frame = (t) => {
+    const k = Math.min(1, (t - t0) / dur), p = (1 - (1 - k) ** 3) * 160;
+    el.style.backgroundImage = `linear-gradient(90deg, var(--fg) ${p - 60}%, #7c5cff ${p - 38}%, #1fc8ff ${p - 19}%, #ff3dc0 ${p}%, transparent ${p}%)`;
+    if (k < 1) requestAnimationFrame(frame);
+    else { el.classList.remove("sweeping"); el.style.backgroundImage = ""; }
+  };
+  requestAnimationFrame(frame);
 }
 
-function kpi(label, value, sub, cls = "") {
-  return `<div class="card kpi"><div class="label">${esc(label)}</div><div class="value ${cls}">${value}</div><div class="sub">${sub}</div></div>`;
-}
-
-function render(run, r) {
-  TIER = {...TIER, ...(r.tiers || {})};
-  $("#runinfo").textContent = `run ${run} · ${r.window_days}-day window · ${r.namespace}`;
-  r.workloads.forEach((w) => colorFor(w.id.split("/")[1]));
-  const before = r.workloads.reduce((a, w) => a + w.monthly_before_usd, 0);
-  const after = r.workloads.reduce((a, w) => a + w.monthly_after_usd, 0);
-  const np = r.node_pool;
-  const counts = {HEALTHY: 0, ROUTINE: 0, COMPLEX: 0};
-  r.workloads.forEach((w) => counts[w.triage.status]++);
-  $("#kpis").innerHTML = [
-    np ? kpi("Node pool (billing)", usd(np.before_monthly_usd - np.after_monthly_usd) + "/mo",
-      `${np.before_nodes}× ${esc(np.before_sku)} ${usd(np.before_monthly_usd)} → ${np.choice.nodes}× ${esc(np.choice.sku)} ${usd(np.after_monthly_usd)}`, "good")
-      : kpi("Node pool (billing)", "—", "no change recommended"),
-    kpi("Requested capacity", usd(before - after) + "/mo", `${usd(before)} → ${usd(after)} per month (allocation view)`, before - after >= 0 ? "good" : "bad"),
-    kpi("LLM cost of this run", usd(r.llm_cost_usd),
-      `vs ${usd(r.baselines_usd.all_calls_on_strategist)} all on ${TIER.strategist} · ${usd(r.baselines_usd.raw_series_to_strategist)} raw series${r.mode === "mock" ? " · estimated (mock)" : ""}`),
-    kpi("Workloads triaged", String(r.workloads.length),
-      `<span class="good">${counts.HEALTHY} healthy</span> · <span style="color:var(--warn)">${counts.ROUTINE} routine</span> · <span class="bad">${counts.COMPLEX} complex</span>`),
-  ].join("");
-
-  const byTier = {};
-  r.ledger.filter((e) => e.stage !== "triage").forEach((e) => {
-    const t = (byTier[e.tier] ||= {calls: 0, inp: 0, out: 0, cost: 0, model: e.model});
-    t.calls++; t.inp += e.input_tokens; t.out += e.output_tokens; t.cost += e.cost_usd;
+/* Tooltip: values come from the cluster and the model, so it is built with textContent only. */
+const tip = $("#tip");
+function showTip(x, y, {title, sub, rows}) {
+  tip.replaceChildren();
+  const add = (cls, text) => { const d = document.createElement("div"); d.className = cls; d.textContent = text; tip.append(d); return d; };
+  add("t", title);
+  if (sub) add("s", sub);
+  rows.forEach(([label, value]) => {
+    const r = add("r", ""), a = document.createElement("span"), b = document.createElement("b");
+    a.textContent = label; b.textContent = value; r.append(a, b);
   });
-  const tri = r.ledger.find((e) => e.stage === "triage");
-  const stage = (title, body) => `<div class="stage"><b>${title}</b><span class="meta">${body}</span></div>`;
-  $("#funnel").innerHTML = [
-    stage("Stage 1 · deterministic stats", `${r.stats.length} workloads · percentiles, peaks, leak slope · $0.00`),
-    `<div class="arrow">➔</div>`,
-    stage(`Stage 2 · <span class="tier triage">${TIER.triage}</span>`, `${esc(tri.model)} · ${tok(tri.input_tokens)} in / ${tok(tri.output_tokens)} out · ${usd(tri.cost_usd)}<br>${counts.HEALTHY} stopped here, 0 more tokens`),
-    `<div class="arrow">➔</div>`,
-    ...["worker", "strategist"].filter((t) => byTier[t]).map((t) => stage(`Stage 3 · <span class="tier ${t}">${TIER[t]}</span>`,
-      `${esc(byTier[t].model)} · ${byTier[t].calls} call${byTier[t].calls > 1 ? "s" : ""} · ${tok(byTier[t].inp)} in / ${tok(byTier[t].out)} out · ${usd(byTier[t].cost)}`)),
-  ].join("");
+  tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(x + 14, innerWidth - w - 8)) + "px";
+  tip.style.top = (y + h + 22 > innerHeight ? y - h - 12 : y + 16) + "px";
+}
+const hideTip = () => (tip.hidden = true);
+function bindTips(root, describe, onSelect) {
+  const target = (ev) => ev.target.closest("[data-tip]");
+  root.addEventListener("pointermove", (ev) => { const t = target(ev); t ? showTip(ev.clientX, ev.clientY, describe(t)) : hideTip(); });
+  root.addEventListener("pointerleave", hideTip);
+  root.addEventListener("focusin", (ev) => {
+    const t = target(ev); if (!t) return;
+    const b = t.getBoundingClientRect();
+    showTip(b.left + b.width / 2, b.bottom, describe(t));
+  });
+  root.addEventListener("focusout", hideTip);
+  root.addEventListener("click", (ev) => onSelect(target(ev)));
+  root.addEventListener("keydown", (ev) => {
+    if ((ev.key === "Enter" || ev.key === " ") && target(ev)) { ev.preventDefault(); onSelect(target(ev)); }
+  });
+}
 
+function select(next) {
+  sel = next && sel && next.kind === sel.kind && next.id === sel.id ? null : next;
+  applyFocus();
+  renderInspector();
+}
+
+function applyFocus() {
+  const f = sel?.kind === "app" ? sel.id : hoverApp;
+  $$("[data-focus-scope]").forEach((s) => s.classList.toggle("focus", !!f));
+  $$("[data-focus-scope] [data-app]").forEach((e) => e.classList.toggle("hl", e.dataset.app === f));
+  $$(".chip[data-app]").forEach((c) => c.setAttribute("aria-pressed", String(sel?.kind === "app" && sel.id === c.dataset.app)));
+  $$("#scene [data-node]").forEach((g) => g.classList.toggle("sel", sel?.kind === "node" && sel.id === g.dataset.node));
+}
+
+/* ---------- Hero figures ---------- */
+
+function hbar(x, y, w, h, r = Math.min(4, h / 2)) {  // a bar with a rounded data end, square at the baseline
+  w = Math.max(w, 0.5); r = Math.min(r, w);
+  return `M${x},${y}H${x + w - r}A${r},${r} 0 0 1 ${x + w},${y + r}V${y + h - r}A${r},${r} 0 0 1 ${x + w - r},${y + h}H${x}Z`;
+}
+
+function fig(label, value, sub, cls = "", extra = "") {
+  return `<div class="fig ${cls}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div>${extra}</div>`;
+}
+
+function renderFigures() {
+  const r = report, el = $("#figures");
+  if (!r) {
+    el.innerHTML = fig("Saved per month", "—", "Press <b>Analyze</b> to find out.", "hero-fig")
+      + fig("Reserved capacity", "—", "allocation view") + fig("Cost to find it", "—", "LLM spend per run") + fig("Workloads", "—", "triaged");
+    return;
+  }
+  const np = r.node_pool, counts = {HEALTHY: 0, ROUTINE: 0, COMPLEX: 0};
+  r.workloads.forEach((w) => counts[w.triage.status]++);
+  const before = sum(r.workloads, "monthly_before_usd"), after = sum(r.workloads, "monthly_after_usd");
+  let hero;
+  if (np) {
+    const max = Math.max(np.before_monthly_usd, np.after_monthly_usd) || 1, span = 220;
+    const bar = (y, v, cls, label) => `<text class="tick" x="0" y="${y - 5}">${esc(label)}</text>
+      <path class="${cls}" d="${hbar(0, y, (v / max) * span, 10)}"/><text class="val" x="${(v / max) * span + 6}" y="${y + 9}">${usd(v)}</text>`;
+    hero = fig("Saved per month · node pool", `${usd(np.before_monthly_usd - np.after_monthly_usd)}<small> /mo</small>`,
+      "what the node pool itself costs (billing view)", "hero-fig",
+      `<svg class="poolbars" viewBox="0 0 300 66" role="img" aria-label="Node pool cost before and after">
+        ${bar(14, np.before_monthly_usd, "trk", `Before · ${np.before_nodes}× ${np.before_sku}`)}
+        ${bar(50, np.after_monthly_usd, "usebar", `After · ${np.choice.nodes}× ${np.choice.sku}`)}</svg>`);
+  } else {
+    hero = fig("Saved per month · node pool", "—", "No node-pool change recommended.", "hero-fig");
+  }
+  el.innerHTML = hero
+    + fig("Reserved capacity", `${usd(after)}<small> /mo</small>`, `was ${usd(before)} · allocation view`)
+    + fig("Cost to find it", usd(r.llm_cost_usd), `${r.ledger.length} LLM calls${r.mode === "mock" ? " · estimated (mock)" : ""}`)
+    + fig("Workloads", String(r.workloads.length), Object.keys(STATUS).map((k) =>
+        `<span class="nw"><span style="color:${STATUS[k].color}">${icon(STATUS[k].icon)}</span> ${counts[k]} ${STATUS[k].label.toLowerCase()}</span>`).join(" &nbsp;"));
+}
+
+/* ---------- Isometric cluster ---------- */
+
+const ISO = {slot: 34, gap: 14, margin: 18, cols: 3, slab: 14, zpc: 46, nodeGap: 120};  // zpc: height of one CPU core
+const COS30 = Math.cos(Math.PI / 6);
+
+function renderKey() {
+  const glass = `<svg viewBox="-12 -16 24 30"><polygon points="0,-14 10,-8 10,6 0,12 -10,6 -10,-8" style="fill:var(--glass);stroke:var(--wire);stroke-opacity:.7"/>
+    <path d="M-10,-8 0,-2 10,-8M0,-2V12" style="fill:none;stroke:var(--wire);stroke-opacity:.7"/></svg>`;
+  const core = `<svg viewBox="-12 -16 24 30"><polygon points="0,0 7,4 7,10 0,14 -7,10 -7,4" style="fill:var(--fg)" filter="url(#glow)"/></svg>`;
+  $("#key").innerHTML = `<span>${glass}Reserved CPU (request)</span><span>${core}Used CPU, live</span>
+    <span class="muted">height: ${ISO.zpc}px per core</span>`;
+}
+
+function renderCluster() {
+  const c = cluster, scene = $("#scene"), svg = $("#iso"), empty = $("#cluster-empty");
+  if (!c || !c.available) {
+    scene.innerHTML = "";
+    svg.setAttribute("viewBox", "0 0 10 1");
+    empty.hidden = false;
+    empty.textContent = c ? "Cluster not reachable. Start it with scripts/cluster-up.sh." : "Connecting…";
+    return;
+  }
+  empty.hidden = true;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const P = (x, y, z = 0) => {
+    const p = [(x - y) * COS30, (x + y) / 2 - z];
+    minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
+    return p;
+  };
+  const pts = (...ps) => ps.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  const box = (x, y, w, d, z0, z1) => {
+    const A = P(x, y, z1), B = P(x + w, y, z1), C = P(x + w, y + d, z1), D = P(x, y + d, z1);
+    const A0 = P(x, y, z0), B0 = P(x + w, y, z0), C0 = P(x + w, y + d, z0), D0 = P(x, y + d, z0);
+    return {top: pts(A, B, C, D), right: pts(B0, C0, C, B), left: pts(D0, C0, C, D),
+            back: `M${pts(A0)}L${pts(B0)}M${pts(A0)}L${pts(D0)}M${pts(A0)}L${pts(A)}`};
+  };
+  const slotXY = (ox, oy, k) => [ox + ISO.margin + (k % ISO.cols) * (ISO.slot + ISO.gap),
+                                 oy + ISO.margin + Math.floor(k / ISO.cols) * (ISO.slot + ISO.gap)];
+  const W = ISO.margin * 2 + ISO.cols * ISO.slot + (ISO.cols - 1) * ISO.gap;
+  const column = $(".stage-wrap").clientWidth < 560;  // phones: one node under the next
+  let T = 0, prevD = 0, out = "";
+  c.nodes.forEach((n, i) => {
+    const pods = [...n.pods].sort((a, b) => a.app.localeCompare(b.app) || a.name.localeCompare(b.name));
+    const rows = Math.max(2, Math.ceil(pods.length / ISO.cols));
+    const D = ISO.margin * 2 + rows * ISO.slot + (rows - 1) * ISO.gap;
+    // Origin (T, -T) moves along the screen's horizontal, (T, T) straight down: below the previous labels,
+    // leaving headroom for 2-core pods.
+    if (i) T += column ? (W + prevD) / 2 + ISO.slab + 84 + 2 * ISO.zpc - ISO.margin : (W + D + ISO.nodeGap) / 2;
+    prevD = D;
+    const ox = T, oy = column ? T : -T, slab = box(ox, oy, W, D, -ISO.slab, 0);
+    const live = pods.filter((p) => p.phase !== "Terminating");
+    const reqM = sum(live, "cpu_request_m"), usedM = sum(live, "cpu_used_m");
+    let g = `<g class="${n.role === "pending" ? "pending-node" : ""}" data-node="${esc(n.name)}" data-tip tabindex="0" role="button"
+      aria-label="${esc(`Node ${shortNode(n.name)}, ${n.sku || "no SKU"}, ${pods.length} pods`)}">
+      <polygon class="slab-l" points="${slab.left}"/><polygon class="slab-r" points="${slab.right}"/><polygon class="slab-t" points="${slab.top}"/>`;
+    for (let v = 0; v < 4; v++) {  // vents on the right face, a little fine-line hardware
+      const x = ox + W, y = oy + D - 22 - v * 7;
+      g += `<path class="vent" d="M${pts(P(x, y, -ISO.slab + 4))}L${pts(P(x, y, -4))}"/>`;
+    }
+    const led = (x0, x1) => pts(P(ox + x0, oy + D, -9.5), P(ox + x1, oy + D, -9.5), P(ox + x1, oy + D, -4.5), P(ox + x0, oy + D, -4.5));
+    g += `<polygon class="led ${n.ready ? "" : "off"}" points="${led(12, 24)}"/><polygon class="led ${live.length ? "" : "off"}" points="${led(30, 42)}"/>`;
+    for (let k = 0; k < rows * ISO.cols; k++) {
+      const [x, y] = slotXY(ox, oy, k);
+      g += `<polygon class="socket" points="${box(x, y, ISO.slot, ISO.slot, 0, 0).top}"/>`;
+    }
+    pods.forEach((p, k) => {
+      const [x, y] = slotXY(ox, oy, k);
+      const term = p.phase === "Terminating", pend = p.phase === "Pending";
+      let hR = p.cpu_request_m != null ? Math.max(3, (p.cpu_request_m / 1000) * ISO.zpc) : 0;
+      const hU = p.cpu_used_m != null && !pend ? Math.max(1.5, (p.cpu_used_m / 1000) * ISO.zpc) : 0;
+      if (!hR && !hU) hR = 3;
+      const glass = hR ? box(x, y, ISO.slot, ISO.slot, 0, hR) : null, inset = 7;
+      const core = hU ? box(x + inset, y + inset, ISO.slot - 2 * inset, ISO.slot - 2 * inset, 0, hU) : null;
+      const glassSvg = glass ? `<g class="glass"><polygon points="${glass.left}"/><polygon points="${glass.right}"/><polygon points="${glass.top}"/></g>` : "";
+      const coreSvg = core ? `<g class="core"><polygon class="cf-l" points="${core.left}"/><polygon class="cf-r" points="${core.right}"/><polygon class="cf-t" points="${core.top}"/></g>` : "";
+      const cls = ["pod", p.ready && !term ? "lit" : "", pend ? "pending" : "", term ? "terminating" : "",
+                   !p.ready && !pend && !term ? "notready" : "", p.app === "loadgen" ? "spike" : "", seenPods.has(p.name) ? "" : "enter"];
+      g += `<g class="${cls.join(" ")}" data-pod="${esc(p.name)}" data-app="${esc(p.app)}" data-tip tabindex="0" role="button"
+        aria-label="${esc(`${p.app} pod on ${shortNode(n.name)}`)}" style="--c:${color(p.app)};animation-delay:${seenPods.size ? 0 : 120 + k * 60}ms">
+        ${glass ? `<path class="glass-back" d="${glass.back}"/>` : ""}${hU > hR ? glassSvg + coreSvg : coreSvg + glassSvg}</g>`;
+    });
+    const cx = (ox - oy + W / 2 - D / 2) * COS30, by = (ox + oy + W + D) / 2 + ISO.slab;
+    const spec = n.sku ? `${n.sku} · ${n.vcpu ?? "?"} vCPU · ${n.memory_gib ?? "?"} GiB${n.monthly_usd != null ? ` · ${usd(n.monthly_usd)}/mo` : ""}`
+      : n.role === "pending" ? "waiting for a node" : "no SKU label";
+    const use = live.length ? `${cores(reqM)} cores reserved · ${cores(usedM)} used` : "no workload pods · idle capacity";
+    g += `<text class="nl-name" x="${cx.toFixed(1)}" y="${by + 28}">${esc(shortNode(n.name))}<tspan class="nl-tag" dx="8">${esc(n.role)}</tspan></text>
+      <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 46}">${esc(spec)}</text>
+      <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 63}">${esc(use)}</text></g>`;
+    minX = Math.min(minX, cx - 130); maxX = Math.max(maxX, cx + 130); maxY = Math.max(maxY, by + 70);
+    out += g;
+  });
+  minY = Math.min(minY, ISO.margin - 2 * ISO.zpc - 8);  // headroom for 2-core pods, so the frame doesn't jump
+  const pad = 10;
+  svg.setAttribute("viewBox", `${(minX - pad).toFixed(0)} ${(minY - pad).toFixed(0)} ${(maxX - minX + 2 * pad).toFixed(0)} ${(maxY - minY + 2 * pad).toFixed(0)}`);
+  scene.innerHTML = out;
+  c.nodes.forEach((n) => n.pods.forEach((p) => seenPods.add(p.name)));
+  applyFocus();
+}
+
+function findPod(name) {
+  for (const n of cluster?.nodes || []) for (const p of n.pods) if (p.name === name) return {...p, node: n.name};
+  return null;
+}
+
+function describeIso(t) {
+  if (t.dataset.pod) {
+    const p = findPod(t.dataset.pod);
+    if (!p) return {title: t.dataset.pod, rows: []};
+    return {title: p.app, sub: `${p.name} · ${shortNode(p.node)}`, rows: [
+      ["CPU used / reserved", `${cores(p.cpu_used_m)} / ${cores(p.cpu_request_m)} cores`],
+      ["Memory used / reserved", `${mib(p.mem_used_mi)} / ${mib(p.mem_request_mi)}`],
+      ["Phase", `${p.phase}${p.ready ? ", ready" : ""}`], ["Restarts", String(p.restarts ?? 0)]]};
+  }
+  const n = cluster.nodes.find((x) => x.name === t.dataset.node);
+  if (!n) return {title: t.dataset.node, rows: []};
+  return {title: shortNode(n.name), sub: [n.role, n.family].filter(Boolean).join(" · "), rows: [
+    ["SKU", n.sku ? `${n.sku} (${n.vcpu} vCPU, ${n.memory_gib} GiB)` : "—"],
+    ["Price", n.monthly_usd != null ? usd(n.monthly_usd) + "/mo" : "—"], ["Workload pods", String(n.pods.length)]]};
+}
+
+function renderLegend() {
+  const counts = {};
+  (cluster?.nodes || []).forEach((n) => n.pods.forEach((p) => { if (p.phase !== "Terminating") counts[p.app] = (counts[p.app] || 0) + 1; }));
+  (report?.workloads || []).forEach((w) => (counts[appOf(w.id)] ??= 0));
+  const apps = Object.keys(counts).sort((a, b) => order.indexOf(a) - order.indexOf(b) || a.localeCompare(b));
+  apps.forEach(color);
+  $("#legend").innerHTML = apps.map((a) => `<button class="chip" data-app="${esc(a)}" aria-pressed="false">
+    <span class="dot" style="--c:${color(a)}"></span>${esc(a)}<span class="n">${counts[a]} pod${counts[a] === 1 ? "" : "s"}</span></button>`).join("");
+  applyFocus();
+}
+
+/* ---------- Inspector ---------- */
+
+function meter(label, used, req, cap, fmt) {
+  const pct = (v) => Math.min(100, ((v || 0) / cap) * 100).toFixed(1);
+  return `<div class="meter"><div class="meter-h"><span>${label}</span><span>${fmt(req)} reserved · ${fmt(used)} used of ${fmt(cap)}</span></div>
+    <div class="bar"><span class="req" style="width:${pct(req)}%"></span><span class="use" style="width:${pct(used)}%"></span></div></div>`;
+}
+const closeBtn = `<button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Back to the whole cluster">${icon("x")}</button>`;
+
+function renderInspector() {
+  const el = $("#inspector"), c = cluster;
+  if (!c || !c.available) { el.innerHTML = `<p class="muted">Waiting for the cluster…</p>`; return; }
+  const pods = c.nodes.flatMap((n) => n.pods.map((p) => ({...p, node: n.name}))).filter((p) => p.phase !== "Terminating");
+  if (sel?.kind === "node") {
+    const n = c.nodes.find((x) => x.name === sel.id);
+    if (n) { el.innerHTML = nodePanel(n, pods.filter((p) => p.node === n.name)); return; }
+  }
+  if (sel?.kind === "app") { el.innerHTML = appPanel(sel.id, pods.filter((p) => p.app === sel.id)); return; }
+  const req = sum(pods, "cpu_request_m"), used = sum(pods, "cpu_used_m");
+  const apps = [...new Set(pods.map((p) => p.app))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  el.innerHTML = `<div class="insp-h"><b>Whole cluster</b></div>
+    <div class="big">${c.metrics && req ? Math.round((used / req) * 100) + "%" : "—"}</div>
+    <div class="muted">${c.metrics ? "of the CPU reserved by workload pods is in use right now" : "live usage appears once metrics-server is ready"}</div>
+    <dl class="kv"><dt>Nodes</dt><dd>${c.nodes.filter((n) => n.role !== "pending").length}</dd>
+      <dt>Node pool</dt><dd>${usd(sum(c.nodes, "monthly_usd"))}/mo</dd>
+      <dt>CPU reserved · used</dt><dd>${cores(req)} · ${cores(used)} cores</dd>
+      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(sum(pods, "mem_used_mi"))}</dd></dl>
+    <table class="mini"><tr><th>Workload</th><th>Pods</th><th>Reserved</th><th>Used</th></tr>${apps.map((a) => {
+      const ps = pods.filter((p) => p.app === a);
+      return `<tr><td><button class="linkish" data-pick="${esc(a)}"><span class="dot" style="--c:${color(a)}"></span>${esc(a)}</button></td>
+        <td>${ps.length}</td><td>${cores(sum(ps, "cpu_request_m"))}</td><td>${cores(sum(ps, "cpu_used_m"))}</td></tr>`;
+    }).join("")}</table>`;
+}
+
+function nodePanel(n, pods) {
+  const tags = [n.role, n.family, n.ready ? "Ready" : "Not ready"].filter(Boolean).map((t) => `<span class="badge">${esc(t)}</span>`).join("");
+  return `<div class="insp-h"><b>${esc(shortNode(n.name))}</b>${closeBtn}</div><div class="insp-tags">${tags}</div>
+    <dl class="kv"><dt>SKU</dt><dd>${esc(n.sku || "—")}</dd><dt>Size</dt><dd>${n.vcpu != null ? `${n.vcpu} vCPU · ${n.memory_gib} GiB` : "—"}</dd>
+      <dt>Price</dt><dd>${n.monthly_usd != null ? usd(n.monthly_usd) + "/mo" : "—"}</dd><dt>Workload pods</dt><dd>${pods.length}</dd></dl>
+    ${n.allocatable_cpu_m ? meter("CPU", sum(pods, "cpu_used_m"), sum(pods, "cpu_request_m"), n.allocatable_cpu_m, (v) => cores(v)) +
+      meter("Memory", sum(pods, "mem_used_mi"), sum(pods, "mem_request_mi"), n.allocatable_mem_mi, mib) : ""}
+    <p class="muted">${pods.length ? "Meters are against what pods can request on this SKU (allocatable)." : "Nothing scheduled here: capacity you pay for and don't use."}</p>`;
+}
+
+function appPanel(app, pods) {
+  const w = report?.workloads.find((x) => appOf(x.id) === app), sc = cluster.scaling[app] || {}, rec = w?.recommendation;
+  const tags = [w ? statusBadge(w.triage.status) : "", w?.tier ? `<span class="badge">${esc(TIER[w.tier])}</span>` : ""].join("");
+  const scaling = sc.min != null ? `KEDA ${sc.min}–${sc.max} · ${esc((sc.triggers || []).join(" + "))}` : "fixed replicas";
+  return `<div class="insp-h"><span class="dot" style="--c:${color(app)}"></span><b>${esc(app)}</b>${closeBtn}</div><div class="insp-tags">${tags}</div>
+    <dl class="kv"><dt>Pods ready</dt><dd>${pods.filter((p) => p.ready).length} of ${pods.length}${sc.desired != null && sc.desired !== pods.length ? ` → ${sc.desired}` : ""}</dd>
+      <dt>Scaling</dt><dd>${scaling}</dd>${sc.cpu != null ? `<dt>CPU vs target</dt><dd>${sc.cpu}%</dd>` : ""}
+      <dt>CPU reserved · used</dt><dd>${cores(sum(pods, "cpu_request_m"))} · ${cores(sum(pods, "cpu_used_m"))}</dd>
+      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(sum(pods, "mem_used_mi"))}</dd>
+      ${w ? `<dt>Cost</dt><dd>${usd(w.monthly_before_usd)} → ${usd(w.monthly_after_usd)}/mo</dd>` : ""}</dl>
+    ${rec ? `<p class="note">${esc(rec.diagnosis)}</p>` : w ? `<p class="note">${esc(w.triage.summary)}</p>` : ""}
+    ${pods.length ? `<table class="mini" style="margin-top:10px"><tr><th>Pod</th><th>Node</th><th>Used / reserved</th></tr>${pods.map((p) =>
+      `<tr><td>${esc(shortPod(p.name, app))}</td><td>${esc(shortNode(p.node))}</td><td>${cores(p.cpu_used_m)} / ${cores(p.cpu_request_m)}</td></tr>`).join("")}</table>`
+      : `<p class="muted">No pods right now${sc.min === 0 ? " (scaled to zero until its next cron window)" : ""}.</p>`}`;
+}
+
+/* ---------- Reserved vs used (bullet charts) ---------- */
+
+function niceMax(v) {
+  if (!(v > 0)) return 1;
+  const e = 10 ** Math.floor(Math.log10(v)), m = v / e;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * e;
+}
+
+function bullet(rows, key, title, fmt, W) {
+  const L = 128, R = W < 400 ? 88 : 96, rowH = 32, top = 6, H = top + rows.length * rowH + 22;
+  const max = niceMax(Math.max(...rows.flatMap((r) => [r[key].req, r[key].used, r[key].rec ?? 0])));
+  const x = (v) => L + (Math.min(v, max) / max) * (W - L - R);
+  let s = "";
+  [0, max / 2, max].forEach((t) => {
+    s += `<line class="gridline" x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${H - 18}"/>
+      <text class="tick" x="${x(t)}" y="${H - 4}" text-anchor="middle">${fmt(t)}</text>`;
+  });
+  rows.forEach((r, i) => {
+    const v = r[key], y = top + i * rowH + rowH / 2;
+    s += `<g class="brow" data-app="${esc(r.app)}" data-key="${key}" data-tip tabindex="0" role="button" aria-label="${esc(r.app)}">
+      <rect class="row-hit" x="0" y="${y - rowH / 2 + 1}" width="${W}" height="${rowH - 2}" rx="6"/>
+      <circle cx="8" cy="${y}" r="4" style="fill:${color(r.app)}"/><text class="lbl" x="18" y="${y + 4}">${esc(r.app)}</text>
+      <path class="trk" d="${hbar(L, y - 7, x(v.req) - L, 14)}"/>
+      <path class="usebar" d="${hbar(L, y - 3, x(v.used) - L, 6, 3)}"/>
+      ${v.rec != null ? `<line class="recmark" x1="${x(v.rec)}" x2="${x(v.rec)}" y1="${y - 10}" y2="${y + 10}"/>` : ""}
+      <text class="val" x="${W - R + 10}" y="${y + 4}">${fmt(v.req)}${v.rec != null ? " → " + fmt(v.rec) : ""}</text></g>`;
+  });
+  return `<figure class="chart"><figcaption>${title}</figcaption>
+    <svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${title}: reserved, used and recommended per workload">${s}</svg></figure>`;
+}
+
+function barRows() {
+  const stats = Object.fromEntries(report.stats.map((s) => [s.id, s]));
+  return report.workloads.map((w) => {
+    const s = stats[w.id], res = w.recommendation?.resources;
+    return {app: appOf(w.id), w, s,
+      cpu: {req: s.cpu_request_cores ?? 0, used: s.cpu_pod_p95, rec: res ? res.cpu_request_m / 1000 : null},
+      mem: {req: (s.mem_request_mib ?? 0) / 1024, used: s.mem_pod_p99_mib / 1024, rec: res ? res.mem_request_mi / 1024 : null}};
+  });
+}
+
+function renderBars() {
+  const el = $("#bars");
+  if (!report) { el.innerHTML = `<p class="empty">Run an analysis to compare what each workload reserves with what it uses.</p>`; return; }
+  const rows = barRows(), cw = el.clientWidth || 480, two = cw >= 720, W = Math.max(300, Math.floor(two ? (cw - 32) / 2 : cw));
+  el.classList.toggle("two", two);
+  el.innerHTML = bullet(rows, "cpu", "CPU per pod, cores", (v) => v.toFixed(2), W)
+    + bullet(rows, "mem", "Memory per pod", (v) => (v < 1 ? Math.round(v * 1024) + " Mi" : (+v.toFixed(1)) + " Gi"), W);
+  applyFocus();
+}
+
+function describeBar(t) {
+  const r = barRows().find((x) => x.app === t.dataset.app), cpu = t.dataset.key === "cpu";
+  const f = cpu ? (v) => v.toFixed(2) + " cores" : (v) => mib(v * 1024), v = r[t.dataset.key];
+  return {title: r.app, sub: cpu ? "CPU per pod" : "Memory per pod", rows: [
+    ["Reserved now", f(v.req)], [cpu ? "Used, p95" : "Used, p99", f(v.used)],
+    ["Recommended", v.rec != null ? f(v.rec) : "no change"], ["Pods", String(r.s.replicas)]]};
+}
+
+/* ---------- How it decided (router flow) ---------- */
+
+function renderFlow(animate) {
+  const el = $("#flow");
+  if (!report) {
+    el.innerHTML = `<p class="empty">The model router appears here after an analysis.</p>`;
+    $("#totals").textContent = ""; $("#ledger").textContent = "";
+    return;
+  }
+  const r = report, groups = ["strategist", "worker", "stop"];
+  const outcome = (w) => w.tier || "stop";
+  const rows = [...r.workloads].sort((a, b) => groups.indexOf(outcome(a)) - groups.indexOf(outcome(b)));
+  const W = Math.max(320, Math.min(620, el.clientWidth || 520)), rowH = 30, top = 30, H = top + rows.length * rowH + 10;
+  const xL = 120, xO = W - (W < 440 ? 128 : 168), xT = Math.round(xL + (xO - xL) * 0.42);
+  const calls = {};
+  r.ledger.forEach((e) => { const k = e.stage === "triage" ? "triage" : e.tier; (calls[k] ||= []).push(e); });
+  const live = groups.filter((g) => rows.some((w) => outcome(w) === g));
+  const per = 20, gapG = 18, total = rows.length * per + (live.length - 1) * gapG;
+  let yo = top + (rows.length * rowH - total) / 2;
+  const slot = {}, bars = [];
+  live.forEach((g) => {
+    const ws = rows.filter((w) => outcome(w) === g);
+    bars.push({g, y0: yo, y1: yo + ws.length * per});
+    ws.forEach((w, j) => (slot[w.id] = yo + per / 2 + j * per));
+    yo += ws.length * per + gapG;
+  });
+  const tri = calls.triage?.[0];
+  let s = `<text class="flow-col" x="${xL}" y="12" text-anchor="end">STATS · $0</text>
+    <text class="flow-col" x="${xT + 4}" y="12" text-anchor="middle">TRIAGE</text><text class="flow-col" x="${xO}" y="12">FIX</text>
+    <rect class="flow-bar" x="${xT}" y="${top}" width="8" height="${rows.length * rowH}" rx="4"/>`;
+  rows.forEach((w, i) => {
+    const y = top + i * rowH + rowH / 2, y2 = slot[w.id], app = appOf(w.id), mid = (xT + 8 + xO) / 2;
+    const d = `M${xL + 8},${y}H${xT}M${xT + 8},${y}C${mid},${y} ${mid},${y2} ${xO},${y2}`;
+    s += `<g class="wlf" data-app="${esc(app)}" data-wl="${esc(w.id)}" data-tip tabindex="0" role="button" aria-label="${esc(app)}" style="--c:${color(app)}">
+      <text class="lbl" x="${xL - 4}" y="${y + 4}" text-anchor="end">${esc(app)}</text><circle cx="${xL + 4}" cy="${y}" r="4" style="fill:var(--c)"/>
+      <path class="hit" d="${d}"/><path class="path" d="${d}" pathLength="1" style="animation-delay:${i * 90}ms"/></g>`;
+  });
+  bars.forEach(({g, y0, y1}) => {
+    const es = calls[g] || [], cost = es.reduce((a, e) => a + e.cost_usd, 0), n = rows.filter((w) => outcome(w) === g).length;
+    const name = g === "stop" ? "Stopped" : TIER[g];
+    const sub = g === "stop" ? `${n} healthy · 0 tokens` : `${es.length} call${es.length === 1 ? "" : "s"} · ${usd(cost)}`;
+    s += `<rect class="flow-bar ${g === "stop" ? "stop" : ""}" x="${xO}" y="${y0}" width="8" height="${y1 - y0}" rx="4"/>
+      <text class="flow-out" x="${xO + 16}" y="${(y0 + y1) / 2 - 2}">${esc(name)}</text>
+      <text class="val" x="${xO + 16}" y="${(y0 + y1) / 2 + 13}">${esc(sub)}</text>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="Model routing for each workload" class="${animate && !reduceMotion.matches ? "draw" : ""}">${s}</svg>`;
+  const inTok = sum(r.ledger, "input_tokens"), outTok = sum(r.ledger, "output_tokens"), b = r.baselines_usd;
+  $("#totals").innerHTML = `<b>${r.ledger.length} calls · ${usd(r.llm_cost_usd)}</b> · ${tok(inTok)} in / ${tok(outTok)} out
+    ${tri ? `· triage on ${esc(tri.model)}` : ""} <br><span class="muted">Same calls all on ${esc(TIER.strategist)}: ${usd(b.all_calls_on_strategist)} ·
+    raw 5-minute series to ${esc(TIER.strategist)}: ${usd(b.raw_series_to_strategist)}</span>`;
+  const who = (e) => (e.workload === "*" ? "all workloads" : e.workload === "cluster" ? "node pool" : appOf(e.workload));
+  $("#ledger").innerHTML = `<table class="mini"><tr><th>Call</th><th>Tier</th><th>Tokens in / out</th><th>Cost</th></tr>${r.ledger.map((e) =>
+    `<tr><td>${esc(e.stage)} · ${esc(who(e))}</td><td>${esc(TIER[e.tier] || e.tier)}</td><td>${tok(e.input_tokens)} / ${tok(e.output_tokens)}</td>
+      <td>${usd(e.cost_usd)}</td></tr>`).join("")}
+    <tr><td><b>Total</b></td><td></td><td>${tok(inTok)} / ${tok(outTok)}</td><td><b>${usd(r.llm_cost_usd)}</b></td></tr></table>`;
+  applyFocus();
+}
+
+function describeFlow(t) {
+  const w = report.workloads.find((x) => x.id === t.dataset.wl);
+  const e = report.ledger.find((x) => x.stage === "recommend" && x.workload === w.id);
+  return {title: appOf(w.id), sub: STATUS[w.triage.status].label + (w.tier ? ` → ${TIER[w.tier]}` : " → stopped at triage"), rows: e
+    ? [["Model", e.model], ["Tokens in / out", `${tok(e.input_tokens)} / ${tok(e.output_tokens)}`], ["Cost", usd(e.cost_usd)]]
+    : [["Extra tokens", "0"], ["Why", w.triage.summary.slice(0, 80)]]};
+}
+
+/* ---------- Recommendations ---------- */
+
+function renderWorkloads() {
+  const r = report;
+  if (!r) return;
   const stats = Object.fromEntries(r.stats.map((s) => [s.id, s]));
-  const recCalls = Object.fromEntries(r.ledger.filter((e) => e.stage === "recommend").map((e) => [e.workload, e]));
-  const triShare = tri.cost_usd / Math.max(r.workloads.length, 1);
+  const calls = Object.fromEntries(r.ledger.filter((e) => e.stage === "recommend").map((e) => [e.workload, e]));
+  const triShare = (r.ledger.find((e) => e.stage === "triage")?.cost_usd || 0) / Math.max(r.workloads.length, 1);
   $("#workloads").innerHTML = r.workloads.map((w) => {
-    const s = stats[w.id], rec = w.recommendation, e = recCalls[w.id];
-    const delta = w.monthly_before_usd - w.monthly_after_usd;
-    const name = w.id.split("/")[1];
-    const files = Object.entries(w.manifests);
-    return `<article class="card wl ${w.triage.status}">
-      <header><h3><span class="dot" style="background:${colorFor(name)}"></span>${esc(name)}</h3><span class="pill ${w.triage.status}">${w.triage.status}</span>
-        ${w.tier ? `<span class="tier ${w.tier}">${TIER[w.tier]}</span>` : ""}${rec ? `<span class="meta">risk ${esc(rec.risk)}</span>` : ""}</header>
-      <div class="money">${rec ? `<span class="before">${usd(w.monthly_before_usd)}</span> → <b>${usd(w.monthly_after_usd)}</b>/mo
-        <span class="${delta >= 0 ? "good" : "bad"}">${delta >= 0 ? "−" : "+"}${usd(Math.abs(delta))}</span>` : `<b>${usd(w.monthly_before_usd)}</b>/mo`}</div>
-      <div class="stats">CPU p95 ${s.cpu_pod_p95.toFixed(2)} of ${(s.cpu_request_cores ?? 0).toFixed(2)} cores · mem p99 ${Math.round(s.mem_pod_p99_mib)} of ${Math.round(s.mem_request_mib ?? 0)} MiB · ${s.replicas} pod${s.replicas === 1 ? "" : "s"} · ${s.restarts} restarts</div>
-      <p class="diag">${esc(rec ? rec.diagnosis : w.triage.summary)}</p>
-      ${rec && (w.guardrail_notes.length || rec.follow_ups.length) ? `<ul class="notes">
-        ${w.guardrail_notes.map((n) => `<li class="guard">${esc(n)}</li>`).join("")}
-        ${rec.follow_ups.map((f) => `<li class="follow">${esc(f)}</li>`).join("")}</ul>` : ""}
-      <div class="trace">${TIER.triage} share ${usd(triShare)}${e ? ` ➔ ${TIER[w.tier]} ${tok(e.input_tokens)} in / ${tok(e.output_tokens)} out ${usd(e.cost_usd)} | diagnosis ${usd(triShare + e.cost_usd)}${delta >= 0 ? ` | saves ${usd(delta)}/mo` : ` | costs ${usd(-delta)}/mo more`}` : " | stopped at triage"}</div>
-      ${files.length ? `<details><summary>Manifests (${files.length})</summary><pre>${files.map(([f, t]) => `<span class="file"># ${esc(f)}</span>\n${esc(t)}`).join("\n")}</pre></details>` : ""}
-    </article>`;
+    const s = stats[w.id], rec = w.recommendation, e = calls[w.id], app = appOf(w.id);
+    const delta = w.monthly_before_usd - w.monthly_after_usd, files = Object.entries(w.manifests);
+    const money = rec ? `<s>${usd(w.monthly_before_usd)}</s> → <b>${usd(w.monthly_after_usd)}</b>/mo` : `<b>${usd(w.monthly_before_usd)}</b>/mo`;
+    return `<details class="wl"><summary><span class="dot" style="--c:${color(app)}"></span><span class="name">${esc(app)}</span>
+        ${statusBadge(w.triage.status)}${w.tier ? `<span class="badge">${esc(TIER[w.tier])}</span>` : ""}
+        ${rec ? `<span class="badge">risk ${esc(rec.risk)}</span>` : ""}<span class="spacer"></span><span class="money">${money}</span>${icon("chev", "chev")}</summary>
+      <div class="wl-body">
+        <p>${esc(rec ? rec.diagnosis : w.triage.summary)}</p>
+        <p class="muted">CPU p95 ${s.cpu_pod_p95.toFixed(2)} of ${(s.cpu_request_cores ?? 0).toFixed(2)} cores · memory p99 ${Math.round(s.mem_pod_p99_mib)} of
+          ${Math.round(s.mem_request_mib ?? 0)} MiB · ${s.replicas} pod${s.replicas === 1 ? "" : "s"} · ${s.restarts} restarts</p>
+        ${rec && (w.guardrail_notes.length || rec.follow_ups.length) ? `<ul>${w.guardrail_notes.map((n) => `<li class="guard">${esc(n)}</li>`).join("")}
+          ${rec.follow_ups.map((f) => `<li class="follow">${esc(f)}</li>`).join("")}</ul>` : ""}
+        <div class="trace">${esc(TIER.triage)} share ${usd(triShare)}${e ? ` → ${esc(TIER[w.tier])} ${tok(e.input_tokens)} in / ${tok(e.output_tokens)} out ${usd(e.cost_usd)}
+          · diagnosis ${usd(triShare + e.cost_usd)} · ${delta >= 0 ? `saves ${usd(delta)}/mo` : `costs ${usd(-delta)}/mo more`}` : " · stopped at triage"}</div>
+        ${files.length ? `<details class="files"><summary>Manifests (${files.length})</summary><pre>${files.map(([f, t]) =>
+          `<span class="file"># ${esc(f)}</span>\n${esc(t)}`).join("\n")}</pre></details>` : ""}
+      </div></details>`;
   }).join("");
 }
 
-async function loadReport() {
-  try {
-    const {run, report} = await api("/api/report");
-    render(run, report);
-  } catch (e) {
-    if (e.status !== 404) log(e.message, "err");
+/* ---------- Wiring ---------- */
+
+function renderReport(animate) {
+  const r = report;
+  if (r) {
+    TIER = {...TIER, ...(r.tiers || {})};
+    r.workloads.map((w) => appOf(w.id)).sort().forEach(color);
+    $("#runinfo").innerHTML = `<span class="badge">Run ${esc(runId)}</span>${r.window_days}-day window · namespace ${esc(r.namespace)} ·
+      ${new Date(r.generated_at).toLocaleString()}`;
   }
+  renderFigures(); renderBars(); renderFlow(animate); renderWorkloads(); renderLegend(); renderInspector();
+  if (animate) sweep($("#headline"));
 }
 
 async function refreshCluster() {
   try {
-    const c = await api("/api/cluster");
-    if (!c.available) { $("#nodes").textContent = "cluster not reachable (scripts/cluster-up.sh)"; $("#scaling").innerHTML = ""; return; }
-    $("#nodes").innerHTML = c.nodes.map((n) => `<div class="node"><div class="node-h"><b>${esc(n.name)}</b><span class="meta">${n.pods.length} pods</span>
-      <span class="sku">${esc(n.sku ?? "")}</span></div><div class="pods">${n.pods.map((p) =>
-        `<span class="pod ${esc(p.phase)} ${p.ready ? "" : "notready"}" style="background:${colorFor(p.app)}" title="${esc(p.name)} · ${esc(p.phase)}">${esc(p.app)}</span>`).join("")}</div></div>`).join("");
-    const apps = {};
-    c.nodes.forEach((n) => n.pods.forEach((p) => { if (p.phase !== "Terminating") apps[p.app] = (apps[p.app] || 0) + 1; }));
-    const names = [...new Set([...Object.keys(apps), ...Object.keys(c.scaling)])].sort();
-    $("#scaling").innerHTML = `<tr><th>workload</th><th>pods</th><th>KEDA min–max</th><th>CPU / request</th></tr>` + names.map((a) => {
-      const s = c.scaling[a] || {};
-      return `<tr><td><span class="dot" style="background:${colorFor(a)}"></span> ${esc(a)}</td><td>${apps[a] || 0}${s.desired != null && s.desired !== (apps[a] || 0) ? ` → ${s.desired}` : ""}</td>
-        <td>${s.min != null ? `${s.min}–${s.max} <span class="meta">${esc((s.triggers || []).join("+"))}</span>` : "—"}</td><td>${s.cpu != null ? s.cpu + "%" : "—"}</td></tr>`;
-    }).join("");
+    const c = await api("/api/cluster"), sig = JSON.stringify(c);
+    if (sig === lastSig) return;
+    lastSig = sig; cluster = c;
   } catch (e) {
-    $("#nodes").textContent = "cluster status unavailable: " + e.message;
+    cluster = {available: false}; lastSig = "";
   }
+  renderCluster(); renderLegend(); renderInspector();
 }
 
-$("#btn-analyze").onclick = (ev) => busy(ev.target, async () => {
-  log("analyzing: Stage 1 stats → triage → remediation → node pool");
-  const {run, report} = await api("/api/analyze", {});
-  render(run, report);
-  log(`analysis ${run} done · LLM ${usd(report.llm_cost_usd)}${report.mode === "mock" ? " (mock)" : ""}`, "ok");
+function setLabel(id, iconName, text) { $(id).innerHTML = `${icon(iconName)}<span>${text}</span>`; }
+
+function initTheme() {
+  try { const t = localStorage.getItem("kubesage-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) { /* storage blocked */ }
+  const paint = () => {
+    const dark = (document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+    $("#btn-theme").innerHTML = icon(dark ? "sun" : "moon");
+    return dark;
+  };
+  $("#btn-theme").onclick = () => {
+    const next = paint() ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("kubesage-theme", next); } catch (e) { /* storage blocked */ }
+    paint();
+  };
+  paint();
+}
+
+setLabel("#btn-analyze", "spark", "Analyze");
+setLabel("#btn-apply", "check", "Apply");
+setLabel("#btn-gitops", "pr", "GitOps PR");
+setLabel("#btn-reset", "undo", "Reset demo");
+setLabel("#btn-spike", "zap", "Spike traffic");
+initTheme();
+renderKey();
+
+bindTips($("#iso"), describeIso, (t) => {
+  if (!t) return select(null);
+  select(t.dataset.pod ? {kind: "app", id: t.dataset.app} : {kind: "node", id: t.dataset.node});
 });
-$("#btn-apply").onclick = (ev) => busy(ev.target, async () => {
-  const dry = $("#dryrun").checked;
-  const res = await api("/api/apply", {dry_run: dry});
+bindTips($("#bars"), describeBar, (t) => t && select({kind: "app", id: t.dataset.app}));
+bindTips($("#flow"), describeFlow, (t) => t && select({kind: "app", id: t.dataset.app}));
+$("#legend").addEventListener("click", (ev) => { const c = ev.target.closest(".chip"); if (c) select({kind: "app", id: c.dataset.app}); });
+$("#legend").addEventListener("pointerover", (ev) => { const c = ev.target.closest(".chip"); hoverApp = c ? c.dataset.app : null; applyFocus(); });
+$("#legend").addEventListener("pointerleave", () => { hoverApp = null; applyFocus(); });
+$("#inspector").addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-close]")) select(null);
+  const pick = ev.target.closest("[data-pick]");
+  if (pick) select({kind: "app", id: pick.dataset.pick});
+});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && sel) select(null); });
+
+$("#btn-analyze").onclick = (ev) => busy(ev.currentTarget, async () => {
+  log("analyzing: stats → triage → remediation → node pool");
+  const res = await api("/api/analyze", {});
+  runId = res.run; report = res.report;
+  renderReport(true);
+  log(`analysis ${res.run} done · LLM ${usd(report.llm_cost_usd)}${report.mode === "mock" ? " (mock)" : ""}`, "ok");
+});
+$("#btn-apply").onclick = (ev) => busy(ev.currentTarget, async () => {
+  const dry = $("#dryrun").checked, res = await api("/api/apply", {dry_run: dry});
   res.steps.forEach((s) => log(`${s.skipped ? "skip" : s.ok ? "ok" : "ERR"} ${s.file}: ${s.skipped || s.output}`, s.skipped ? "" : s.ok ? "ok" : "err"));
   log(`${dry ? "dry run of" : "applied"} ${res.run}`, "ok");
   refreshCluster();
 });
-$("#btn-spike").onclick = (ev) => busy(ev.target, async () => {
+$("#btn-spike").onclick = (ev) => busy(ev.currentTarget, async () => {
   const res = await api("/api/spike", {rps: +$("#rps").value, work_ms: +$("#workms").value, seconds: +$("#secs").value});
   log(`spike ${res.job}: ${res.RPS} rps × ${res.WORK_MS} ms on ${res.TARGET} for ${res.SECONDS}s`, "ok");
 });
-$("#btn-reset").onclick = (ev) => busy(ev.target, async () => {
+$("#btn-reset").onclick = (ev) => busy(ev.currentTarget, async () => {
   const res = await api("/api/reset", {});
   log("demo reset to the 'before' state", res.ok ? "ok" : "err");
   refreshCluster();
 });
-$("#btn-gitops").onclick = (ev) => busy(ev.target, async () => {
+$("#btn-gitops").onclick = (ev) => busy(ev.currentTarget, async () => {
   const res = await api("/api/gitops", {open_pr: true});
   log(res.pr_url ? `PR opened: ${res.pr_url}` : `committed ${res.commit.slice(0, 10)} on ${res.branch}`, "ok");
 });
 
+let laidOutAt = $("main").clientWidth;
+new ResizeObserver(() => {
+  const w = $("main").clientWidth;
+  if (Math.abs(w - laidOutAt) < 4) return;
+  laidOutAt = w;
+  renderCluster();
+  if (report) { renderBars(); renderFlow(false); }
+}).observe($("main"));
+
 (async () => {
   try {
     config = await api("/api/config");
-    $("#mode").textContent = config.mode === "mock" ? "MOCK LLM" : "LIVE LLM";
-    $("#mode").className = "badge " + config.mode;
+    const live = config.mode !== "mock";
+    $("#mode").innerHTML = `<span class="pulse-dot" style="--c:${live ? "var(--good)" : "var(--warn)"}"></span>${live ? "Live LLM" : "Mock LLM"}`;
     $("#btn-gitops").hidden = !config.gitops;
   } catch (e) { log(e.message, "err"); }
-  await loadReport();
-  refreshCluster();
+  try {
+    const res = await api("/api/report");
+    runId = res.run; report = res.report;
+  } catch (e) { if (e.status !== 404) log(e.message, "err"); }
+  renderReport(true);
+  await refreshCluster();
   setInterval(refreshCluster, 3000);
 })();
 </script>
