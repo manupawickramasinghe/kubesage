@@ -7,6 +7,9 @@ right-sized resource patches, proactive KEDA `ScaledObject`s and a cheaper node-
 It also tracks its own LLM bill: a 3-stage router only sends a workload to an expensive model when a
 cheap one says it needs it.
 
+**Docs:** [docs/](docs/README.md). Start with the [UI guide](docs/ui-guide.md). The demo runs on
+[two real machines](docs/cluster.md), and there's a [handover](docs/HANDOVER.md) for reviewers.
+
 ```
  Prometheus / VictoriaMetrics
             │  30 days of cAdvisor + kube-state-metrics series
@@ -44,8 +47,8 @@ Grafana: http://localhost:3300 (anonymous view, admin/admin to edit) opens the "
 
 ### Local cluster + apply
 
-A one-node [k3d](https://k3d.io) cluster with KEDA, running the five demo Deployments in their oversized
-"before" state (pause containers, so the requests reserve capacity but use none). Adds ~600 MiB RAM.
+A [k3d](https://k3d.io) cluster with KEDA, running the five demo Deployments in their oversized "before"
+state: a tiny Python app per workload with requests far above what it uses. Adds ~600 MiB RAM.
 
 ```bash
 scripts/cluster-up.sh                # downloads pinned k3d + kubectl into .bin/, creates cluster, installs KEDA
@@ -55,12 +58,21 @@ scripts/demo-reset.sh                # back to the "before" state, to run the de
 scripts/cluster-down.sh
 ```
 
-**Two-node SKU mode.** `TWO_NODE=1 scripts/cluster-up.sh` adds an agent node (or upgrades a running one-node
-cluster). The server node is labelled `kubesage.io/sku=D8s_v5` (the current pool) and the agent `F4s_v2`.
-The demo pods start pinned to the expensive node. When the node-pool step picks a cheaper SKU, `analyze` writes
-`*.migrate.yaml` nodeSelector patches and `apply` moves every pod onto the cheap node live. Migrations are
-skipped when no node carries the target label. For two physical machines (8600G + 3500U), see
-[docs/two-machines.md](docs/two-machines.md).
+**Two real machines.** The demo cluster is the Ryzen 5 8600G desktop (k3s server in k3d) plus the Ryzen 5
+3500U laptop, joined over SSH as a native k3s agent:
+
+```bash
+NODE_IP=192.168.1.9 scripts/cluster-up.sh             # publish API, kubelet and VXLAN on the desktop's LAN IP
+scripts/live-up.sh
+scripts/join-node.sh manupa@192.168.1.92              # laptop joins as a worker labelled F8s_v2
+```
+
+The desktop node is labelled `kubesage.io/sku=D8s_v5` (the current pool) and the laptop `F8s_v2`. The demo pods
+start pinned to the desktop. When the node-pool step picks the laptop's SKU, `analyze` writes `*.migrate.yaml`
+nodeSelector patches and `apply` moves every pod onto the laptop live. Migrations are skipped when no node
+carries the target label. Networking details, the VXLAN-through-NAT checksum trap, and how to undo it are in
+[docs/cluster.md](docs/cluster.md). `TWO_NODE=1 scripts/cluster-up.sh` is the one-machine alternative: a second
+k3d container on the same host.
 
 ### Live mode + traffic spike
 
@@ -94,14 +106,18 @@ The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
 
 ![KubeSage AI Control Center](docs/control-center.png)
 
-One page for the whole pitch, top to bottom:
+One page for the whole pitch, top to bottom. Every part is explained in the [UI guide](docs/ui-guide.md).
+- **Steps**: ① **Analyze** (find the waste), ② **Apply fixes** (with a dry-run switch), ③ **Send traffic** (prove it
+  still scales). Each shows its status.
 - **Savings**: what the node pool saves per month (billing view) with a before/after bar, the requested-capacity
   cost (allocation view), what the LLM calls of the run cost, and the triage counts.
-- **Cluster**: an isometric drawing of the live cluster, polled every 3 s. Each node is a slab labelled with its
-  SKU, size and monthly price. Each pod is a glass box as tall as its CPU request, with a glowing core as tall as
-  the CPU it uses right now (metrics-server). Tall glass around a small core is money left on the table. Click a
-  node for its SKU and reserved/used meters, or a pod or legend chip for that workload's scaling, pods and
-  recommendation. **Spike traffic** shows up as a pulsing `loadgen` pod and new replicas dropping in.
+- **Cluster**: an isometric drawing of the live cluster, polled every 3 s. Each slab is a real machine, labelled
+  with its hostname, CPU model, threads, RAM and live usage. Ten lights on its front show its CPU right now.
+  Each pod is a glass box as tall as its CPU request, with a glowing core as tall as the CPU it uses right now
+  (metrics-server), easing to each new reading. Tall glass around a small core is money left on the table.
+  Click a machine for its hardware, OS, meters and cost-model label, or a pod or legend chip for that
+  workload's scaling, pods and recommendation. Every motion is a real event: pods dropping in, fading out or
+  moving machines.
 - **Reserved vs used**: bullet charts per workload, CPU and memory: reserved now, used (p95 / p99) and the
   recommended request.
 - **How it decided**: the model-router flow for the run (stats → triage → which tier, or stopped at triage) next
@@ -109,8 +125,8 @@ One page for the whole pitch, top to bottom:
 - **Recommendations**: one row per workload with status, tier and before → after cost. Open it for the diagnosis,
   guardrail clamps, follow-ups, the router trace and the manifests.
 
-Buttons: **Analyze**, **Apply** (with a dry-run switch), **Spike traffic**, **Reset demo**, a light/dark toggle,
-and **GitOps PR** when a GitOps repo is configured. Selecting a workload anywhere highlights it in every diagram.
+The header has **Reset demo**, a light/dark toggle, and **GitOps PR** when a GitOps repo is configured. Selecting a
+workload anywhere highlights it in every diagram.
 
 Stdlib HTTP server and one self-contained HTML file. The fonts (Inter and Instrument Serif, SIL OFL) are vendored
 in `kubesage/web/static/fonts` and served by `kubesage serve`, so there is no CDN and it still works on bad venue
@@ -177,7 +193,8 @@ scale-to-zero only for workloads Stage 1 flags as `batch-pattern`.
 
 Series use real metric names (`container_cpu_usage_seconds_total`, `container_memory_working_set_bytes`,
 `kube_pod_container_resource_requests`, ...), so the analyzer works unchanged against a real cluster's TSDB.
-The "before" node pool (3× D8s_v5) is a scenario setting in [`config/skus.yaml`](config/skus.yaml).
+The "before" node pool (1× D8s_v5, the desktop) is set in [`config/skus.yaml`](config/skus.yaml). Prices are
+Azure list prices: each real machine stands in for the cloud VM its `kubesage.io/sku` label names.
 
 ## Layout
 
@@ -196,7 +213,8 @@ kubesage/
   web/        `kubesage serve`: stdlib server + single-file UI + vendored fonts
 config/       model tiers + SKU catalog
 deploy/       Grafana provisioning + dashboard, demo k8s manifests
-scripts/      pinned tool install, cluster up/down/reset
+scripts/      pinned tool install, cluster up/down/reset, live metrics, join/leave a machine
+docs/         guides, diagrams, screenshots, handover
 ```
 
 ## Roadmap
@@ -206,3 +224,4 @@ scripts/      pinned tool install, cluster up/down/reset
 - [x] Web UI ("AI Control Center") on top of `report.json`, with the router-trace badges
 - [x] GitOps: open a PR with the manifests instead of applying directly
 - [x] Two-node mode: label nodes as SKUs and migrate pods to the cheap node live
+- [x] Real two-machine cluster (8600G + 3500U) with real hardware and live usage in the UI

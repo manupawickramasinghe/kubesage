@@ -139,7 +139,17 @@
   .decide { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 32px; align-items: start; }
   @media (max-width: 900px) { .decide { grid-template-columns: 1fr; } }
   .nw { white-space: nowrap; }
-  .tool-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .steps { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 900px) { .steps { grid-template-columns: 1fr; } }
+  .step { display: flex; gap: 12px; padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+  .step-n { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--secondary); font-size: 13px; font-weight: 600; }
+  .step.done .step-n { background: var(--primary); color: var(--primary-fg); }
+  .step-b { min-width: 0; }
+  .step-b b { font-size: 14.5px; letter-spacing: -.01em; }
+  .step-b > p { margin: 4px 0 0; color: var(--fg-2); font-size: 13px; }
+  .step-a { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; }
+  .step-b > p.step-s { margin-top: 10px; color: var(--muted); font-size: 12.5px; }
 
   /* Isometric cluster */
   .cluster { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
@@ -160,6 +170,8 @@
   .pending-node polygon { stroke-dasharray: 4 3; }
   .led { fill: var(--good); filter: url(#glow); }
   .led.off { fill: var(--muted); filter: none; }
+  .led.load { fill: var(--rec); }
+  .led.load.off { fill: var(--track); stroke: var(--wire); stroke-opacity: .15; }
   .nl-name { font: 600 13px var(--sans); fill: var(--fg); text-anchor: middle; }
   .nl-tag { font: 500 11px var(--sans); fill: var(--muted); }
   .nl-sub { font: 400 11.5px var(--sans); fill: var(--muted); text-anchor: middle; font-variant-numeric: tabular-nums; }
@@ -174,12 +186,10 @@
   .pod.notready .core { opacity: .45; }
   .pod.pending .glass polygon { stroke-dasharray: 3 3; animation: blink 1.2s ease-in-out infinite; }
   .pod.terminating { opacity: .22; }
-  .pod.spike .core { animation: breathe 1s ease-in-out infinite; }
   .pod.enter { animation: drop .7s cubic-bezier(.2, .8, .2, 1) both; }
   .focus [data-app]:not(.hl) { opacity: .16; }
   @keyframes drop { from { opacity: 0; transform: translateY(-22px); } }
   @keyframes blink { 50% { stroke-opacity: .2; } }
-  @keyframes breathe { 50% { opacity: .55; } }
   .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
   .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border);
     border-radius: 99px; background: var(--card); color: var(--fg-2); font: 500 12.5px var(--sans); cursor: pointer; }
@@ -194,9 +204,9 @@
   .insp-h .btn { margin-left: auto; }
   .insp-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 10px; }
   .big { font-size: 38px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; margin-top: 8px; }
-  .kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 12px 0; }
+  .kv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 5px 12px; margin: 12px 0; }
   .kv dt { color: var(--muted); }
-  .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .meter { margin: 12px 0; }
   .meter-h { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
   .meter-h span:last-child { color: var(--fg-2); font-variant-numeric: tabular-nums; text-align: right; }
@@ -292,11 +302,9 @@
       KubeSage <span>AI Control Center</span></div>
     <span id="mode" class="badge">…</span>
     <div class="actions">
-      <button id="btn-analyze" class="btn btn-primary" data-act></button>
-      <button id="btn-apply" class="btn btn-outline" data-act></button>
-      <label class="switch"><input type="checkbox" id="dryrun" role="switch"> Dry run</label>
       <button id="btn-gitops" class="btn btn-outline" data-act hidden></button>
-      <button id="btn-reset" class="btn btn-ghost" data-act title="Put the demo back in its oversized 'before' state"></button>
+      <button id="btn-reset" class="btn btn-ghost" data-act
+        title="Put the demo back in its oversized 'before' state: big requests, every workload on the 8600G"></button>
       <button id="btn-theme" class="btn btn-ghost btn-icon" aria-label="Toggle dark mode"></button>
     </div>
   </div>
@@ -309,20 +317,35 @@
     <h1><span id="headline">Your cluster, <em>right-sized.</em></span></h1>
     <p class="lede">KubeSage reads 30 days of metrics, sends each workload to the cheapest model that can fix it,
       and turns the answer into manifests you can apply.</p>
+    <ol class="steps">
+      <li class="step" id="step-analyze"><span class="step-n">1</span>
+        <div class="step-b"><b>Find the waste</b>
+          <p>Reads the metrics, triages every workload with the cheapest model and writes fixed manifests. About a cent.</p>
+          <div class="step-a"><button id="btn-analyze" class="btn btn-primary btn-sm" data-act></button></div>
+          <p class="step-s" id="st-analyze"></p></div></li>
+      <li class="step" id="step-apply"><span class="step-n">2</span>
+        <div class="step-b"><b>Fix it on the cluster</b>
+          <p>Shrinks requests, adds autoscaling and moves the pods to the cheaper machine. Watch the cluster below.</p>
+          <div class="step-a"><button id="btn-apply" class="btn btn-outline btn-sm" data-act></button>
+            <label class="switch"><input type="checkbox" id="dryrun" role="switch"> Dry run</label></div>
+          <p class="step-s" id="st-apply"></p></div></li>
+      <li class="step" id="step-spike"><span class="step-n">3</span>
+        <div class="step-b"><b>Prove it still scales</b>
+          <p>Sends real HTTP load at checkout-web. Its CPU climbs and the autoscaler adds pods.</p>
+          <div class="step-a"><button id="btn-spike" class="btn btn-outline btn-sm" data-act></button>
+            <label class="field">req/s <input class="num" id="rps" type="number" value="80" min="1" max="200"></label>
+            <label class="field">seconds <input class="num" id="secs" type="number" value="180" min="10" max="900"></label>
+            <input id="workms" type="hidden" value="50"></div>
+          <p class="step-s" id="st-spike"></p></div></li>
+    </ol>
     <div class="figures" id="figures"></div>
   </section>
 
   <section class="card" id="cluster-card">
     <div class="card-head">
       <div><h2>Cluster</h2>
-        <p class="desc">Each glass box is the CPU a pod reserves; the glowing core is what it uses right now. Taller glass,
-          smaller core: money left on the table. Click a node or pod.</p></div>
-      <div class="tool-row">
-        <label class="field">rps <input class="num" id="rps" type="number" value="40" min="1" max="200"></label>
-        <label class="field">ms <input class="num" id="workms" type="number" value="50" min="1" max="500"></label>
-        <label class="field">sec <input class="num" id="secs" type="number" value="180" min="10" max="900"></label>
-        <button id="btn-spike" class="btn btn-outline btn-sm" data-act></button>
-      </div>
+        <p class="desc">Each slab is a real machine in the cluster. Each glass box is a pod: as tall as the CPU it reserves,
+          with a glowing core as tall as the CPU it uses right now. Live, every 3 seconds. Click a machine or a pod.</p></div>
     </div>
     <div class="card-body">
       <div class="cluster">
@@ -410,6 +433,7 @@ const statusBadge = (st) => `<span class="badge"><span style="color:${STATUS[st]
 
 let TIER = {triage: "triage", worker: "worker", strategist: "strategist"};  // replaced by the report's labels
 let config = {}, report = null, runId = null, cluster = null, sel = null, hoverApp = null, lastSig = "";
+let applied = null, spikeEnds = 0;  // what this browser session did, for the step statuses
 const order = [];  // workload -> colour slot, first seen first; the report goes first so colours never shuffle
 const seenPods = new Set();
 
@@ -557,13 +581,43 @@ function renderFigures() {
 
 const ISO = {slot: 34, gap: 14, margin: 18, cols: 3, slab: 14, zpc: 46, nodeGap: 120};  // zpc: height of one CPU core
 const COS30 = Math.cos(Math.PI / 6);
+const project = (x, y, z = 0) => [(x - y) * COS30, (x + y) / 2 - z];
+const ptsOf = (...ps) => ps.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+function prism(x, y, w, d, z0, z1, P = project) {
+  const A = P(x, y, z1), B = P(x + w, y, z1), C = P(x + w, y + d, z1), D = P(x, y + d, z1);
+  const A0 = P(x, y, z0), B0 = P(x + w, y, z0), C0 = P(x + w, y + d, z0), D0 = P(x, y + d, z0);
+  return {top: ptsOf(A, B, C, D), right: ptsOf(B0, C0, C, B), left: ptsOf(D0, C0, C, D),
+          back: `M${ptsOf(A0)}L${ptsOf(B0)}M${ptsOf(A0)}L${ptsOf(D0)}M${ptsOf(A0)}L${ptsOf(A)}`};
+}
+const cpuName = (m) => (m || "").replace(/^AMD |^Intel\(R\) Core\(TM\) /, "").replace(/ (w\/|with) .*$| \d+-Core Processor$/, "");
+const coreH = new Map();  // pod -> core height on screen, so a new usage reading animates instead of jumping
+
+function tweenCores(tweens) {
+  const moving = reduceMotion.matches ? [] : tweens.filter((t) => Math.abs(t.to - t.from) > 0.5);
+  tweens.forEach((t) => coreH.set(t.name, t.to));
+  if (!moving.length) return;
+  const t0 = performance.now(), dur = 900;
+  const frame = (now) => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - (1 - k) ** 3;
+    moving.forEach((t) => {
+      const g = $("#scene").querySelector(`[data-pod="${CSS.escape(t.name)}"] .core`);
+      if (!g) return;
+      const f = prism(t.x, t.y, t.s, t.s, 0, t.from + (t.to - t.from) * e);
+      g.children[0].setAttribute("points", f.left); g.children[1].setAttribute("points", f.right); g.children[2].setAttribute("points", f.top);
+    });
+    if (k < 1) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
 
 function renderKey() {
   const glass = `<svg viewBox="-12 -16 24 30"><polygon points="0,-14 10,-8 10,6 0,12 -10,6 -10,-8" style="fill:var(--glass);stroke:var(--wire);stroke-opacity:.7"/>
     <path d="M-10,-8 0,-2 10,-8M0,-2V12" style="fill:none;stroke:var(--wire);stroke-opacity:.7"/></svg>`;
   const core = `<svg viewBox="-12 -16 24 30"><polygon points="0,0 7,4 7,10 0,14 -7,10 -7,4" style="fill:var(--fg)" filter="url(#glow)"/></svg>`;
-  $("#key").innerHTML = `<span>${glass}Reserved CPU (request)</span><span>${core}Used CPU, live</span>
-    <span class="muted">height: ${ISO.zpc}px per core</span>`;
+  const leds = `<svg viewBox="0 0 30 12" style="width:30px">${[0, 1, 2, 3, 4].map((i) =>
+    `<rect x="${i * 6}" y="3" width="4" height="6" rx="1" style="fill:${i < 2 ? "var(--rec)" : "var(--track)"}"/>`).join("")}</svg>`;
+  $("#key").innerHTML = `<span>${glass}CPU a pod reserves</span><span>${core}CPU it uses now</span>
+    <span>${leds}Machine CPU now, 10% per light</span>`;
 }
 
 function renderCluster() {
@@ -582,13 +636,7 @@ function renderCluster() {
     minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
     return p;
   };
-  const pts = (...ps) => ps.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
-  const box = (x, y, w, d, z0, z1) => {
-    const A = P(x, y, z1), B = P(x + w, y, z1), C = P(x + w, y + d, z1), D = P(x, y + d, z1);
-    const A0 = P(x, y, z0), B0 = P(x + w, y, z0), C0 = P(x + w, y + d, z0), D0 = P(x, y + d, z0);
-    return {top: pts(A, B, C, D), right: pts(B0, C0, C, B), left: pts(D0, C0, C, D),
-            back: `M${pts(A0)}L${pts(B0)}M${pts(A0)}L${pts(D0)}M${pts(A0)}L${pts(A)}`};
-  };
+  const pts = ptsOf, box = (x, y, w, d, z0, z1) => prism(x, y, w, d, z0, z1, P), tweens = [];
   const slotXY = (ox, oy, k) => [ox + ISO.margin + (k % ISO.cols) * (ISO.slot + ISO.gap),
                                  oy + ISO.margin + Math.floor(k / ISO.cols) * (ISO.slot + ISO.gap)];
   const W = ISO.margin * 2 + ISO.cols * ISO.slot + (ISO.cols - 1) * ISO.gap;
@@ -600,13 +648,13 @@ function renderCluster() {
     const D = ISO.margin * 2 + rows * ISO.slot + (rows - 1) * ISO.gap;
     // Origin (T, -T) moves along the screen's horizontal, (T, T) straight down: below the previous labels,
     // leaving headroom for 2-core pods.
-    if (i) T += column ? (W + prevD) / 2 + ISO.slab + 84 + 2 * ISO.zpc - ISO.margin : (W + D + ISO.nodeGap) / 2;
+    if (i) T += column ? (W + prevD) / 2 + ISO.slab + 100 + 2 * ISO.zpc - ISO.margin : (W + D + ISO.nodeGap) / 2;
     prevD = D;
     const ox = T, oy = column ? T : -T, slab = box(ox, oy, W, D, -ISO.slab, 0);
     const live = pods.filter((p) => p.phase !== "Terminating");
     const reqM = sum(live, "cpu_request_m"), usedM = sum(live, "cpu_used_m");
     let g = `<g class="${n.role === "pending" ? "pending-node" : ""}" data-node="${esc(n.name)}" data-tip tabindex="0" role="button"
-      aria-label="${esc(`Node ${shortNode(n.name)}, ${n.sku || "no SKU"}, ${pods.length} pods`)}">
+      aria-label="${esc(`Machine ${n.host || n.name}, ${pods.length} pods`)}">
       <polygon class="slab-l" points="${slab.left}"/><polygon class="slab-r" points="${slab.right}"/><polygon class="slab-t" points="${slab.top}"/>`;
     for (let v = 0; v < 4; v++) {  // vents on the right face, a little fine-line hardware
       const x = ox + W, y = oy + D - 22 - v * 7;
@@ -614,6 +662,11 @@ function renderCluster() {
     }
     const led = (x0, x1) => pts(P(ox + x0, oy + D, -9.5), P(ox + x1, oy + D, -9.5), P(ox + x1, oy + D, -4.5), P(ox + x0, oy + D, -4.5));
     g += `<polygon class="led ${n.ready ? "" : "off"}" points="${led(12, 24)}"/><polygon class="led ${live.length ? "" : "off"}" points="${led(30, 42)}"/>`;
+    const load = n.cpu_used_m != null && n.cpu_cores ? n.cpu_used_m / (n.cpu_cores * 1000) : null;
+    for (let k = 0; k < 10; k++) {  // the machine's CPU right now (metrics-server), one light per 10%
+      const on = load != null && k < Math.max(load > 0 ? 1 : 0, Math.round(load * 10));
+      g += `<polygon class="led load ${on ? "" : "off"}" points="${led(54 + k * 10, 61 + k * 10)}"/>`;
+    }
     for (let k = 0; k < rows * ISO.cols; k++) {
       const [x, y] = slotXY(ox, oy, k);
       g += `<polygon class="socket" points="${box(x, y, ISO.slot, ISO.slot, 0, 0).top}"/>`;
@@ -624,24 +677,30 @@ function renderCluster() {
       let hR = p.cpu_request_m != null ? Math.max(3, (p.cpu_request_m / 1000) * ISO.zpc) : 0;
       const hU = p.cpu_used_m != null && !pend ? Math.max(1.5, (p.cpu_used_m / 1000) * ISO.zpc) : 0;
       if (!hR && !hU) hR = 3;
-      const glass = hR ? box(x, y, ISO.slot, ISO.slot, 0, hR) : null, inset = 7;
-      const core = hU ? box(x + inset, y + inset, ISO.slot - 2 * inset, ISO.slot - 2 * inset, 0, hU) : null;
+      const glass = hR ? box(x, y, ISO.slot, ISO.slot, 0, hR) : null, inset = 7, s = ISO.slot - 2 * inset;
+      const from = coreH.has(p.name) ? coreH.get(p.name) : hU;  // drawn at the last reading, then tweened to this one
+      tweens.push({name: p.name, x: x + inset, y: y + inset, s, from, to: hU});
+      box(x + inset, y + inset, s, s, 0, hU);  // keeps the frame big enough for where the tween ends
+      const core = from || hU ? box(x + inset, y + inset, s, s, 0, from) : null;
       const glassSvg = glass ? `<g class="glass"><polygon points="${glass.left}"/><polygon points="${glass.right}"/><polygon points="${glass.top}"/></g>` : "";
       const coreSvg = core ? `<g class="core"><polygon class="cf-l" points="${core.left}"/><polygon class="cf-r" points="${core.right}"/><polygon class="cf-t" points="${core.top}"/></g>` : "";
       const cls = ["pod", p.ready && !term ? "lit" : "", pend ? "pending" : "", term ? "terminating" : "",
-                   !p.ready && !pend && !term ? "notready" : "", p.app === "loadgen" ? "spike" : "", seenPods.has(p.name) ? "" : "enter"];
+                   !p.ready && !pend && !term ? "notready" : "", seenPods.has(p.name) ? "" : "enter"];
       g += `<g class="${cls.join(" ")}" data-pod="${esc(p.name)}" data-app="${esc(p.app)}" data-tip tabindex="0" role="button"
         aria-label="${esc(`${p.app} pod on ${shortNode(n.name)}`)}" style="--c:${color(p.app)};animation-delay:${seenPods.size ? 0 : 120 + k * 60}ms">
         ${glass ? `<path class="glass-back" d="${glass.back}"/>` : ""}${hU > hR ? glassSvg + coreSvg : coreSvg + glassSvg}</g>`;
     });
     const cx = (ox - oy + W / 2 - D / 2) * COS30, by = (ox + oy + W + D) / 2 + ISO.slab;
-    const spec = n.sku ? `${n.sku} · ${n.vcpu ?? "?"} vCPU · ${n.memory_gib ?? "?"} GiB${n.monthly_usd != null ? ` · ${usd(n.monthly_usd)}/mo` : ""}`
-      : n.role === "pending" ? "waiting for a node" : "no SKU label";
-    const use = live.length ? `${cores(reqM)} cores reserved · ${cores(usedM)} used` : "no workload pods · idle capacity";
-    g += `<text class="nl-name" x="${cx.toFixed(1)}" y="${by + 28}">${esc(shortNode(n.name))}<tspan class="nl-tag" dx="8">${esc(n.role)}</tspan></text>
-      <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 46}">${esc(spec)}</text>
-      <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 63}">${esc(use)}</text></g>`;
-    minX = Math.min(minX, cx - 130); maxX = Math.max(maxX, cx + 130); maxY = Math.max(maxY, by + 70);
+    const hw = n.role === "pending" ? "waiting for a machine" : [cpuName(n.cpu_model), n.cpu_cores != null ? `${n.cpu_cores} threads` : "",
+      n.mem_mi != null ? `${mib(n.mem_mi)} RAM` : ""].filter(Boolean).join(" · ");
+    const now = n.cpu_used_m != null ? `using ${cores(n.cpu_used_m)} cores · ${mib(n.mem_used_mi)}${n.k3d ? " (k3d node)" : ""}` : "";
+    const use = live.length ? `pods reserve ${cores(reqM)} cores, use ${cores(usedM)}` : "no workload pods";
+    const tag = n.role === "control-plane" ? "control plane" : n.role;
+    g += `<text class="nl-name" x="${cx.toFixed(1)}" y="${by + 28}">${esc(n.host || shortNode(n.name))}<tspan class="nl-tag" dx="8">${esc(tag)}</tspan></text>
+      <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 46}">${esc(hw)}</text>
+      <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 63}">${esc(now)}</text>
+      <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 80}">${esc(use)}</text></g>`;
+    minX = Math.min(minX, cx - 130); maxX = Math.max(maxX, cx + 130); maxY = Math.max(maxY, by + 86);
     out += g;
   });
   minY = Math.min(minY, ISO.margin - 2 * ISO.zpc - 8);  // headroom for 2-core pods, so the frame doesn't jump
@@ -649,6 +708,7 @@ function renderCluster() {
   svg.setAttribute("viewBox", `${(minX - pad).toFixed(0)} ${(minY - pad).toFixed(0)} ${(maxX - minX + 2 * pad).toFixed(0)} ${(maxY - minY + 2 * pad).toFixed(0)}`);
   scene.innerHTML = out;
   c.nodes.forEach((n) => n.pods.forEach((p) => seenPods.add(p.name)));
+  tweenCores(tweens);
   applyFocus();
 }
 
@@ -668,9 +728,10 @@ function describeIso(t) {
   }
   const n = cluster.nodes.find((x) => x.name === t.dataset.node);
   if (!n) return {title: t.dataset.node, rows: []};
-  return {title: shortNode(n.name), sub: [n.role, n.family].filter(Boolean).join(" · "), rows: [
-    ["SKU", n.sku ? `${n.sku} (${n.vcpu} vCPU, ${n.memory_gib} GiB)` : "—"],
-    ["Price", n.monthly_usd != null ? usd(n.monthly_usd) + "/mo" : "—"], ["Workload pods", String(n.pods.length)]]};
+  return {title: n.host || shortNode(n.name), sub: `${n.name} · ${n.role}${n.k3d ? " · k3d container" : ""}`, rows: [
+    ["CPU", `${cpuName(n.cpu_model) || "—"} · ${n.cpu_cores ?? "?"} threads`], ["Memory", mib(n.mem_mi)],
+    ["Using now", n.cpu_used_m != null ? `${cores(n.cpu_used_m)} cores · ${mib(n.mem_used_mi)}` : "—"],
+    ["Workload pods", String(n.pods.length)], ["Cost model", n.pool ? `${n.pool} · ${usd(n.pool_monthly_usd ?? 0)}/mo` : "—"]]};
 }
 
 function renderLegend() {
@@ -686,10 +747,11 @@ function renderLegend() {
 
 /* ---------- Inspector ---------- */
 
-function meter(label, used, req, cap, fmt) {
+function meter(label, used, req, cap, fmt) {  // req null: a plain usage meter
   const pct = (v) => Math.min(100, ((v || 0) / cap) * 100).toFixed(1);
-  return `<div class="meter"><div class="meter-h"><span>${label}</span><span>${fmt(req)} reserved · ${fmt(used)} used of ${fmt(cap)}</span></div>
-    <div class="bar"><span class="req" style="width:${pct(req)}%"></span><span class="use" style="width:${pct(used)}%"></span></div></div>`;
+  const text = req == null ? `${fmt(used)} of ${fmt(cap)}` : `${fmt(req)} reserved · ${fmt(used)} used of ${fmt(cap)}`;
+  return `<div class="meter"><div class="meter-h"><span>${label}</span><span>${text}</span></div>
+    <div class="bar">${req == null ? "" : `<span class="req" style="width:${pct(req)}%"></span>`}<span class="use" style="width:${pct(used)}%"></span></div></div>`;
 }
 const closeBtn = `<button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Back to the whole cluster">${icon("x")}</button>`;
 
@@ -707,8 +769,9 @@ function renderInspector() {
   el.innerHTML = `<div class="insp-h"><b>Whole cluster</b></div>
     <div class="big">${c.metrics && req ? Math.round((used / req) * 100) + "%" : "—"}</div>
     <div class="muted">${c.metrics ? "of the CPU reserved by workload pods is in use right now" : "live usage appears once metrics-server is ready"}</div>
-    <dl class="kv"><dt>Nodes</dt><dd>${c.nodes.filter((n) => n.role !== "pending").length}</dd>
-      <dt>Node pool</dt><dd>${usd(sum(c.nodes, "monthly_usd"))}/mo</dd>
+    <dl class="kv"><dt>Machines</dt><dd>${esc(c.nodes.filter((n) => n.role !== "pending").map((n) => n.host || n.name).join(", "))}</dd>
+      <dt>Real capacity</dt><dd>${sum(c.nodes, "cpu_cores")} threads · ${mib(sum(c.nodes, "mem_mi"))}</dd>
+      <dt>Cost model</dt><dd>${usd(sum(c.nodes, "pool_monthly_usd"))}/mo</dd>
       <dt>CPU reserved · used</dt><dd>${cores(req)} · ${cores(used)} cores</dd>
       <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(sum(pods, "mem_used_mi"))}</dd></dl>
     <table class="mini"><tr><th>Workload</th><th>Pods</th><th>Reserved</th><th>Used</th></tr>${apps.map((a) => {
@@ -719,13 +782,23 @@ function renderInspector() {
 }
 
 function nodePanel(n, pods) {
-  const tags = [n.role, n.family, n.ready ? "Ready" : "Not ready"].filter(Boolean).map((t) => `<span class="badge">${esc(t)}</span>`).join("");
-  return `<div class="insp-h"><b>${esc(shortNode(n.name))}</b>${closeBtn}</div><div class="insp-tags">${tags}</div>
-    <dl class="kv"><dt>SKU</dt><dd>${esc(n.sku || "—")}</dd><dt>Size</dt><dd>${n.vcpu != null ? `${n.vcpu} vCPU · ${n.memory_gib} GiB` : "—"}</dd>
-      <dt>Price</dt><dd>${n.monthly_usd != null ? usd(n.monthly_usd) + "/mo" : "—"}</dd><dt>Workload pods</dt><dd>${pods.length}</dd></dl>
-    ${n.allocatable_cpu_m ? meter("CPU", sum(pods, "cpu_used_m"), sum(pods, "cpu_request_m"), n.allocatable_cpu_m, (v) => cores(v)) +
-      meter("Memory", sum(pods, "mem_used_mi"), sum(pods, "mem_request_mi"), n.allocatable_mem_mi, mib) : ""}
-    <p class="muted">${pods.length ? "Meters are against what pods can request on this SKU (allocatable)." : "Nothing scheduled here: capacity you pay for and don't use."}</p>`;
+  if (n.role === "pending") return `<div class="insp-h"><b>Unscheduled pods</b>${closeBtn}</div><p class="muted">No machine has room for these yet.</p>`;
+  const tags = [n.role === "control-plane" ? "control plane" : n.role, n.k3d ? "k3d container" : "bare metal", n.ready ? "Ready" : "Not ready"]
+    .map((t) => `<span class="badge">${esc(t)}</span>`).join("");
+  const where = n.k3d ? "k3d node" : "Machine";
+  return `<div class="insp-h"><b>${esc(n.host || shortNode(n.name))}</b>${closeBtn}</div><div class="insp-tags">${tags}</div>
+    <dl class="kv"><dt>CPU</dt><dd>${esc(cpuName(n.cpu_model) || "—")}</dd><dt>Threads · RAM</dt><dd>${n.cpu_cores ?? "—"} · ${mib(n.mem_mi)}</dd>
+      <dt>OS</dt><dd>${esc(n.os || "—")}</dd><dt>Kernel</dt><dd>${esc(n.kernel || "—")}</dd>
+      <dt>Kubernetes</dt><dd>${esc(n.kubelet || "—")}</dd><dt>IP</dt><dd>${esc(n.external_ip || n.internal_ip || "—")}</dd>
+      <dt>Node</dt><dd>${esc(n.name)}</dd><dt>Joined</dt><dd>${n.created ? esc(new Date(n.created).toLocaleString()) : "—"}</dd></dl>
+    ${n.alloc_cpu_m ? meter("Pods: CPU", sum(pods, "cpu_used_m"), sum(pods, "cpu_request_m"), n.alloc_cpu_m, cores)
+      + meter("Pods: memory", sum(pods, "mem_used_mi"), sum(pods, "mem_request_mi"), n.alloc_mem_mi, mib) : ""}
+    ${n.cpu_used_m != null ? meter(`${where}: CPU now`, n.cpu_used_m, null, n.cpu_cores * 1000, cores)
+      + meter(`${where}: memory now`, n.mem_used_mi, null, n.mem_mi, mib) : ""}
+    <p class="muted">${n.k3d ? "This node is a k3d container on the desktop, so its usage is Kubernetes' share, not everything the desktop runs."
+      : "Usage is the whole machine, including what runs outside Kubernetes."}${pods.length ? "" : " No workload pods here right now."}</p>
+    <p class="note">Cost model: labelled <b>${esc(n.pool || "none")}</b>${n.pool_monthly_usd != null ? `, ${usd(n.pool_monthly_usd)}/mo` : ""} in
+      config/skus.yaml, the cloud VM this machine stands in for. It is not the price of the hardware.</p>`;
 }
 
 function appPanel(app, pods) {
@@ -898,6 +971,22 @@ function renderWorkloads() {
   }).join("");
 }
 
+/* ---------- Steps ---------- */
+
+function renderSteps() {
+  const r = report, left = Math.round((spikeEnds - Date.now()) / 1000);
+  const loadgen = (cluster?.nodes || []).some((n) => n.pods.some((p) => p.app === "loadgen" && p.phase === "Running"));
+  $("#step-analyze").classList.toggle("done", !!r);
+  $("#st-analyze").textContent = r ? `Last run ${new Date(r.generated_at).toLocaleString()} · ${usd(r.llm_cost_usd)} · `
+    + `${r.workloads.filter((w) => w.recommendation).length} of ${r.workloads.length} workloads get changes.` : "Not run yet.";
+  $("#step-apply").classList.toggle("done", !!applied);
+  $("#st-apply").textContent = applied ? `${applied.dry ? "Dry run" : "Applied"} at ${applied.at}: ${applied.ok} of ${applied.total} changes ok.`
+    : r ? "Ready: applies the latest run." : "Run step 1 first.";
+  $("#step-spike").classList.toggle("done", left > 0 || loadgen);
+  $("#st-spike").textContent = left > 0 ? `Load running for another ${left} s. Watch checkout-web in the cluster.`
+    : loadgen ? "The load generator is still running." : "Optional. Most convincing after step 2.";
+}
+
 /* ---------- Wiring ---------- */
 
 function renderReport(animate) {
@@ -908,7 +997,7 @@ function renderReport(animate) {
     $("#runinfo").innerHTML = `<span class="badge">Run ${esc(runId)}</span>${r.window_days}-day window · namespace ${esc(r.namespace)} ·
       ${new Date(r.generated_at).toLocaleString()}`;
   }
-  renderFigures(); renderBars(); renderFlow(animate); renderWorkloads(); renderLegend(); renderInspector();
+  renderFigures(); renderBars(); renderFlow(animate); renderWorkloads(); renderLegend(); renderInspector(); renderSteps();
   if (animate) sweep($("#headline"));
 }
 
@@ -920,7 +1009,7 @@ async function refreshCluster() {
   } catch (e) {
     cluster = {available: false}; lastSig = "";
   }
-  renderCluster(); renderLegend(); renderInspector();
+  renderCluster(); renderLegend(); renderInspector(); renderSteps();
 }
 
 function setLabel(id, iconName, text) { $(id).innerHTML = `${icon(iconName)}<span>${text}</span>`; }
@@ -942,10 +1031,10 @@ function initTheme() {
 }
 
 setLabel("#btn-analyze", "spark", "Analyze");
-setLabel("#btn-apply", "check", "Apply");
+setLabel("#btn-apply", "check", "Apply fixes");
 setLabel("#btn-gitops", "pr", "GitOps PR");
 setLabel("#btn-reset", "undo", "Reset demo");
-setLabel("#btn-spike", "zap", "Spike traffic");
+setLabel("#btn-spike", "zap", "Send traffic");
 initTheme();
 renderKey();
 
@@ -976,11 +1065,15 @@ $("#btn-apply").onclick = (ev) => busy(ev.currentTarget, async () => {
   const dry = $("#dryrun").checked, res = await api("/api/apply", {dry_run: dry});
   res.steps.forEach((s) => log(`${s.skipped ? "skip" : s.ok ? "ok" : "ERR"} ${s.file}: ${s.skipped || s.output}`, s.skipped ? "" : s.ok ? "ok" : "err"));
   log(`${dry ? "dry run of" : "applied"} ${res.run}`, "ok");
+  applied = {dry, at: new Date().toLocaleTimeString(), ok: res.steps.filter((s) => s.ok && !s.skipped).length, total: res.steps.length};
+  renderSteps();
   refreshCluster();
 });
 $("#btn-spike").onclick = (ev) => busy(ev.currentTarget, async () => {
   const res = await api("/api/spike", {rps: +$("#rps").value, work_ms: +$("#workms").value, seconds: +$("#secs").value});
   log(`spike ${res.job}: ${res.RPS} rps × ${res.WORK_MS} ms on ${res.TARGET} for ${res.SECONDS}s`, "ok");
+  spikeEnds = Date.now() + +res.SECONDS * 1000;
+  renderSteps();
 });
 $("#btn-reset").onclick = (ev) => busy(ev.currentTarget, async () => {
   const res = await api("/api/reset", {});

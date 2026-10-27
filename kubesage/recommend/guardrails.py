@@ -13,6 +13,8 @@ from kubesage.metrics.stats import WorkloadStats
 from kubesage.recommend import cron
 
 MAX_REPLICAS = 20
+DEFAULT_CPU_TARGET = 70
+PEAK_SIGNALS = {"recurring-peak", "cpu-over-request"}  # workloads whose load outgrows their pods
 
 
 def _up(value: float, multiple: int) -> int:
@@ -51,6 +53,13 @@ def apply(rec: Recommendation, s: WorkloadStats) -> tuple[Recommendation, list[s
             notes.append(f"min replicas raised 0 -> {floor} (not a batch workload: median load {typical:.2f} cores "
                          "never goes idle)")
             plan.min_replicas = floor
+        if plan.cpu_utilization_target is None and plan.min_replicas > 0 and PEAK_SIGNALS & set(s.signals):
+            # Found in a live run: checkout-web got cron-only scaling. Cron windows cover the peaks seen so far;
+            # without a CPU trigger an unplanned spike just saturates the pods.
+            notes.append(f"added a CPU trigger at {DEFAULT_CPU_TARGET}% (cron-only scaling misses unplanned peaks)")
+            plan.cpu_utilization_target = DEFAULT_CPU_TARGET
+            if plan.max_replicas <= plan.min_replicas:
+                plan.max_replicas = min(plan.min_replicas * 2, MAX_REPLICAS)
         if plan.min_replicas == 0 and plan.cpu_utilization_target is not None:
             notes.append("dropped CPU target: KEDA cannot scale to zero on CPU")
             plan.cpu_utilization_target = None

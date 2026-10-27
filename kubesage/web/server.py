@@ -158,22 +158,36 @@ class Api:
             cs = m.get("containers", [])
             usage[m["metadata"]["name"]] = (round(sum(cpu_m(c["usage"]["cpu"]) for c in cs), 1),
                                             round(sum(mem_mi(c["usage"]["memory"]) for c in cs), 1))
+        node_usage = {m["metadata"]["name"]: (round(cpu_m(m["usage"]["cpu"])), round(mem_mi(m["usage"]["memory"])))
+                      for m in (_kubectl_raw("/apis/metrics.k8s.io/v1beta1/nodes") or {}).get("items", [])}
         catalog = load_skus()
-        skus = {s.name: s for s in catalog.skus}
+        prices = {s.name: round(s.hourly_usd * catalog.hours_per_month, 2) for s in catalog.skus}
         by_node = {}
         for n in nodes["items"]:
-            labels = n["metadata"].get("labels", {})
-            sku = skus.get(labels.get(catalog.node_label))
-            by_node[n["metadata"]["name"]] = {
-                "name": n["metadata"]["name"], "sku": labels.get(catalog.node_label), "ready": _ready(n),
+            meta, status = n["metadata"], n["status"]
+            labels, notes, info = meta.get("labels", {}), meta.get("annotations", {}), status.get("nodeInfo", {})
+            addresses = {a["type"]: a["address"] for a in status.get("addresses", [])}
+            capacity, allocatable = status.get("capacity", {}), status.get("allocatable", {})
+            used = node_usage.get(meta["name"])
+            pool = labels.get(catalog.node_label)
+            by_node[meta["name"]] = {
+                "name": meta["name"], "ready": _ready(n), "created": meta.get("creationTimestamp"),
                 "role": "control-plane" if "node-role.kubernetes.io/control-plane" in labels else "worker",
-                # Sizes come from the SKU the node is labelled as, not the k3d container's real (host-sized) capacity.
-                **({"family": sku.family, "vcpu": sku.vcpu, "memory_gib": sku.memory_gib,
-                    "allocatable_cpu_m": round(sku.vcpu * 1000 * catalog.allocatable_cpu),
-                    "allocatable_mem_mi": round(sku.memory_gib * 1024 * catalog.allocatable_mem),
-                    "monthly_usd": round(sku.hourly_usd * catalog.hours_per_month, 2)} if sku else {}),
+                # The real machine: kubesage.io/* annotations are set by cluster-up.sh and join-node.sh.
+                "host": notes.get("kubesage.io/host") or labels.get("kubernetes.io/hostname", meta["name"]),
+                "cpu_model": notes.get("kubesage.io/cpu"), "os": notes.get("kubesage.io/os") or info.get("osImage"),
+                "kernel": info.get("kernelVersion"), "kubelet": info.get("kubeletVersion"),
+                "runtime": info.get("containerRuntimeVersion"), "k3d": meta["name"].startswith("k3d-"),
+                "internal_ip": addresses.get("InternalIP"), "external_ip": addresses.get("ExternalIP"),
+                "cpu_cores": cpu_m(capacity["cpu"]) / 1000 if "cpu" in capacity else None,
+                "mem_mi": round(mem_mi(capacity["memory"])) if "memory" in capacity else None,
+                "alloc_cpu_m": round(cpu_m(allocatable["cpu"])) if "cpu" in allocatable else None,
+                "alloc_mem_mi": round(mem_mi(allocatable["memory"])) if "memory" in allocatable else None,
+                "cpu_used_m": used[0] if used else None, "mem_used_mi": used[1] if used else None,
+                # The cost model, not the hardware: what this node's pool label costs in config/skus.yaml.
+                "pool": pool, "pool_monthly_usd": prices.get(pool),
                 "pods": []}
-        unscheduled = {"name": "(pending)", "sku": None, "ready": False, "role": "pending", "pods": []}
+        unscheduled = {"name": "(pending)", "host": "unscheduled", "pool": None, "ready": False, "role": "pending", "pods": []}
         scaling = {}
         for o in objs["items"]:
             kind, meta = o["kind"], o["metadata"]
