@@ -6,6 +6,7 @@ Mounted from a ConfigMap into python:alpine; stdlib only.
 Requests are spread over the Service's pods, so scaling out really does lower per-pod CPU.
 """
 import os
+import signal
 import sys
 import threading
 import time
@@ -93,6 +94,8 @@ def loadgen() -> None:
 
 
 if __name__ == "__main__":
+    # As PID 1 the default SIGTERM action is ignored; exit promptly so scale-down and migration look instant.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     if sys.argv[1:2] == ["loadgen"]:
         loadgen()
     else:
