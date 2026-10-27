@@ -19,6 +19,10 @@ current_pool:
   sku: D8s_v5
   nodes: 3
 
+# Node label that says which SKU a node is. On a real cloud use node.kubernetes.io/instance-type;
+# the demo cluster labels its k3d nodes with this key (see scripts/cluster-up.sh).
+node_label: kubesage.io/sku
+
 skus:
   - {name: B2s,     family: burstable,         vcpu: 2, memory_gib: 4,  hourly_usd: 0.0416}
   - {name: B4ms,    family: burstable,         vcpu: 4, memory_gib: 16, hourly_usd: 0.166}

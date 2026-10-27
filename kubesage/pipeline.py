@@ -39,6 +39,8 @@ class NodePoolResult(BaseModel):
     candidates: list[costing.SkuCandidate]
     demand_before: costing.Demand
     demand_after: costing.Demand
+    node_label: str
+    migrations: dict[str, str] = {}  # filename -> nodeSelector patch, empty when the SKU doesn't change
     notes: list[str] = []
 
 
@@ -159,7 +161,12 @@ def _plan_nodes(llm: LLMClient, catalog: SkuCatalog, stats: list[WorkloadStats],
     if choice.nodes < match.nodes:
         notes.append(f"node count raised {choice.nodes} -> {match.nodes} to fit demand")
         choice = choice.model_copy(update={"nodes": match.nodes})
+    migrations = {}
+    if choice.sku != current.sku:
+        migrations = {f"{s.name}.migrate.yaml": render.migration(s.namespace, s.name, catalog.node_label, choice.sku)
+                      for s in stats}
     return NodePoolResult(before_sku=current.sku, before_nodes=current.nodes,
                           before_monthly_usd=costing.pool_monthly(current.sku, current.nodes, catalog), choice=choice,
                           after_monthly_usd=costing.pool_monthly(choice.sku, choice.nodes, catalog),
-                          candidates=candidates, demand_before=before, demand_after=after, notes=notes)
+                          candidates=candidates, demand_before=before, demand_after=after,
+                          node_label=catalog.node_label, migrations=migrations, notes=notes)

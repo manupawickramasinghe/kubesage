@@ -30,3 +30,12 @@ def test_demo_manifests_match_scenarios():
         assert _cores(res["limits"]["cpu"]) == w.cpu_limit
         assert _bytes(res["requests"]["memory"]) == w.mem_request
         assert _bytes(res["limits"]["memory"]) == w.mem_limit
+
+
+def test_demo_workloads_start_on_the_current_pool():
+    from kubesage.config import load_skus
+
+    catalog = load_skus()
+    for d in yaml.safe_load_all(MANIFEST.read_text()):
+        if d["kind"] == "Deployment":
+            assert d["spec"]["template"]["spec"]["nodeSelector"] == {catalog.node_label: catalog.current_pool.sku}

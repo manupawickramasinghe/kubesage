@@ -55,6 +55,13 @@ scripts/demo-reset.sh                # back to the "before" state, to run the de
 scripts/cluster-down.sh
 ```
 
+**Two-node SKU mode.** `TWO_NODE=1 scripts/cluster-up.sh` adds an agent node (or upgrades a running one-node
+cluster). The server node is labelled `kubesage.io/sku=D8s_v5` (the current pool) and the agent `F4s_v2`.
+The demo pods start pinned to the expensive node. When the node-pool step picks a cheaper SKU, `analyze` writes
+`*.migrate.yaml` nodeSelector patches and `apply` moves every pod onto the cheap node live. Migrations are
+skipped when no node carries the target label. For two physical machines (8600G + 3500U), see
+[docs/two-machines.md](docs/two-machines.md).
+
 The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
 `export KUBECONFIG=$PWD/.bin/kubeconfig PATH=$PWD/.bin:$PATH` to run kubectl yourself.
 `kubesage apply` uses `$KUBECONFIG` when set, so it can target any cluster.
@@ -107,4 +114,4 @@ scripts/      pinned tool install, cluster up/down/reset
 - [ ] Live mode: vmagent scraping the cluster, plus a "fast-forward" load spike for the demo
 - [ ] Web UI ("AI Control Center") on top of `report.json`, with the router-trace badges
 - [ ] GitOps: open a PR with the manifests instead of applying directly
-- [ ] Two-node mode: label nodes as SKUs and migrate pods to the cheap node live
+- [x] Two-node mode: label nodes as SKUs and migrate pods to the cheap node live

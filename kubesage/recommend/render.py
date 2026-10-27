@@ -53,6 +53,11 @@ def render(rec: Recommendation, *, namespace: str, name: str, container: str, tz
     return files
 
 
+def migration(namespace: str, name: str, label: str, sku: str) -> str:
+    """Patch that moves a Deployment's pods onto nodes of another SKU."""
+    return _dump(deployment_patch(namespace, name, {"template": {"spec": {"nodeSelector": {label: sku}}}}))
+
+
 def deployment_patch(namespace: str, name: str, spec: dict) -> dict:
     """A strategic-merge patch with a full header, so it works with both `kubectl patch` and kustomize."""
     return {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": name, "namespace": namespace},
