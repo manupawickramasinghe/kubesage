@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlsplit
 import yaml
 
 from kubesage import apply, gitops, live
-from kubesage.config import load_models, load_skus
+from kubesage.config import CONFIG_DIR, load_models, load_skus
 from kubesage.service import AnalysisError, analyze_now, resolve_mode
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -143,6 +143,7 @@ def _exclusive(method):
             return method(self, *args, **kwargs)
         finally:
             self.operation = None
+            self._cluster_gen += 1  # a cluster read already in flight saw the old state; don't cache it
             self._cluster_cached = None
             self._operation.release()
     return wrapped
@@ -178,6 +179,8 @@ class Api:
         self.operation = None
         self._cluster_lock = threading.Lock()
         self._cluster_cached = None
+        self._cluster_gen = 0
+        self._desired_cached = None
         self._traffic_cached = None
 
     def config(self) -> tuple[int, dict]:
@@ -189,7 +192,7 @@ class Api:
 
     def _run(self, name: str | None = None, *, mutation: bool = False) -> Path:
         if name is None:
-            if mutation:
+            if mutation:  # writes never fall back to an older run: the newest one, or a refusal naming its namespace
                 name = apply.latest_run(self.s.out_dir).name
             else:
                 for path in sorted(self.s.out_dir.glob("*/report.json"), reverse=True):
@@ -326,6 +329,15 @@ class Api:
             return 400, {"error": str(exc)}
         return 200, {"branch": out.branch, "commit": out.commit, "pushed": out.pushed, "pr_url": out.pr_url}
 
+    def _desired(self, run: Path) -> tuple[dict, list[dict]]:
+        """A run's report and manifests, parsed once per run rather than on every 3-second poll."""
+        key = (run.name, (run / "report.json").stat().st_mtime_ns)
+        if not self._desired_cached or self._desired_cached[0] != key:
+            report = json.loads((run / "report.json").read_text())
+            manifests = [yaml.safe_load(p.read_text()) for p in sorted((run / "manifests").glob("*.yaml"))]
+            self._desired_cached = (key, report, manifests)
+        return self._desired_cached[1], self._desired_cached[2]
+
     def _plan_status(self, objects: list[dict], nodes: list[dict]) -> dict:
         try:
             run = self._run()
@@ -334,9 +346,8 @@ class Api:
         actual = {(o.get("kind"), o.get("metadata", {}).get("name")): o for o in objects}
         workloads = {}
         try:
-            report = json.loads((run / "report.json").read_text())
-            for path in sorted((run / "manifests").glob("*.yaml")):
-                desired = yaml.safe_load(path.read_text())
+            report, manifests = self._desired(run)
+            for desired in manifests:
                 kind, name = desired["kind"], desired["metadata"]["name"]
                 if kind not in {"Deployment", "ScaledObject"}:
                     continue
@@ -366,14 +377,15 @@ class Api:
                     for (kind, name), o in actual.items() if kind == "Deployment" and name in workloads)
         pool = report.get("node_pool") or {}
         choice = pool.get("choice") or {}
-        sku, required = choice.get("sku"), choice.get("nodes")
-        ready_nodes = sum(_ready(n) and not n.get("spec", {}).get("unschedulable", False)
-                          and n.get("metadata", {}).get("labels", {}).get(pool.get("node_label", "kubesage.io/sku")) == sku
-                          for n in nodes)
-        capacity = {"sku": sku, "required": required, "ready": ready_nodes,
-                    "available": required is None or ready_nodes >= required}
-        if state == "applied" and not capacity["available"]:
-            state = "partial"
+        capacity = None
+        if pool.get("migrations"):  # without migrations nothing moves, so the target pool's size can't block it
+            sku, required, label = choice.get("sku"), choice.get("nodes"), pool.get("node_label") or load_skus().node_label
+            ready_nodes = sum(_ready(n) and not n.get("spec", {}).get("unschedulable", False)
+                              and n.get("metadata", {}).get("labels", {}).get(label) == sku for n in nodes)
+            capacity = {"sku": sku, "required": required, "ready": ready_nodes,
+                        "available": required is None or ready_nodes >= required}
+            if state == "applied" and not capacity["available"]:
+                state = "partial"
         return {"run": run.name, "state": state, "matched": matched, "total": total,
                 "ready": ready and state == "applied", "workloads": workloads, "capacity": capacity}
 
@@ -398,10 +410,13 @@ class Api:
     def cluster(self) -> tuple[int, dict]:
         # Several tabs share one short-lived sample; a slow Kubernetes API must not fan out unbounded calls.
         with self._cluster_lock:
-            if self._cluster_cached and time.monotonic() - self._cluster_cached[0] < 2:
-                return 200, {**self._cluster_cached[1], "operation": self.operation}
+            cached = self._cluster_cached
+            if cached and cached[2] == self._cluster_gen and time.monotonic() - cached[0] < 2:
+                return 200, {**cached[1], "operation": self.operation}
+            generation = self._cluster_gen
             result = self._read_cluster()
-            self._cluster_cached = (time.monotonic(), result[1])
+            if generation == self._cluster_gen:
+                self._cluster_cached = (time.monotonic(), result[1], generation)
             return result
 
     def _read_cluster(self) -> tuple[int, dict]:
@@ -410,9 +425,14 @@ class Api:
             return 200, {"available": False}
         ns = self.s.namespace
         def get_objects():
-            return _kubectl_json("-n", ns, "get", "pods,deployments,scaledobjects.keda.sh,hpa,jobs") \
-                or _kubectl_json("-n", ns, "get", "pods,deployments,hpa,jobs") \
-                or _kubectl_json("-n", ns, "get", "pods,deployments")
+            # The fallbacks are for clusters without KEDA's CRD, an error that comes back at once. A slow failure
+            # is the API server itself; asking again would hold the cluster lock for up to three timeouts.
+            for kinds in ("pods,deployments,scaledobjects.keda.sh,hpa,jobs", "pods,deployments,hpa,jobs", "pods,deployments"):
+                started = time.monotonic()
+                objs = _kubectl_json("-n", ns, "get", kinds)
+                if objs is not None or time.monotonic() - started > 3:
+                    return objs
+            return None
 
         with ThreadPoolExecutor(max_workers=3) as pool:
             objects_future = pool.submit(get_objects)
@@ -529,7 +549,21 @@ class Api:
                      "traffic": self._traffic(objs["items"]), "observed_at": _now(), "operation": self.operation}
 
 
+def _api_key_names() -> set[str]:
+    """Environment variables holding an LLM API key, per the model profiles. These are the secrets responses must
+    never echo back. Matching on names like *PASSWORD* instead would also scrub short public values everywhere
+    (GRAFANA_ADMIN_PASSWORD=admin turned every "admin" in a node or pod name into "[redacted]")."""
+    names = set()
+    for path in CONFIG_DIR.glob("models*.yaml"):
+        try:
+            names.add(yaml.safe_load(path.read_text())["provider"]["api_key_env"])
+        except (OSError, KeyError, TypeError, yaml.YAMLError):
+            continue
+    return names
+
+
 def make_handler(api: Api):
+    key_names = _api_key_names()
     static = resources.files("kubesage.web").joinpath("static")
     page = static.joinpath("index.html").read_bytes()
     # Vendored rather than loaded from a CDN, so the page still renders on bad venue Wi-Fi.
@@ -538,8 +572,7 @@ def make_handler(api: Api):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, payload: dict | bytes, content_type: str = "application/json",
                   cache: str = "no-store") -> None:
-            secrets = [value for key, value in os.environ.items() if len(value) >= 4
-                       and any(marker in key.upper() for marker in ("API_KEY", "TOKEN", "PASSWORD", "SECRET"))]
+            secrets = [value for name in key_names if len(value := os.environ.get(name, "")) >= 8]
             body = payload if isinstance(payload, bytes) else json.dumps(_redact(payload, secrets)).encode()
             self.send_response(status)
             self.send_header("Content-Type", content_type)

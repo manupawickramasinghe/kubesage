@@ -408,7 +408,7 @@
         <div class="step-b"><b>Prove it still scales</b>
           <p>Send real HTTP requests to checkout-web. Watch CPU rise; replicas can increase up to the scaling limit.</p>
           <div class="step-a"><button id="btn-spike" class="btn btn-outline btn-sm" data-act></button>
-            <label class="field">req/s <input class="num" id="rps" type="number" value="80" min="1" max="200"></label>
+            <label class="field">req/s <input class="num" id="rps" type="number" value="60" min="1" max="200"></label>
             <label class="field">seconds <input class="num" id="secs" type="number" value="180" min="10" max="900"></label>
             </div>
           <details class="advanced"><summary>Traffic settings</summary><label class="field">CPU work per request (ms)
@@ -521,7 +521,7 @@ const statusBadge = (st) => `<span class="badge"><span style="color:${STATUS[st]
 
 let TIER = {triage: "triage", worker: "worker", strategist: "strategist"};  // replaced by the report's labels
 let config = {}, report = null, runId = null, cluster = null, sel = null, hoverApp = null, lastSig = "";
-let applied = null, spikeEnds = 0, spikeJob = null, isBusy = false, polling = false, reports = [], latestRun = null;
+let applied = null, spikeEnds = 0, spikeJob = null, isBusy = false, polling = false, pollAgain = false, reports = [], latestRun = null;
 const order = [];  // workload -> colour slot, first seen first; the report goes first so colours never shuffle
 const seenPods = new Set();
 
@@ -534,7 +534,9 @@ function color(app) {
 async function api(path, body) {
   const opts = body === undefined ? {headers: {"X-KubeSage": "1"}}
     : {method: "POST", headers: {"Content-Type": "application/json", "X-KubeSage": "1"}, body: JSON.stringify(body)};
-  opts.signal = AbortSignal.timeout(body === undefined ? 45000 : 360000);
+  // Analyze is bounded by the server's own LLM timeouts and holds the operation lock until it ends; giving up
+  // here would report a failure while the run is still going and make every retry a 409.
+  if (path !== "/api/analyze") opts.signal = AbortSignal.timeout(body === undefined ? 45000 : 360000);
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({error: res.statusText}));
   if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), {status: res.status, data});
@@ -1231,7 +1233,8 @@ function renderReport(animate) {
 }
 
 async function refreshCluster() {
-  if (polling) return;
+  // A refresh asked for mid-poll (e.g. right after Apply) runs once that poll ends; that poll may predate the change.
+  if (polling) { pollAgain = true; return; }
   polling = true;
   try {
     const c = await api("/api/cluster"), sig = JSON.stringify({...c, observed_at: undefined});
@@ -1243,6 +1246,7 @@ async function refreshCluster() {
     cluster = {available: false, error: "Cannot reach the cluster API. Check the server and Kubernetes connection."}; lastSig = "";
   } finally {
     polling = false;
+    if (pollAgain) { pollAgain = false; setTimeout(refreshCluster, 0); }
   }
   renderCluster(); renderLegend(); renderInspector(); renderSteps(); renderClusterStatus();
 }

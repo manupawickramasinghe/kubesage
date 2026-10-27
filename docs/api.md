@@ -13,7 +13,7 @@ other websites can't trigger actions. There's no authentication beyond that.
 | GET | `/api/report?run=<id>` | `{run, report}` for a selected run; omit `run` for the latest valid report. 404 before the first analysis. |
 | GET | `/api/cluster` | live nodes, pods, scaling (see below), or `{available: false}` |
 | POST | `/api/analyze` | Runs the full pipeline and atomically stores a report and manifests: `{run, report}`. 502 for metrics or LLM errors. |
-| POST | `/api/apply` | `{run?, dry_run: bool}` → `{run, dry_run, ok, error, steps: [{file, ok, skipped, output}]}`. Selected run is pinned for the whole operation; omitted `run` uses latest. |
+| POST | `/api/apply` | `{run?, dry_run: bool}` → `{run, dry_run, ok, error, steps: [{file, ok, skipped, output}]}`. Selected run is pinned for the whole operation. An omitted `run` means the newest run, and is refused if that run belongs to another namespace: writes never fall back to an older run. |
 | POST | `/api/spike` | `{rps 1–200, work_ms 1–500, seconds 10–900, target?}` → `{job, TARGET, RPS, WORK_MS, SECONDS}` |
 | POST | `/api/reset` | runs `scripts/demo-reset.sh` → `{ok, output: [last lines], error?}`; only available for namespace `demo` |
 | POST | `/api/gitops` | `{run?, open_pr: bool}` → `{branch, commit, pushed, pr_url}`; 400 unless started with `--gitops-repo`/`--gitops-base` |

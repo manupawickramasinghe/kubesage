@@ -68,6 +68,7 @@ def write_run(result: AnalysisResult, run_dir: Path) -> Path:
         raise FileExistsError(f"analysis run already exists: {run_dir}")
     run_dir.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".run-", dir=run_dir.parent))
+    staging.chmod(run_dir.parent.stat().st_mode & 0o777)  # mkdtemp makes it 0700; a run is as readable as out/
     try:
         (staging / "manifests").mkdir()
         files = {name: text for w in result.workloads for name, text in w.manifests.items()}

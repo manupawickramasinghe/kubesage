@@ -239,7 +239,8 @@ def test_plan_state_uses_cluster_specs_and_survives_server_restart(tmp_path):
     run = tmp_path / "20260101-000000"
     manifests = run / "manifests"
     manifests.mkdir(parents=True)
-    (run / "report.json").write_text(json.dumps({"namespace": "demo", "node_pool": {"choice": {"sku": "F8s_v2", "nodes": 1}}}))
+    (run / "report.json").write_text(json.dumps({"namespace": "demo", "node_pool": {
+        "choice": {"sku": "F8s_v2", "nodes": 1}, "migrations": {"api.migrate.yaml": "..."}}}))
     spec = {"replicas": 1, "template": {"spec": {"nodeSelector": {"kubesage.io/sku": "F8s_v2"}, "containers": [
         {"name": "api", "resources": {"requests": {"cpu": "1000m", "memory": "1024Mi"},
                                           "limits": {"cpu": None, "memory": "2Gi"}}}]}}}
@@ -265,6 +266,35 @@ def test_plan_state_uses_cluster_specs_and_survives_server_restart(tmp_path):
     assert api_for(tmp_path)._plan_status([], [node])["state"] == "pending"  # reset, no browser session state
     live["spec"]["template"]["spec"]["containers"][0]["resources"]["requests"]["cpu"] = "1"
     assert api_for(tmp_path)._plan_status([live], [])["state"] == "partial"  # target capacity unavailable
+    # Without migrations nothing moves, so a target pool KubeSage can't provision must not hold the plan at partial.
+    report = json.loads((run / "report.json").read_text())
+    del report["node_pool"]["migrations"]
+    (run / "report.json").write_text(json.dumps(report))
+    plan = api_for(tmp_path)._plan_status([live], [])
+    assert plan["state"] == "applied" and plan["capacity"] is None
+
+
+def test_responses_redact_api_keys_but_not_other_settings(tmp_path, monkeypatch):
+    """Matching env names like *PASSWORD* scrubbed short public values (GRAFANA_ADMIN_PASSWORD=admin) everywhere."""
+    monkeypatch.setenv("CEREBRAS_API_KEY", "csk-test-not-a-real-key")
+    monkeypatch.setenv("GRAFANA_ADMIN_PASSWORD", "admin")
+    monkeypatch.setenv("MAX_TOKENS", "4096")
+    monkeypatch.setattr(web.Api, "config", lambda self: (200, {"node": "admin-node", "tokens": "4096",
+                                                                 "leak": "key csk-test-not-a-real-key"}))
+    srv = web.serve(web.Settings(vm="http://127.0.0.1:9", namespace="demo", days=30, tz="UTC", mode="mock",
+                                 out_dir=tmp_path), "127.0.0.1", 0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        body = json.loads(get(f"http://127.0.0.1:{srv.server_address[1]}/api/config")[1])
+    finally:
+        srv.shutdown()
+    assert body == {"node": "admin-node", "tokens": "4096", "leak": "key [redacted]"}
+
+
+def test_write_run_is_as_readable_as_its_parent(result, tmp_path):
+    tmp_path.chmod(0o755)
+    run = write_run(result, tmp_path / "20260101-000000")
+    assert run.stat().st_mode & 0o777 == 0o755
 
 
 def test_cluster_exposes_autoscaler_target_deployment_and_active_traffic(tmp_path, monkeypatch):
@@ -380,3 +410,19 @@ def test_page_script_parses(tmp_path):
     script = re.search(r"<script>(.*)</script>", page, re.S).group(1)
     (tmp_path / "page.js").write_text(script)
     subprocess.run(["node", "--check", str(tmp_path / "page.js")], check=True)
+
+
+def test_cluster_read_overlapping_an_operation_is_not_cached(tmp_path):
+    """A poll that started before Apply finished must not be served as fresh afterwards."""
+    api, reads = api_for(tmp_path), []
+
+    def read():
+        reads.append(len(reads))
+        if len(reads) == 1:
+            api._cluster_gen += 1  # what _exclusive does when an operation ends mid-read
+        return 200, {"available": True, "read": len(reads)}
+
+    api._read_cluster = read
+    assert api.cluster()[1]["read"] == 1   # the in-flight snapshot is still returned to its caller...
+    assert api.cluster()[1]["read"] == 2   # ...but not cached, so the next poll reads the cluster again
+    assert api.cluster()[1]["read"] == 2   # a read with no operation in between is cached as before

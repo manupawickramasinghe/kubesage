@@ -8,8 +8,6 @@
 
 **Pull request:** [PR #10](https://github.com/manupawickramasinghe/kubesage/pull/10) — open and unmerged when this report was prepared
 
-**Word document:** [Download this report](reports/KubeSage-Review-Report-2026-10-27.docx)
-
 ## 1. Outcome
 
 The Control Center now presents a clearer sequence: analyze usage, review and validate a plan, apply it,
