@@ -12,12 +12,14 @@ cpu_to_gib_cost_ratio: 7.5
 # Share of each node that pods can actually request (kube-reserved, system daemons, eviction headroom).
 allocatable_cpu: 0.90
 allocatable_mem: 0.80
-min_nodes: 2
+# The demo cluster runs on one worker machine at a time, so a single node is allowed.
+min_nodes: 1
 
-# The "before" state of the demo story: a node pool sized for the old, oversized requests.
+# The "before" state of the demo story, matching the real demo cluster: every workload starts on the 8600G
+# desktop, which plays one D8s_v5 node (scripts/cluster-up.sh labels it). The 3500U laptop plays F4s_v2.
 current_pool:
   sku: D8s_v5
-  nodes: 3
+  nodes: 1
 
 # Node label that says which SKU a node is. On a real cloud use node.kubernetes.io/instance-type;
 # the demo cluster labels its k3d nodes with this key (see scripts/cluster-up.sh).

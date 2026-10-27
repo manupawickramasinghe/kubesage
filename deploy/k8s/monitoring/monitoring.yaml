@@ -45,6 +45,7 @@ spec:
       labels: {app: kube-state-metrics}
     spec:
       serviceAccountName: kube-state-metrics
+      nodeSelector: {node-role.kubernetes.io/control-plane: "true"}  # next to VictoriaMetrics' docker network
       containers:
         - name: kube-state-metrics
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0
@@ -130,6 +131,7 @@ spec:
       labels: {app: vmagent}
     spec:
       serviceAccountName: vmagent
+      nodeSelector: {node-role.kubernetes.io/control-plane: "true"}  # next to VictoriaMetrics' docker network
       containers:
         - name: vmagent
           image: victoriametrics/vmagent:v1.110.0

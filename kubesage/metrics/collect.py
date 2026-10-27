@@ -21,6 +21,9 @@ def _align(values: list, start: int, step: int, n: int) -> np.ndarray:
     return out
 
 
+MIN_SAMPLES = 12  # an hour at the default 5-minute step
+
+
 def collect(client: PromClient, *, namespace: str, days: int, end: float, tz: str,
             step: int = 300) -> tuple[list[WorkloadStats], int]:
     """Return per-workload stats and the number of raw (timestamp, value) points they were built from."""
@@ -57,6 +60,9 @@ def collect(client: PromClient, *, namespace: str, days: int, end: float, tz: st
     stats = []
     for name in sorted(cpu_pod):
         if name not in cpu_total or name not in mem_pod:
+            continue
+        seen = np.isfinite(cpu_pod[name]) & np.isfinite(cpu_total[name]) & np.isfinite(mem_pod[name])
+        if seen.sum() < MIN_SAMPLES:  # a debug pod or a just-deployed workload: no history worth analysing yet
             continue
         sp = spec.get(name, {})
         stats.append(summarize(
