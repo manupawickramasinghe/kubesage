@@ -1,9 +1,13 @@
 # KubeSage UI/UX and Functionality Review Report
 
-**Date:** 27 October 2026 (Asia/Colombo)  
-**Repository:** `manupawickramasinghe/kubesage`  
-**Implementation:** `b128153`, branch `feat/control-center-ux`  
-**Pull request:** [PR #10](https://github.com/manupawickramasinghe/kubesage/pull/10) — open and unmerged when this report was prepared  
+**Date:** 27 October 2026 (Asia/Colombo)
+
+**Repository:** `manupawickramasinghe/kubesage`
+
+**Implementation:** `b128153`, branch `feat/control-center-ux`
+
+**Pull request:** [PR #10](https://github.com/manupawickramasinghe/kubesage/pull/10) — open and unmerged when this report was prepared
+
 **Word document:** [Download this report](reports/KubeSage-Review-Report-2026-10-27.docx)
 
 ## 1. Outcome
