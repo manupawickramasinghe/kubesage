@@ -34,4 +34,5 @@ def spike_job(*, namespace: str, target: str, rps: float, work_ms: int, seconds:
 
 
 def start_spike(job: dict) -> subprocess.CompletedProcess:
-    return subprocess.run([*kubectl_base(), "apply", "-f", "-"], input=yaml.safe_dump(job), capture_output=True, text=True)
+    return subprocess.run([*kubectl_base(), "apply", "-f", "-"], input=yaml.safe_dump(job), capture_output=True, text=True,
+                          timeout=30)

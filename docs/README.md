@@ -20,6 +20,8 @@ It spends as little as possible on its own LLM calls, and shows every cent.
 | [api.md](api.md) | The web server's HTTP API and `report.json` |
 | [configuration.md](configuration.md) | Model profiles, SKU catalog, environment variables, secrets |
 | [testing.md](testing.md) | The test suite and the manual checks, with the last verified results |
+| [ui-review.md](ui-review.md) | UI/UX changes, advanced controls and the live verification results |
+| [REVIEW_REPORT.md](REVIEW_REPORT.md) | Full review report: findings, delivered changes, evidence, limits and follow-up priorities |
 | [HANDOVER.md](HANDOVER.md) | Briefing for whoever reviews the UI/UX and tests next |
 
 Screenshots, all taken from the live cluster:

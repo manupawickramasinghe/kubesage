@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,7 +28,8 @@ class Step:
 
 
 def latest_run(out_dir: str | Path = "out") -> Path:
-    runs = sorted(p for p in Path(out_dir).glob("*/") if (p / "manifests").is_dir())
+    runs = sorted(p for p in Path(out_dir).glob("*/")
+                  if not p.name.startswith(".") and (p / "manifests").is_dir() and (p / "report.json").is_file())
     if not runs:
         raise FileNotFoundError(f"no analysis runs under {out_dir}/; run `kubesage analyze` first")
     return runs[-1]
@@ -45,17 +47,42 @@ def kubectl_base() -> list[str]:
 
 def node_skus(label: str, kubectl: list[str] | None = None) -> set[str]:
     """Values of `label` across the cluster's nodes (empty if the cluster can't be reached)."""
-    proc = subprocess.run([*(kubectl or kubectl_base()), "get", "nodes", "-o", "json"], capture_output=True, text=True)
-    if proc.returncode != 0:
+    try:
+        proc = subprocess.run([*(kubectl or kubectl_base()), "get", "nodes", "-o", "json"],
+                              capture_output=True, text=True, timeout=12)
+        if proc.returncode != 0:
+            return set()
+        return {n["metadata"].get("labels", {}).get(label) for n in json.loads(proc.stdout)["items"]} - {None}
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError):
         return set()
-    return {n["metadata"].get("labels", {}).get(label) for n in json.loads(proc.stdout)["items"]} - {None}
+
+
+def ready_node_counts(label: str, kubectl: list[str] | None = None) -> dict[str, int]:
+    """Schedulable, Ready nodes per SKU; unreachable clusters provide no migration capacity."""
+    try:
+        proc = subprocess.run([*(kubectl or kubectl_base()), "get", "nodes", "-o", "json"],
+                              capture_output=True, text=True, timeout=12)
+        if proc.returncode != 0:
+            return {}
+        nodes = json.loads(proc.stdout)["items"]
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError):
+        return {}
+    return dict(Counter(sku for n in nodes
+                        if not n.get("spec", {}).get("unschedulable")
+                        and any(c.get("type") == "Ready" and c.get("status") == "True"
+                                for c in n.get("status", {}).get("conditions", []))
+                        if (sku := n.get("metadata", {}).get("labels", {}).get(label))))
 
 
 def plan(run_dir: Path, *, dry_run: bool = False, kubectl: list[str] | None = None,
-         available_skus: set[str] | None = None) -> list[Step]:
+         available_skus: set[str] | None = None,
+         available_node_counts: dict[str, int] | None = None) -> list[Step]:
     kubectl = kubectl or kubectl_base()
     extra = ["--dry-run=server"] if dry_run else []
     manifests = Path(run_dir) / "manifests"
+    report_file = Path(run_dir) / "report.json"
+    choice = ((json.loads(report_file.read_text()).get("node_pool") or {}).get("choice") or {}) \
+        if report_file.exists() else {}
 
     def patch(f: Path) -> Step:
         meta = yaml.safe_load(f.read_text())["metadata"]
@@ -67,7 +94,13 @@ def plan(run_dir: Path, *, dry_run: bool = False, kubectl: list[str] | None = No
         step = patch(f)
         selector = yaml.safe_load(f.read_text())["spec"]["template"]["spec"]["nodeSelector"]
         (label, sku), = selector.items()
-        if available_skus is not None and sku not in available_skus:
+        if available_node_counts is not None:
+            required = max(1, int(choice.get("nodes", 1))) if choice.get("sku") == sku else 1
+            available = available_node_counts.get(sku, 0)
+            if available < required:
+                step.skipped = (f"only {available}/{required} Ready, schedulable nodes labelled {label}={sku}; "
+                                "provision the planned capacity before migrating")
+        elif available_skus is not None and sku not in available_skus:
             step.skipped = f"no node labelled {label}={sku} (start the cluster with TWO_NODE=1)"
         steps.append(step)
     steps += [Step(f, [*kubectl, "apply", "-f", str(f), *extra]) for f in sorted(manifests.glob("*.keda.yaml"))]
@@ -75,9 +108,20 @@ def plan(run_dir: Path, *, dry_run: bool = False, kubectl: list[str] | None = No
 
 
 def run(steps: list[Step]) -> list[Step]:
+    failed = None
     for step in steps:
         if step.skipped:
             continue
-        proc = subprocess.run(step.cmd, capture_output=True, text=True)
-        step.returncode, step.output = proc.returncode, (proc.stdout + proc.stderr).strip()
+        if failed:
+            step.skipped = f"not run because {failed} failed; review the error before retrying"
+            continue
+        try:
+            proc = subprocess.run(step.cmd, capture_output=True, text=True, timeout=60)
+            step.returncode, step.output = proc.returncode, (proc.stdout + proc.stderr).strip()
+        except subprocess.TimeoutExpired:
+            step.returncode, step.output = 124, "kubectl timed out after 60 seconds; check the cluster before retrying"
+        except OSError as exc:
+            step.returncode, step.output = 127, f"could not start kubectl: {exc}"
+        if step.returncode != 0:
+            failed = step.file.name
     return steps
