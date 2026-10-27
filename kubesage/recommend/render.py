@@ -49,5 +49,11 @@ def render(rec: Recommendation, *, namespace: str, name: str, container: str, tz
     if pod_spec:
         patch["template"] = {"spec": pod_spec}
     if patch:
-        files[f"{name}.patch.yaml"] = _dump({"spec": patch})
+        files[f"{name}.patch.yaml"] = _dump(deployment_patch(namespace, name, patch))
     return files
+
+
+def deployment_patch(namespace: str, name: str, spec: dict) -> dict:
+    """A strategic-merge patch with a full header, so it works with both `kubectl patch` and kustomize."""
+    return {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": name, "namespace": namespace},
+            "spec": spec}

@@ -93,6 +93,26 @@ def cmd_analyze(args: argparse.Namespace) -> None:
     console.print(f"\nreport: {out_dir}/report.json")
 
 
+def cmd_apply(args: argparse.Namespace) -> None:
+    from kubesage import apply
+
+    try:
+        run_dir = Path(args.run) if args.run else apply.latest_run(args.out_dir)
+    except FileNotFoundError as exc:
+        sys.exit(str(exc))
+    steps = apply.plan(run_dir, dry_run=args.dry_run)
+    if not steps:
+        sys.exit(f"{run_dir} has no manifests to apply")
+    console.print(f"applying {run_dir}{' (server dry-run)' if args.dry_run else ''}")
+    failed = 0
+    for step in apply.run(steps):
+        ok = step.returncode == 0
+        failed += not ok
+        console.print(f"  [{'green' if ok else 'red'}]{'ok ' if ok else 'ERR'}[/] {step.file.name}: {step.output}")
+    if failed:
+        sys.exit(f"{failed} step(s) failed")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="kubesage", description="AI FinOps agent for Kubernetes")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -116,6 +136,12 @@ def main(argv: list[str] | None = None) -> None:
                     help="auto = live if the API key env var is set, else mock")
     an.add_argument("--out-dir", default="out")
     an.set_defaults(func=cmd_analyze)
+
+    ap = sub.add_parser("apply", help="apply a run's manifests to the cluster (latest run by default)")
+    ap.add_argument("run", nargs="?", help="run directory, e.g. out/20261027-153916")
+    ap.add_argument("--out-dir", default="out")
+    ap.add_argument("--dry-run", action="store_true", help="server-side dry run, change nothing")
+    ap.set_defaults(func=cmd_apply)
 
     args = parser.parse_args(argv)
     args.func(args)

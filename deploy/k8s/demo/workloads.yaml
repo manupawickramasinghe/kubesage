@@ -1,0 +1,112 @@
+# The "before" state of the demo: the same five workloads `kubesage simulate` backfills history for,
+# with the same oversized requests. Pods run the pause image, so requests reserve capacity without
+# using any. tests/test_demo_manifests.py keeps this file in sync with kubesage/simulate/scenarios.py.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: demo
+  labels: {app: payment-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: payment-service}
+  template:
+    metadata:
+      labels: {app: payment-service}
+    spec:
+      containers:
+        - name: payment-service
+          image: registry.k8s.io/pause:3.10
+          resources:
+            requests: {cpu: "2", memory: 4Gi}
+            limits: {cpu: "2", memory: 4Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-worker
+  namespace: demo
+  labels: {app: report-worker}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: report-worker}
+  template:
+    metadata:
+      labels: {app: report-worker}
+    spec:
+      containers:
+        - name: report-worker
+          image: registry.k8s.io/pause:3.10
+          resources:
+            requests: {cpu: "2", memory: 2Gi}
+            limits: {cpu: "2", memory: 2Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-api
+  namespace: demo
+  labels: {app: auth-api}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: auth-api}
+  template:
+    metadata:
+      labels: {app: auth-api}
+    spec:
+      containers:
+        - name: auth-api
+          image: registry.k8s.io/pause:3.10
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: 500m, memory: 1Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-web
+  namespace: demo
+  labels: {app: checkout-web}
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app: checkout-web}
+  template:
+    metadata:
+      labels: {app: checkout-web}
+    spec:
+      containers:
+        - name: checkout-web
+          image: registry.k8s.io/pause:3.10
+          resources:
+            requests: {cpu: 500m, memory: 512Mi}
+            limits: {cpu: "1", memory: 768Mi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  namespace: demo
+  labels: {app: catalog-api}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: catalog-api}
+  template:
+    metadata:
+      labels: {app: catalog-api}
+    spec:
+      containers:
+        - name: catalog-api
+          image: registry.k8s.io/pause:3.10
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 384Mi}
