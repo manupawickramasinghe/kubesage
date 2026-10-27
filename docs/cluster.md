@@ -144,9 +144,10 @@ the repo at `.bin/kubeconfig`; `~/.kube/config` is untouched.
 | Laptop reboots | The k3s agent starts at boot and the udev rule re-applies the VXLAN fix. Nothing to do. |
 | Desktop reboots | Docker restarts the k3d containers, VictoriaMetrics and Grafana. Run `scripts/live-up.sh` (re-applies the VXLAN fix) and start `kubesage serve`. |
 | Run the demo again | **Reset demo** in the UI, or `scripts/demo-reset.sh` |
-| Remove the laptop | `scripts/leave-node.sh manupa@192.168.1.92`: drains the node, deletes it, uninstalls k3s and removes the udev rule |
-| Start over | `scripts/cluster-down.sh`, then the setup above |
-| Desktop IP changed | `scripts/leave-node.sh …`, `scripts/cluster-down.sh`, then setup with the new `NODE_IP` |
+| Remove the laptop | `scripts/leave-node.sh manupa@192.168.1.92`: drains the node, deletes it, uninstalls k3s, removes the udev rule and its ufw rules |
+| Start over | `scripts/cleanup.sh` (both machines; keeps metrics history), then the setup above without `kubesage simulate` |
+| Desktop IP changed | `scripts/cleanup.sh`, then setup with the new `NODE_IP` |
+| Done for good | `scripts/cleanup.sh --all`, see [cleanup.md](cleanup.md) |
 
 ## Troubleshooting
 

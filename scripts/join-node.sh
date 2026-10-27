@@ -3,7 +3,8 @@
 #   NODE_IP=<this machine's LAN IP> scripts/cluster-up.sh     # first, once
 #   scripts/join-node.sh manupa@192.168.1.92 [pool-label]      # default F8s_v2: the SKU closest to a 3500U (8 threads, 14 GiB)
 # Needs key-based SSH to the machine. Asks for its sudo password unless SUDO_PASSWORD is set; the password and
-# the join token travel over SSH stdin, never on a command line. Undo with scripts/leave-node.sh.
+# the join token travel over SSH stdin, never on a command line. Undo with scripts/leave-node.sh, or
+# scripts/cleanup.sh for everything.
 set -euo pipefail
 source "$(dirname "$0")/versions.sh"
 export KUBECONFIG="$BIN_DIR/kubeconfig"
@@ -46,4 +47,6 @@ kubectl wait --for=condition=Ready "node/$NAME" --timeout=180s
 kubectl label --overwrite "node/$NAME" "$NODE_LABEL=$POOL" >/dev/null
 kubectl annotate --overwrite "node/$NAME" "kubesage.io/host=$NAME" "kubesage.io/cpu=$CPU" \
   "kubesage.io/os=$(ssh "$REMOTE" '. /etc/os-release && echo "$PRETTY_NAME"')" >/dev/null
+# Remembered so scripts/cleanup.sh can find and uninstall it later.
+grep -qxF "$REMOTE" "$BIN_DIR/joined-nodes" 2>/dev/null || echo "$REMOTE" >> "$BIN_DIR/joined-nodes"
 kubectl get nodes -L "$NODE_LABEL" -o wide
