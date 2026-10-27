@@ -49,6 +49,36 @@ def test_serves_page_and_report(base_url, result):
     assert len(report["report"]["workloads"]) == len(result.workloads)
     assert json.loads(get(base_url + "/api/cluster")[1]) == {"available": False}
     assert json.loads(get(base_url + "/api/config")[1])["mode"] == "mock"
+    assert get(base_url + "/fonts/inter-latin-var.woff2")[1][:4] == b"wOF2"  # vendored, no CDN
+    with pytest.raises(urllib.error.HTTPError):
+        get(base_url + "/fonts/../server.py")
+
+
+def test_quantities():
+    assert [web.cpu_m(q) for q in ("250m", "2", "1.5", "60429740n")] == [250, 2000, 1500, pytest.approx(60.43, abs=0.01)]
+    assert [web.mem_mi(q) for q in ("512Mi", "4Gi", "13824Ki", str(2 ** 20))] == [512, 4096, 13.5, 1]
+
+
+def test_cluster_reports_requests_usage_and_node_sku(tmp_path, monkeypatch):
+    ready = [{"type": "Ready", "status": "True"}]
+    node = {"metadata": {"name": "k3d-kubesage-agent-0", "labels": {"kubesage.io/sku": "F4s_v2"}}, "status": {"conditions": ready}}
+    pod = {"kind": "Pod", "metadata": {"name": "api-1", "labels": {"app": "api"}},
+           "spec": {"nodeName": "k3d-kubesage-agent-0", "containers": [
+               {"resources": {"requests": {"cpu": "250m", "memory": "512Mi"}, "limits": {"memory": "1Gi"}}}]},
+           "status": {"phase": "Running", "conditions": ready, "containerStatuses": [{"restartCount": 2}]}}
+    pending = {"kind": "Pod", "metadata": {"name": "api-2", "labels": {"app": "api"}}, "spec": {"containers": [{}]},
+               "status": {"phase": "Pending"}}
+    monkeypatch.setattr(web, "_kubectl_json", lambda *a: {"items": [node] if a == ("get", "nodes") else [pod, pending]})
+    monkeypatch.setattr(web, "_kubectl_raw", lambda path: {"items": [
+        {"metadata": {"name": "api-1"}, "containers": [{"usage": {"cpu": "60429740n", "memory": "13824Ki"}}]}]})
+    settings = web.Settings(vm="", namespace="demo", days=30, tz="UTC", mode="mock", out_dir=tmp_path)
+    _, c = web.Api(settings).cluster()
+    agent, unscheduled = c["nodes"]
+    assert c["metrics"] and agent["vcpu"] == 4 and agent["allocatable_cpu_m"] == 3600 and agent["monthly_usd"] == 123.37
+    assert agent["pods"][0] == {"name": "api-1", "app": "api", "phase": "Running", "ready": True, "cpu_request_m": 250,
+                                     "mem_request_mi": 512, "mem_limit_mi": 1024, "cpu_used_m": 60.4, "mem_used_mi": 13.5,
+                                     "restarts": 2}
+    assert unscheduled["role"] == "pending" and unscheduled["pods"][0]["cpu_request_m"] is None
 
 
 def test_post_requires_header(base_url):

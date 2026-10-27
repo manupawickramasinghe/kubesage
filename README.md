@@ -94,19 +94,29 @@ The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
 
 ![KubeSage AI Control Center](docs/control-center.png)
 
-One page for the whole pitch:
-- savings KPIs (node pool, requested capacity, LLM cost of the run vs the all-Wonder and raw-series baselines)
-- the model-router funnel for the run
-- a card per workload with diagnosis, guardrail clamps, follow-ups, a router-trace badge and the manifests
-- a live cluster panel, polled every 3 s, showing pods per SKU-labelled node and KEDA min/max/current replicas with CPU %
+One page for the whole pitch, top to bottom:
+- **Savings**: what the node pool saves per month (billing view) with a before/after bar, the requested-capacity
+  cost (allocation view), what the LLM calls of the run cost, and the triage counts.
+- **Cluster**: an isometric drawing of the live cluster, polled every 3 s. Each node is a slab labelled with its
+  SKU, size and monthly price. Each pod is a glass box as tall as its CPU request, with a glowing core as tall as
+  the CPU it uses right now (metrics-server). Tall glass around a small core is money left on the table. Click a
+  node for its SKU and reserved/used meters, or a pod or legend chip for that workload's scaling, pods and
+  recommendation. **Spike traffic** shows up as a pulsing `loadgen` pod and new replicas dropping in.
+- **Reserved vs used**: bullet charts per workload, CPU and memory: reserved now, used (p95 / p99) and the
+  recommended request.
+- **How it decided**: the model-router flow for the run (stats → triage → which tier, or stopped at triage) next
+  to every LLM call with its tokens and cost, and the all-on-the-strategist and raw-series baselines.
+- **Recommendations**: one row per workload with status, tier and before → after cost. Open it for the diagnosis,
+  guardrail clamps, follow-ups, the router trace and the manifests.
 
-Buttons: **Analyze cluster**, **Apply optimization** (with dry run), **Spike traffic**, **Reset demo**, and
-**Open GitOps PR** when a GitOps repo is configured.
+Buttons: **Analyze**, **Apply** (with a dry-run switch), **Spike traffic**, **Reset demo**, a light/dark toggle,
+and **GitOps PR** when a GitOps repo is configured. Selecting a workload anywhere highlights it in every diagram.
 
-Stdlib HTTP server and one self-contained HTML file with no CDN, so it still works on bad venue Wi-Fi. It binds
-to 127.0.0.1 by default. POSTs require an `X-KubeSage` header, so another website open in the same browser
-can't trigger actions. With `--host 0.0.0.0`, anyone who can reach the port can apply changes. Keep that to
-Tailscale.
+Stdlib HTTP server and one self-contained HTML file. The fonts (Inter and Instrument Serif, SIL OFL) are vendored
+in `kubesage/web/static/fonts` and served by `kubesage serve`, so there is no CDN and it still works on bad venue
+Wi-Fi. It binds to 127.0.0.1 by default. POSTs require an `X-KubeSage` header, so another website open in the same
+browser can't trigger actions. With `--host 0.0.0.0`, anyone who can reach the port can apply changes. Keep that
+to Tailscale or a network you trust.
 
 ### GitOps: open a PR instead of applying
 
@@ -183,7 +193,7 @@ kubesage/
   gitops.py   kustomize overlay -> branch -> commit -> push -> PR
   summary.py  markdown report (PR body, REPORT.md)
   service.py  collect + analyze + persist, shared by CLI and web
-  web/        `kubesage serve`: stdlib server + single-file UI
+  web/        `kubesage serve`: stdlib server + single-file UI + vendored fonts
 config/       model tiers + SKU catalog
 deploy/       Grafana provisioning + dashboard, demo k8s manifests
 scripts/      pinned tool install, cluster up/down/reset

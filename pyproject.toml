@@ -26,7 +26,7 @@ kubesage = "kubesage.cli:main"
 include = ["kubesage*"]
 
 [tool.setuptools.package-data]
-"kubesage.web" = ["static/*"]
+"kubesage.web" = ["static/*", "static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
