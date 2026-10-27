@@ -83,6 +83,9 @@ def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, 
                       f"-> {np_.choice.nodes}x {np_.choice.sku} {_usd(np_.after_monthly_usd)}/mo "
                       f"([green]saves {_usd(np_.before_monthly_usd - np_.after_monthly_usd)}/mo[/])")
         console.print(f"  {np_.choice.rationale}")
+        if np_.migrations:
+            console.print(f"  [cyan]migration[/] {len(np_.migrations)} Deployments -> nodeSelector "
+                          f"{np_.node_label}={np_.choice.sku} (*.migrate.yaml; skipped by apply if no such node)")
         for n in np_.notes:
             console.print(f"  [magenta]guardrail[/] {n}")
 

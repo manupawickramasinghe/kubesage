@@ -76,6 +76,9 @@ def test_recommendations_and_manifests(result):
     assert patch["spec"]["template"]["spec"]["containers"][0]["name"] == "payment-service"
     assert result.node_pool.after_monthly_usd < result.node_pool.before_monthly_usd
     assert result.node_pool.choice.sku != "B4ms"  # sustained batch/peak load rules out burstable nodes
+    assert len(result.node_pool.migrations) == len(result.workloads)  # every workload moves, healthy ones too
+    migrate = yaml.safe_load(result.node_pool.migrations["catalog-api.migrate.yaml"])
+    assert migrate["spec"]["template"]["spec"]["nodeSelector"] == {"kubesage.io/sku": result.node_pool.choice.sku}
     assert result.llm_cost_usd < result.baselines_usd["all_calls_on_strategist"]
 
 

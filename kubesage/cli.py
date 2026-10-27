@@ -85,9 +85,11 @@ def cmd_analyze(args: argparse.Namespace) -> None:
 
     out_dir = Path(args.out_dir) / datetime.now().strftime("%Y%m%d-%H%M%S")
     (out_dir / "manifests").mkdir(parents=True, exist_ok=True)
-    for w in result.workloads:
-        for name, text in w.manifests.items():
-            (out_dir / "manifests" / name).write_text(text)
+    files = {name: text for w in result.workloads for name, text in w.manifests.items()}
+    if result.node_pool:
+        files.update(result.node_pool.migrations)
+    for name, text in files.items():
+        (out_dir / "manifests" / name).write_text(text)
     (out_dir / "report.json").write_text(result.model_dump_json(indent=2))
     print_analysis(console, result, models, str(out_dir))
     console.print(f"\nreport: {out_dir}/report.json")
@@ -100,12 +102,15 @@ def cmd_apply(args: argparse.Namespace) -> None:
         run_dir = Path(args.run) if args.run else apply.latest_run(args.out_dir)
     except FileNotFoundError as exc:
         sys.exit(str(exc))
-    steps = apply.plan(run_dir, dry_run=args.dry_run)
+    steps = apply.plan(run_dir, dry_run=args.dry_run, available_skus=apply.node_skus(load_skus().node_label))
     if not steps:
         sys.exit(f"{run_dir} has no manifests to apply")
     console.print(f"applying {run_dir}{' (server dry-run)' if args.dry_run else ''}")
     failed = 0
     for step in apply.run(steps):
+        if step.skipped:
+            console.print(f"  [yellow]skip[/] {step.file.name}: {step.skipped}")
+            continue
         ok = step.returncode == 0
         failed += not ok
         console.print(f"  [{'green' if ok else 'red'}]{'ok ' if ok else 'ERR'}[/] {step.file.name}: {step.output}")

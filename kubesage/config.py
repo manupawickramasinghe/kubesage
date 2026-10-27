@@ -62,6 +62,7 @@ class SkuCatalog(BaseModel):
     allocatable_mem: float = 0.8
     min_nodes: int = 2
     current_pool: NodePool
+    node_label: str = "kubesage.io/sku"
     skus: list[Sku]
 
     def get(self, name: str) -> Sku:

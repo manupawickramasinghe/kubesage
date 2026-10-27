@@ -30,3 +30,14 @@ def test_patch_has_header_and_plan_orders_patch_before_scaledobject(tmp_path):
     assert steps[1].cmd[:4] == ["kubectl", "apply", "-f", str(run / "manifests/report-worker.keda.yaml")]
     assert all(s.cmd[-1] == "--dry-run=server" for s in steps)
     assert apply.latest_run(tmp_path) == run
+
+
+def test_migration_skipped_without_matching_node(tmp_path):
+    from kubesage.recommend.render import migration
+
+    run = _write_run(tmp_path)
+    (run / "manifests/report-worker.migrate.yaml").write_text(migration("demo", "report-worker", "kubesage.io/sku", "F4s_v2"))
+    names = lambda steps: [(s.file.name, s.skipped is None) for s in steps]
+    assert names(apply.plan(run, kubectl=["kubectl"], available_skus={"D8s_v5"})) == [
+        ("report-worker.patch.yaml", True), ("report-worker.migrate.yaml", False), ("report-worker.keda.yaml", True)]
+    assert names(apply.plan(run, kubectl=["kubectl"], available_skus={"D8s_v5", "F4s_v2"}))[1] == ("report-worker.migrate.yaml", True)
