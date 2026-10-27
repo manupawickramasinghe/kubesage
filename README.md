@@ -85,6 +85,22 @@ The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
 `export KUBECONFIG=$PWD/.bin/kubeconfig PATH=$PWD/.bin:$PATH` to run kubectl yourself.
 `kubesage apply` uses `$KUBECONFIG` when set, so it can target any cluster.
 
+### GitOps: open a PR instead of applying
+
+`kubesage gitops` writes a run into a local clone of your GitOps repo as a kustomize overlay
+(`<path>/kustomization.yaml` over your base, plus the patches, ScaledObjects and a `REPORT.md`). It commits
+on a new branch `kubesage/rightsize-<run>`, optionally pushes it and opens a PR whose body is the report,
+then switches the repo back to the branch it was on. Argo CD / Flux then roll it out like any other change.
+
+```bash
+.venv/bin/kubesage gitops --repo ~/src/my-gitops --kustomize-base ../base --path apps/demo-kubesage   # commit only
+.venv/bin/kubesage gitops --repo ~/src/my-gitops --kustomize-base ../base --path apps/demo-kubesage --open-pr
+```
+
+Workloads that get a ScaledObject also get `spec.replicas: null` in their patch, so Git stops pinning the
+replica count and the GitOps controller doesn't fight the HPA. Commits use the GitOps repo's own git identity.
+It refuses to run on a dirty working tree or an existing branch name.
+
 ### Live LLM mode
 
 ```bash
@@ -123,6 +139,8 @@ kubesage/
   pipeline.py the router
   apply.py    kubectl apply of a run's manifests
   live.py     `kubesage spike` load-generator Job
+  gitops.py   kustomize overlay -> branch -> commit -> push -> PR
+  summary.py  markdown report (PR body, REPORT.md)
 config/       model tiers + SKU catalog
 deploy/       Grafana provisioning + dashboard, demo k8s manifests
 scripts/      pinned tool install, cluster up/down/reset
@@ -133,5 +151,5 @@ scripts/      pinned tool install, cluster up/down/reset
 - [x] k3d cluster + KEDA + demo Deployments matching the scenarios; `kubesage apply`
 - [x] Live mode: vmagent scraping the cluster, plus a load spike for the demo
 - [ ] Web UI ("AI Control Center") on top of `report.json`, with the router-trace badges
-- [ ] GitOps: open a PR with the manifests instead of applying directly
+- [x] GitOps: open a PR with the manifests instead of applying directly
 - [x] Two-node mode: label nodes as SKUs and migrate pods to the cheap node live

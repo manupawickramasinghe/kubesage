@@ -68,7 +68,7 @@ def cmd_stats(args: argparse.Namespace) -> None:
 
 def cmd_analyze(args: argparse.Namespace) -> None:
     from kubesage.llm.client import LLMClient, LLMError
-    from kubesage.pipeline import analyze
+    from kubesage.pipeline import analyze, write_run
     from kubesage.report import print_analysis
 
     models = load_models()
@@ -83,14 +83,7 @@ def cmd_analyze(args: argparse.Namespace) -> None:
     except LLMError as exc:
         sys.exit(f"LLM call failed: {exc}")
 
-    out_dir = Path(args.out_dir) / datetime.now().strftime("%Y%m%d-%H%M%S")
-    (out_dir / "manifests").mkdir(parents=True, exist_ok=True)
-    files = {name: text for w in result.workloads for name, text in w.manifests.items()}
-    if result.node_pool:
-        files.update(result.node_pool.migrations)
-    for name, text in files.items():
-        (out_dir / "manifests" / name).write_text(text)
-    (out_dir / "report.json").write_text(result.model_dump_json(indent=2))
+    out_dir = write_run(result, Path(args.out_dir) / datetime.now().strftime("%Y%m%d-%H%M%S"))
     print_analysis(console, result, models, str(out_dir))
     console.print(f"\nreport: {out_dir}/report.json")
 
@@ -116,6 +109,25 @@ def cmd_apply(args: argparse.Namespace) -> None:
         console.print(f"  [{'green' if ok else 'red'}]{'ok ' if ok else 'ERR'}[/] {step.file.name}: {step.output}")
     if failed:
         sys.exit(f"{failed} step(s) failed")
+
+
+def cmd_gitops(args: argparse.Namespace) -> None:
+    from kubesage import apply, gitops
+
+    try:
+        run_dir = Path(args.run) if args.run else apply.latest_run(args.out_dir)
+        out = gitops.export(run_dir, Path(args.repo), path=args.path, kustomize_base=args.kustomize_base,
+                            branch=args.branch, base_branch=args.base_branch, remote=args.remote,
+                            push=args.push, open_pr=args.open_pr)
+    except (FileNotFoundError, gitops.GitOpsError) as exc:
+        sys.exit(str(exc))
+    console.print(f"committed {out.commit[:10]} on branch {out.branch} in {args.repo} ({len(out.files)} files under {args.path}/)")
+    if out.pr_url:
+        console.print(f"pull request: {out.pr_url}")
+    elif out.pushed:
+        console.print(f"pushed {out.branch} to {args.remote}")
+    else:
+        console.print("not pushed; re-run with --push or --open-pr when ready")
 
 
 def cmd_spike(args: argparse.Namespace) -> None:
@@ -163,6 +175,20 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--out-dir", default="out")
     ap.add_argument("--dry-run", action="store_true", help="server-side dry run, change nothing")
     ap.set_defaults(func=cmd_apply)
+
+    go = sub.add_parser("gitops", help="commit a run to a GitOps repo as a kustomize overlay, optionally open a PR")
+    go.add_argument("--repo", required=True, help="path to a local clone of the GitOps repo")
+    go.add_argument("--kustomize-base", required=True,
+                    help="kustomize resource the overlay patches, relative to --path (e.g. ../base)")
+    go.add_argument("--path", default="kubesage/demo", help="overlay directory inside the repo")
+    go.add_argument("--run", help="run directory (default: latest under --out-dir)")
+    go.add_argument("--out-dir", default="out")
+    go.add_argument("--branch", help="default: kubesage/rightsize-<run>")
+    go.add_argument("--base-branch", help="default: the repo's current branch")
+    go.add_argument("--remote", default="origin")
+    go.add_argument("--push", action="store_true", help="push the branch")
+    go.add_argument("--open-pr", action="store_true", help="push and open a PR with gh")
+    go.set_defaults(func=cmd_gitops)
 
     sp = sub.add_parser("spike", help="live demo: send a burst of CPU-heavy traffic to a demo Service")
     sp.add_argument("--namespace", default="demo")
