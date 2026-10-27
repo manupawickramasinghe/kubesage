@@ -8,6 +8,11 @@ VM_CONTAINER=${VM_CONTAINER:-kubesage-victoriametrics-1}
 NETWORK="k3d-$CLUSTER_NAME"
 
 docker inspect "$VM_CONTAINER" >/dev/null 2>&1 || { echo "start the metrics stack first: docker compose up -d" >&2; exit 1; }
+# Two-machine clusters: the server's VXLAN checksum fix (see cluster-up.sh) is lost when its container restarts,
+# e.g. after a reboot. Safe to repeat.
+if [ -n "$(kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')" ]; then
+  docker exec "k3d-$CLUSTER_NAME-server-0" ethtool -K flannel.1 tx-checksum-ip-generic off >/dev/null
+fi
 # Put VictoriaMetrics on the cluster's docker network and point vmagent at that IP. Pod DNS can't resolve
 # docker container names, so use the IP directly.
 if ! docker inspect -f '{{json .NetworkSettings.Networks}}' "$VM_CONTAINER" | grep -q "\"$NETWORK\""; then

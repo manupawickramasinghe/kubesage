@@ -76,6 +76,21 @@ def test_scale_to_zero_only_for_batch_workloads(stats):
     assert batch.scaling.min_replicas == 0 and not notes
 
 
+def test_peaky_workloads_keep_a_cpu_trigger(stats):
+    """Found in a live run: cron-only scaling for checkout-web, so the traffic spike never added pods."""
+    def plan_for(name):
+        rec = Recommendation(workload=name, risk="low", diagnosis="x", scaling=ScalingPlan(
+            min_replicas=3, max_replicas=3, cron_windows=[CronWindow(start="50 8 * * 1-5", end="0 11 * * 1-5",
+                                                                     desired_replicas=3)]))
+        return guardrails.apply(rec, stats[name])
+
+    web, notes = plan_for("checkout-web")
+    assert web.scaling.cpu_utilization_target == guardrails.DEFAULT_CPU_TARGET and web.scaling.max_replicas == 6
+    assert any("CPU trigger" in n for n in notes)
+    steady, _ = plan_for("catalog-api")
+    assert steady.scaling.cpu_utilization_target is None
+
+
 def test_cron_subset():
     assert cron.window_hours_per_week("50 8 * * 1-5", "0 11 * * 1-5") == pytest.approx(130 / 60 * 5)
     assert cron.window_hours_per_week("0 23 * * *", "0 1 * * *") == pytest.approx(14)
