@@ -28,12 +28,24 @@ def average_replicas(plan: ScalingPlan | None, fixed: int) -> float:
 
 
 def peak_replicas(plan: ScalingPlan | None, fixed: int) -> int:
+    """Replicas at the scheduled peak: what the node pool is sized for."""
     if plan is None:
         return fixed
-    if plan.cpu_utilization_target is not None:
-        # The node pool must have room for the autoscaler to reach its configured ceiling.
-        return plan.max_replicas
     return max([plan.min_replicas, 1, *(w.desired_replicas for w in plan.cron_windows)])
+
+
+def burst_replicas(plan: ScalingPlan | None, fixed: int) -> int:
+    """Replicas if a CPU autoscaler goes all the way to its ceiling. Checked against the pool, not sized for:
+    sizing every workload for its maximum at once is the over-provisioning KubeSage removes."""
+    if plan is not None and plan.cpu_utilization_target is not None:
+        return max(plan.max_replicas, peak_replicas(plan, fixed))
+    return peak_replicas(plan, fixed)
+
+
+def allocatable(sku: str, nodes: int, catalog: SkuCatalog) -> tuple[float, float]:
+    """(cores, MiB) that pods can request on `nodes` of `sku`."""
+    s = catalog.get(sku)
+    return nodes * s.vcpu * catalog.allocatable_cpu, nodes * s.memory_gib * 1024 * catalog.allocatable_mem
 
 
 class Demand(BaseModel):

@@ -1,7 +1,11 @@
 """End-to-end in mock mode: scenario curves -> Stage 1 stats -> routing -> guardrails -> manifests."""
+from types import SimpleNamespace
+
 import pytest
 import yaml
 
+from kubesage import pipeline
+from kubesage.config import load_skus
 from kubesage.llm.schemas import CronWindow, Recommendation, ResourceSpec, ScalingPlan
 from kubesage.recommend import costing, cron, guardrails
 
@@ -139,21 +143,39 @@ def test_overlapping_cron_costs_use_the_largest_target():
     assert costing.average_replicas(plan, 1) == pytest.approx(1.5)
 
 
-def test_node_capacity_includes_cpu_scaling_ceiling(result):
-    expected_cpu = expected_mem = 0.0
+def test_node_pool_is_sized_for_scheduled_peaks_and_checks_the_autoscaler_ceiling(result):
+    """Sizing for every autoscaler's maximum at once turned a 1-node saving into a 3-node increase in a live run;
+    the pool now covers scheduled peaks and reports the full-scale-out shortfall instead."""
+    sized = {"cpu": 0.0, "mem": 0.0}
+    burst = {"cpu": 0.0, "mem": 0.0}
     stats_by_id = {s.id: s for s in result.stats}
     for w in result.workloads:
         s = stats_by_id[w.id]
         rec = w.recommendation
         r = rec.resources if rec else None
         plan = rec.scaling if rec else None
-        replicas = costing.peak_replicas(plan, s.replicas)
+        cpu, mem = (r.cpu_request_m / 1000, r.mem_request_mi) if r else (s.cpu_request_cores or 0, s.mem_request_mib or 0)
+        peak, ceiling = costing.peak_replicas(plan, s.replicas), costing.burst_replicas(plan, s.replicas)
         if plan and plan.cpu_utilization_target is not None:
-            assert replicas == plan.max_replicas
-        expected_cpu += (r.cpu_request_m / 1000 if r else s.cpu_request_cores or 0) * replicas
-        expected_mem += (r.mem_request_mi if r else s.mem_request_mib or 0) * replicas
-    assert result.node_pool.demand_after.cpu_cores == pytest.approx(expected_cpu, abs=0.001)
-    assert result.node_pool.demand_after.mem_mib == pytest.approx(expected_mem, abs=0.1)
+            assert ceiling == max(plan.max_replicas, peak)
+        sized["cpu"] += cpu * peak; sized["mem"] += mem * peak
+        burst["cpu"] += cpu * ceiling; burst["mem"] += mem * ceiling
+    pool = result.node_pool
+    assert pool.demand_after.cpu_cores == pytest.approx(sized["cpu"], abs=0.001)
+    assert pool.demand_after.mem_mib == pytest.approx(sized["mem"], abs=0.1)
+    assert pool.demand_burst.cpu_cores == pytest.approx(burst["cpu"], abs=0.001)
+    assert any("every CPU autoscaler" in n for n in pool.notes)
+
+
+def test_burst_note_names_the_shortfall():
+    catalog = load_skus()
+    pool = SimpleNamespace(choice=SimpleNamespace(sku="F8s_v2", nodes=1))
+    cpu, mem = costing.allocatable("F8s_v2", 1, catalog)  # 7.2 cores, 13107 MiB
+    fits = costing.Demand(cpu_cores=cpu - 1, mem_mib=mem - 1024, largest_pod_cpu=1, largest_pod_mem_mib=512)
+    over = fits.model_copy(update={"cpu_cores": cpu + 0.4})
+    assert "also fits" in pipeline._burst_note(fits, pool, catalog)
+    note = pipeline._burst_note(over, pool, catalog)
+    assert "0.40 cores short" in note and "Pending" in note
 
 
 def test_guardrails_cap_minimum_and_preserve_cpu_scaling_headroom(stats):

@@ -42,6 +42,7 @@ class NodePoolResult(BaseModel):
     candidates: list[costing.SkuCandidate]
     demand_before: costing.Demand
     demand_after: costing.Demand
+    demand_burst: costing.Demand | None = None  # every CPU autoscaler at its maximum; checked, not sized for
     node_label: str
     migrations: dict[str, str] = {}  # filename -> nodeSelector patch, empty when the SKU doesn't change
     notes: list[str] = []
@@ -87,6 +88,19 @@ def _compact(s: WorkloadStats) -> dict:
     return s.model_dump(exclude_none=True)
 
 
+def _burst_note(burst: costing.Demand, pool: "NodePoolResult", catalog: SkuCatalog) -> str:
+    """The pool is sized for scheduled peaks; say what happens if every CPU autoscaler maxes out at once."""
+    cpu, mem = costing.allocatable(pool.choice.sku, pool.choice.nodes, catalog)
+    if burst.cpu_cores <= cpu and burst.mem_mib <= mem:
+        return (f"Sized for scheduled peaks; it also fits every CPU autoscaler at its maximum "
+                f"({burst.cpu_cores:.2f} of {cpu:.2f} allocatable cores).")
+    short = [f"{burst.cpu_cores - cpu:.2f} cores" if burst.cpu_cores > cpu else "",
+             f"{(burst.mem_mib - mem) / 1024:.1f} GiB" if burst.mem_mib > mem else ""]
+    return (f"Sized for scheduled peaks. If every CPU autoscaler reached its maximum at once, pods would request "
+            f"{burst.cpu_cores:.2f} cores / {burst.mem_mib / 1024:.1f} GiB against {cpu:.2f} / {mem / 1024:.1f} allocatable: "
+            f"{' and '.join(x for x in short if x)} short, so some scale-out pods would stay Pending until load drops.")
+
+
 def _demand(rows: list[tuple[float, float, float]]) -> costing.Demand:
     """rows: (cpu cores per pod, MiB per pod, pods at peak)."""
     return costing.Demand(cpu_cores=round(sum(c * n for c, _, n in rows), 3),
@@ -123,7 +137,7 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
     with ThreadPoolExecutor(max_workers=4) as pool:
         done = {s.id: (rec, e, tier) for s, rec, e, tier in pool.map(remediate, todo)}
 
-    results, before_rows, after_rows = [], [], []
+    results, before_rows, after_rows, burst_rows = [], [], [], []
     for s in stats:
         cpu_now, mem_now = s.cpu_request_cores or 0.0, s.mem_request_mib or 0.0
         before = costing.allocation_monthly(cpu_now, mem_now, s.replicas, catalog)
@@ -138,20 +152,22 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
             mem_new = rec.resources.mem_request_mi if rec.resources else mem_now
             after = costing.allocation_monthly(cpu_new, mem_new, costing.average_replicas(rec.scaling, s.replicas), catalog)
             after_rows.append((cpu_new, mem_new, costing.peak_replicas(rec.scaling, s.replicas)))
+            burst_rows.append((cpu_new, mem_new, costing.burst_replicas(rec.scaling, s.replicas)))
             result = result.model_copy(update=dict(
                 tier=tier, recommendation=rec, guardrail_notes=gnotes, monthly_after_usd=round(after, 2),
                 manifests=render.render(rec, namespace=s.namespace, name=s.name, container=s.name, tz=tz)))
         else:
             after_rows.append((cpu_now, mem_now, s.replicas))
+            burst_rows.append((cpu_now, mem_now, s.replicas))
         results.append(result)
 
     node_pool = None
     if done:
         node_pool = _plan_nodes(llm, catalog, stats, _demand(before_rows), _demand(after_rows), ledger)
-        if node_pool and any(w.recommendation and w.recommendation.scaling
-                             and w.recommendation.scaling.cpu_utilization_target is not None for w in results):
-            node_pool.notes.append("Node capacity includes CPU autoscalers at their maximum replicas. Workload costs "
-                                   "use scheduled average replicas and exclude unpredictable CPU scale-out.")
+        burst = _demand(burst_rows)
+        if node_pool and (burst.cpu_cores, burst.mem_mib) != (node_pool.demand_after.cpu_cores, node_pool.demand_after.mem_mib):
+            node_pool.demand_burst = burst
+            node_pool.notes.append(_burst_note(burst, node_pool, catalog))
 
     llm_cost = sum(e.cost_usd for e in ledger)
     strategist = llm.models.tiers["strategist"]
