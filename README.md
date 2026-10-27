@@ -40,12 +40,24 @@ docker compose up -d                 # VictoriaMetrics :8428, Grafana :3300
 
 Grafana: http://localhost:3300 (anonymous view, admin/admin to edit) opens the "requested vs used" dashboard.
 
-`analyze` writes `out/<timestamp>/report.json` and `out/<timestamp>/manifests/*.yaml`:
+`analyze` writes `out/<timestamp>/report.json` and `out/<timestamp>/manifests/*.yaml`.
+
+### Local cluster + apply
+
+A one-node [k3d](https://k3d.io) cluster with KEDA, running the five demo Deployments in their oversized
+"before" state (pause containers, so the requests reserve capacity but use none). Adds ~600 MiB RAM.
 
 ```bash
-kubectl -n demo patch deployment payment-service --type strategic --patch-file out/<ts>/manifests/payment-service.patch.yaml
-kubectl apply -f out/<ts>/manifests/report-worker.keda.yaml
+scripts/cluster-up.sh                # downloads pinned k3d + kubectl into .bin/, creates cluster, installs KEDA
+.venv/bin/kubesage apply --dry-run   # server-side dry run of the latest analysis run
+.venv/bin/kubesage apply             # Deployment patches first, then ScaledObjects
+scripts/demo-reset.sh                # back to the "before" state, to run the demo again
+scripts/cluster-down.sh
 ```
+
+The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
+`export KUBECONFIG=$PWD/.bin/kubeconfig PATH=$PWD/.bin:$PATH` to run kubectl yourself.
+`kubesage apply` uses `$KUBECONFIG` when set, so it can target any cluster.
 
 ### Live LLM mode
 
@@ -83,13 +95,15 @@ kubesage/
   llm/        schemas, prompts, OpenAI-compatible client with cost ledger, mock tiers
   recommend/  guardrails, cron subset, cost model, manifest renderer
   pipeline.py the router
+  apply.py    kubectl apply of a run's manifests
 config/       model tiers + SKU catalog
-deploy/       Grafana provisioning + dashboard
+deploy/       Grafana provisioning + dashboard, demo k8s manifests
+scripts/      pinned tool install, cluster up/down/reset
 ```
 
 ## Roadmap
 
-- [ ] kind/k3s cluster + KEDA + demo Deployments matching the scenarios; `kubesage apply`
+- [x] k3d cluster + KEDA + demo Deployments matching the scenarios; `kubesage apply`
 - [ ] Live mode: vmagent scraping the cluster, plus a "fast-forward" load spike for the demo
 - [ ] Web UI ("AI Control Center") on top of `report.json`, with the router-trace badges
 - [ ] GitOps: open a PR with the manifests instead of applying directly
