@@ -198,7 +198,7 @@ def _promql(args: list[str], vm: str) -> tuple[int, str]:
     query = " ".join(expr).strip()
     if not query:
         raise Refused("promql: give an expression, e.g. promql 'up'")
-    client = PromClient(vm, timeout=20)
+    client = PromClient(vm, timeout=20, journal=False)
     try:
         if window:
             step = step or max(15, window // 120)

@@ -13,8 +13,9 @@ class PromError(RuntimeError):
 
 
 class PromClient:
-    def __init__(self, base_url: str, timeout: float = 60.0):
+    def __init__(self, base_url: str, timeout: float = 60.0, *, journal: bool = True):
         self.base_url = base_url.rstrip("/")
+        self.journal = journal  # off for status polls and shell queries, which are recorded elsewhere or are noise
         self._http = httpx.Client(base_url=self.base_url, timeout=timeout)
         self.calls: list[dict] = []  # every request as sent, for the run's trace.json
 
@@ -38,8 +39,9 @@ class PromClient:
         sample = result[0] if result else None
         call["response"] = {"status": resp.status_code, "series": len(result), "first_series": sample and {
             "metric": sample.get("metric"), "values": (sample.get("values") or [sample.get("value")])[:3]}}
-        log("promql", f"{path.rsplit('/', 1)[-1]} {params['query'][:90]} -> {len(result)} series in {call['latency_ms']} ms",
-            stage=1)
+        if self.journal:
+            log("promql", f"{path.rsplit('/', 1)[-1]} {params['query'][:90]} -> {len(result)} series in {call['latency_ms']} ms",
+                stage=1)
         return result
 
     def query(self, promql: str, at: float | None = None) -> list[dict]:

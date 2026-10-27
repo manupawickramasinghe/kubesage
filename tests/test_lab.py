@@ -117,7 +117,9 @@ def test_operations_and_shell_commands_are_journalled(tmp_path, kubectl_calls, m
     assert api.shell({"cmd": 7})[0] == 400
 
 
-def test_lab_status_reports_an_unreachable_tsdb(tmp_path):
+def test_lab_status_reports_an_unreachable_tsdb_and_never_a_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("MODEL_API_KEY", "secret-value-for-test")
     status, body = api_for(tmp_path).lab()
     assert status == 200 and body["vm"]["ok"] is False and set(body["tiers"]) == {"triage", "worker", "strategist"}
-    assert body["provider"]["api_key_env"] and "key" not in json.dumps(body["provider"]).lower().replace("api_key_env", "")
+    assert set(body["provider"]) == {"base_url", "api_key_env", "profile"}  # the variable's name, not its value
+    assert "secret-value-for-test" not in json.dumps(body)

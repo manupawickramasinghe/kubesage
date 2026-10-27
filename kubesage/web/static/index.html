@@ -419,7 +419,8 @@
   .tbtn:hover { background: #22221f; } .tbtn[aria-pressed="true"] { border-color: var(--t-violet); color: var(--t-violet); }
   .tbtn:focus-visible, .tmux input:focus-visible, .tmux select:focus-visible { outline: 2px solid var(--t-violet); outline-offset: 1px; }
   .scroll { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px; }
-  .sh-out div, .jr div { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .sh-out div { white-space: pre; }  /* tables keep their columns; the pane scrolls sideways like a terminal */
+  .jr div { white-space: pre-wrap; overflow-wrap: anywhere; }
   .sh-prompt { color: var(--t-green); } .sh-err { color: var(--t-red); } .sh-dim { color: var(--t-dim); }
   .sh-line { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--t-line); }
   .sh-line input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--t-fg); font: inherit; }

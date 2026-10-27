@@ -184,6 +184,58 @@ A log of what you did in this browser session: analysis runs, each apply step's 
 Live plan status and active traffic are reconstructed from Kubernetes after a reload; this activity log and
 the browser's last validation result are session information.
 
+## Architecture & CLI lab
+
+The header's **FinOps dashboard | Architecture & CLI lab** switch opens the engineering view of the same system
+(`#lab` in the URL, so a reload or a shared link keeps it). Everything on it is read from the server: live numbers,
+real log lines, requests exactly as sent. Nothing is simulated.
+
+![The Architecture & CLI lab](images/ui-lab.png)
+
+- **Actions**: Backfill 30 days, Run analysis, Apply fixes, Send traffic and Reset demo. They are the dashboard's
+  actions, with the same operation lock. Backfill is the lab's own. It regenerates the 30-day scenario history
+  in VictoriaMetrics, which **replaces** everything stored for the namespace, including the live tail, so it asks
+  first.
+- **Dataflow, five stages**:
+  1. **Metrics**: VictoriaMetrics, its live series and how old the newest sample is, plus the PromQL queries the
+     selected run made.
+  2. **Triage**: the cheap tier's model, plus its tokens, cost and latency in the run, and the healthy/routine/complex
+     counts.
+  3. **Remediation**: the worker and strategist tiers, calls, cached tokens, guardrail overrides and the node-pool
+     decision.
+  4. **Autoscaling**: KEDA ScaledObjects and HPA pods, with CPU against the target.
+  5. **Nodes**: the real machines and their pods.
+
+  Model names come from the active profile (`KUBESAGE_MODELS`), e.g. Cerebras' `gpt-oss-120b` or Meta's Muse tiers.
+  A violet light and a moving connector mean that stage logged something in the last few seconds. Clicking a stage
+  filters the journal to it.
+- **Shell** (pane 0): a read-only allow-list.
+  - `kubectl get / describe / top / logs / events / version / cluster-info / api-resources`. Secrets, `exec`,
+    `--watch` and `-f` are not available, and `logs` is capped at 500 lines.
+  - `promql '<expr>' [--range 1h --step 1m]`.
+  - `kubesage route | ledger | plan | runs | config`.
+  - `help`, `history` and `clear`.
+  - Shortcut keys along the bottom, ↑/↓ for history, Tab to complete, Ctrl+L to clear.
+
+  Input never reaches a shell: it is split with shlex, each token is checked, and kubectl gets an argument list.
+  The page has no login, so this is the most it can safely offer to anyone who can reach port 8600. Changes go
+  through the action buttons.
+- **Journal** (pane 1, `journalctl -f` style): every query, LLM call (tokens, cost, latency), guardrail override,
+  node-pool decision, kubectl step, operation start/finish, shell command and load-generator interval, plus the
+  namespace's real Kubernetes events (Scheduled, Killing, SuccessfulRescale, BackOff…). Filter by stage, or pause
+  scrolling.
+- **Wire** (pane 2): for the selected run:
+  - every PromQL request with its parameters, series count and timing;
+  - every LLM request body as sent, with the provider's response, usage (reasoning and cached tokens included) and
+    the parsed answer;
+  - the exact `kubectl` calls Apply makes, with their manifests;
+  - the four VictoriaMetrics requests of the last Backfill, with a preview of the import body.
+
+  **Copy as curl** reproduces a request. The API key appears only as its variable (`$CEREBRAS_API_KEY`) and is
+  never stored or sent to the browser. Runs from before request tracing show no exchanges.
+
+On a phone the stages stack, and the terminal shows one pane at a time; switch panes from the green status bar.
+
 ## Interactions
 
 | action | result |

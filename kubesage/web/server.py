@@ -425,7 +425,7 @@ class Api:
         models = load_models()
         vm = {"url": self.s.vm, "ok": False}
         try:
-            client = shell.PromClient(self.s.vm, timeout=5)
+            client = shell.PromClient(self.s.vm, timeout=5, journal=False)
             series = client.query(f'count(container_memory_working_set_bytes{{namespace="{self.s.namespace}"}})')
             newest = client.query(f'time() - max(timestamp(container_memory_working_set_bytes{{namespace="{self.s.namespace}"}}))')
             vm.update(ok=True, series=int(float(series[0]["value"][1])) if series else 0,
