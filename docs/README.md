@@ -16,6 +16,7 @@ It spends as little as possible on its own LLM calls, and shows every cent.
 | [architecture.md](architecture.md) | Components, data flow, design decisions, code map |
 | [pipeline.md](pipeline.md) | Stage 1 stats and signals, triage and routing, guardrails, manifests, cost model |
 | [operations.md](operations.md) | Runbook: start, after a reboot, demo-day checklist, fixes |
+| [cleanup.md](cleanup.md) | Tearing it all down: what `scripts/cleanup.sh` removes on each machine, and how to check |
 | [api.md](api.md) | The web server's HTTP API and `report.json` |
 | [configuration.md](configuration.md) | Model profiles, SKU catalog, environment variables, secrets |
 | [testing.md](testing.md) | The test suite and the manual checks, with the last verified results |

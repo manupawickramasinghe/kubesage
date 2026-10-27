@@ -100,6 +100,21 @@ For a new run, verify the current plan rather than expecting the historical SKU 
 Node sizing now includes maximum CPU autoscaler replicas. Some plans require additional capacity and can
 cost more than the baseline; reporting a negative saving is valid.
 
+## Manual: cleanup
+
+`scripts/cleanup.sh --check` and `--dry-run` are safe to run at any time. For a real teardown without losing the
+demo, point it at a throwaway cluster:
+
+```bash
+.bin/k3d cluster create kubesage-cleanuptest --image rancher/k3s:v1.36.4-k3s1 --no-lb \
+  --kubeconfig-update-default=false --kubeconfig-switch-context=false --wait
+CLUSTER_NAME=kubesage-cleanuptest scripts/cleanup.sh --yes --skip-nodes   # also stops kubesage serve
+```
+
+This was done on 2026-10-27. The test cluster, its network and volume, and the attachment of an extra container
+were all removed; the real cluster and `.bin/kubeconfig` were untouched. The laptop path is tested with the
+leave-and-rejoin cycle in [cleanup.md](cleanup.md#how-this-was-tested), which has not been run yet.
+
 ## Manual: the UI
 
 Screenshot without a browser driver: snapshot the page with the API stubbed, then use Firefox headless.

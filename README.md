@@ -55,8 +55,11 @@ scripts/cluster-up.sh                # downloads pinned k3d + kubectl into .bin/
 .venv/bin/kubesage apply --dry-run   # server-side dry run of the latest analysis run
 .venv/bin/kubesage apply             # Deployment patches first, then ScaledObjects
 scripts/demo-reset.sh                # back to the "before" state, to run the demo again
-scripts/cluster-down.sh
+scripts/cleanup.sh --check           # what is still installed, on this machine and joined ones
+scripts/cleanup.sh                   # delete the clusters (both machines); --all also wipes metrics, images, tools
 ```
+
+[docs/cleanup.md](docs/cleanup.md) lists exactly what each level removes and what it never touches.
 
 **Two real machines.** The demo cluster is the Ryzen 5 8600G desktop (k3s server in k3d) plus the Ryzen 5
 3500U laptop, joined over SSH as a native k3s agent:
@@ -218,7 +221,7 @@ kubesage/
   web/        `kubesage serve`: stdlib server + single-file UI + vendored fonts
 config/       model tiers + SKU catalog
 deploy/       Grafana provisioning + dashboard, demo k8s manifests
-scripts/      pinned tool install, cluster up/down/reset, live metrics, join/leave a machine
+scripts/      pinned tool install, cluster up/reset, live metrics, join/leave a machine, cleanup
 docs/         guides, diagrams, screenshots, handover
 ```
 

@@ -20,7 +20,8 @@ Snapshot taken 2026-10-27 (Asia/Colombo). Repo: `~/kubesage` on the 8600G deskto
 4. **Shared machines.** Both machines run other important services:
    - the **desktop** runs Frigate and other containers; don't stop or modify any container that isn't `k3d-kubesage-*` or `kubesage-*`;
    - the **laptop** runs Pi-hole (LAN DNS), GitHub runners and more; don't touch them.
-   - Ask before anything destructive: `cluster-down.sh`, `leave-node.sh`, uninstalls, reboots.
+   - Ask before anything destructive: `cleanup.sh`, `cluster-down.sh`, `leave-node.sh`, uninstalls, reboots.
+     `scripts/cleanup.sh --check` and `--dry-run` change nothing and are always fine to run.
 5. **Off-limits elsewhere** (the user's standing rules):
    - repositories of the `Rikugan` / `Rikugan-LK` organisations;
    - `esp32-blue-audio-puck`;
@@ -44,7 +45,8 @@ Read these first, about 20 minutes:
   review.**
 - [`cluster.md`](cluster.md): the two machines, networking and its traps, what was installed where.
 - [`architecture.md`](architecture.md), [`pipeline.md`](pipeline.md), [`api.md`](api.md),
-  [`operations.md`](operations.md), [`testing.md`](testing.md), [`configuration.md`](configuration.md).
+  [`operations.md`](operations.md), [`cleanup.md`](cleanup.md), [`testing.md`](testing.md),
+  [`configuration.md`](configuration.md).
 
 ## Run it
 
@@ -164,6 +166,8 @@ everything by "would a hackathon judge get this in 10 seconds?"
   bound to 0.0.0.0 on the home LAN.
 - The Meta Model API profile's Glimmer and Wonder model IDs and prices are unverified. Testing uses Cerebras.
 - With Cerebras, every tier costs the same, so the "all on the strategist" baseline equals the routed cost.
+- `scripts/cleanup.sh`'s laptop path (`leave-node.sh`) hasn't been run for real yet. The desktop path was tested
+  on a throwaway cluster. [`cleanup.md`](cleanup.md) has a leave-and-rejoin cycle that tests it safely.
 
 ## Recent history
 

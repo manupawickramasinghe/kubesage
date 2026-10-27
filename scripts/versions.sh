@@ -4,7 +4,7 @@ K3D_VERSION=v5.9.0
 KUBECTL_VERSION=v1.36.4
 K3S_IMAGE=rancher/k3s:v1.36.4-k3s1
 KEDA_VERSION=2.21.0
-CLUSTER_NAME=kubesage
+CLUSTER_NAME=${CLUSTER_NAME:-kubesage}
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="$REPO_ROOT/.bin"

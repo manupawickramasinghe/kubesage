@@ -54,8 +54,10 @@ Check: `kubectl get nodes` shows both Ready, and `kubectl top nodes` lists both.
 | Send traffic | `.venv/bin/kubesage spike --rps 40 --work-ms 50 --seconds 180` |
 | Watch scaling | `kubectl -n demo get hpa,pods -o wide -w` |
 | Regenerate history | `.venv/bin/kubesage simulate`, then `scripts/live-up.sh` |
-| Stop the cluster | `scripts/cluster-down.sh` (the laptop then shows NotReady; remove it with `leave-node.sh` first for a clean stop) |
-| Stop metrics | `docker compose down` (the volume keeps the data) |
+| What is still installed? | `scripts/cleanup.sh --check` |
+| Remove the clusters (both machines), keep metrics history | `scripts/cleanup.sh`, or `scripts/cluster-down.sh` to skip the prompt; see [cleanup.md](cleanup.md) |
+| Remove everything | `scripts/cleanup.sh --all` |
+| Stop metrics but keep the data | `docker compose down` (the volume keeps it) |
 
 ## Where things are
 
