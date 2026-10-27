@@ -12,7 +12,6 @@ TWO_NODE=${TWO_NODE:-0}
 CHEAP_SKU=${CHEAP_SKU:-F4s_v2}
 "$(dirname "$0")/install-tools.sh" >/dev/null
 
-PY="$REPO_ROOT/.venv/bin/python"; [ -x "$PY" ] || PY=python3
 read -r NODE_LABEL CURRENT_SKU < <("$PY" -c 'import sys, yaml; c = yaml.safe_load(open(sys.argv[1]))
 print(c["node_label"], c["current_pool"]["sku"])' "$REPO_ROOT/config/skus.yaml")
 
@@ -37,8 +36,8 @@ kubectl apply --server-side -f "https://github.com/kedacore/keda/releases/downlo
 kubectl -n keda wait --for=condition=Available deploy --all --timeout=240s
 kubectl -n kube-system rollout status deploy/metrics-server --timeout=180s
 
-kubectl apply -f "$REPO_ROOT/deploy/k8s/demo/"
-kubectl -n demo wait --for=condition=Available deploy --all --timeout=180s
+kubectl apply -k "$REPO_ROOT/deploy/k8s/demo/"
+for d in $(kubectl -n demo get deploy -o name); do kubectl -n demo rollout status "$d" --timeout=180s >/dev/null; done
 kubectl -n demo get deploy
 kubectl get nodes -L "$NODE_LABEL"
 echo

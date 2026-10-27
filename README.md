@@ -62,6 +62,25 @@ The demo pods start pinned to the expensive node. When the node-pool step picks 
 skipped when no node carries the target label. For two physical machines (8600G + 3500U), see
 [docs/two-machines.md](docs/two-machines.md).
 
+### Live mode + traffic spike
+
+The demo pods run a tiny stdlib Python app (`deploy/k8s/demo/app.py`) with a small baseline CPU burn and a
+`/work?ms=N` endpoint that burns N ms of CPU per request. `scripts/live-up.sh` deploys kube-state-metrics
+and vmagent, which scrape the cluster every 15 s and remote-write into the same VictoriaMetrics that holds the
+30-day backfill. Grafana and `kubesage analyze` then see history plus a live tail.
+
+```bash
+.venv/bin/kubesage simulate          # history first: simulate deletes the namespace's old series
+scripts/cluster-up.sh && scripts/live-up.sh
+.venv/bin/kubesage analyze && .venv/bin/kubesage apply
+.venv/bin/kubesage spike             # 40 rps x 50 ms = ~2 cores on checkout-web for 3 minutes
+kubectl -n demo get hpa,pods -w      # KEDA's CPU trigger scales checkout-web out
+```
+
+Measured on the 8600G after `apply`: checkout-web went 2 → 7 pods, and loadgen p95 latency fell from 377 ms
+to ~110 ms with zero errors (`kubectl -n demo logs job/<spike-job>`). The spike really burns CPU on the
+host; `--rps`/`--work-ms`/`--seconds` control how much.
+
 The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
 `export KUBECONFIG=$PWD/.bin/kubeconfig PATH=$PWD/.bin:$PATH` to run kubectl yourself.
 `kubesage apply` uses `$KUBECONFIG` when set, so it can target any cluster.
@@ -103,6 +122,7 @@ kubesage/
   recommend/  guardrails, cron subset, cost model, manifest renderer
   pipeline.py the router
   apply.py    kubectl apply of a run's manifests
+  live.py     `kubesage spike` load-generator Job
 config/       model tiers + SKU catalog
 deploy/       Grafana provisioning + dashboard, demo k8s manifests
 scripts/      pinned tool install, cluster up/down/reset
@@ -111,7 +131,7 @@ scripts/      pinned tool install, cluster up/down/reset
 ## Roadmap
 
 - [x] k3d cluster + KEDA + demo Deployments matching the scenarios; `kubesage apply`
-- [ ] Live mode: vmagent scraping the cluster, plus a "fast-forward" load spike for the demo
+- [x] Live mode: vmagent scraping the cluster, plus a load spike for the demo
 - [ ] Web UI ("AI Control Center") on top of `report.json`, with the router-trace badges
 - [ ] GitOps: open a PR with the manifests instead of applying directly
 - [x] Two-node mode: label nodes as SKUs and migrate pods to the cheap node live

@@ -9,3 +9,4 @@ CLUSTER_NAME=kubesage
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="$REPO_ROOT/.bin"
 export PATH="$BIN_DIR:$PATH"
+PY="$REPO_ROOT/.venv/bin/python"; [ -x "$PY" ] || PY=python3

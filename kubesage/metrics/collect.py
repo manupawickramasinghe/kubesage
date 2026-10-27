@@ -24,6 +24,7 @@ def _align(values: list, start: int, step: int, n: int) -> np.ndarray:
 def collect(client: PromClient, *, namespace: str, days: int, end: float, tz: str,
             step: int = 300) -> tuple[list[WorkloadStats], int]:
     """Return per-workload stats and the number of raw (timestamp, value) points they were built from."""
+    now = end  # instant queries use the real time; the range grid is aligned to the step
     end = int(end) // step * step
     start = end - days * 86400
     n = (end - start) // step + 1
@@ -40,13 +41,18 @@ def collect(client: PromClient, *, namespace: str, days: int, end: float, tz: st
     mem_pod = series(f"max {by} (container_memory_working_set_bytes{{{sel}}})")
     restarts = series(f"max {by} (kube_pod_container_status_restarts_total{{{sel}}})")
 
+    def current(metric: str, by_labels: str) -> str:
+        """Live value if the series is being scraped right now, else the last value in the window. Without
+        this, the max over old backfilled pods would hide a request that was just lowered."""
+        return f"(max by ({by_labels}) ({metric})) or (max by ({by_labels}) (last_over_time({metric}[{days}d])))"
+
     spec: dict[str, dict[str, float]] = defaultdict(dict)
     for kind in ("requests", "limits"):
-        q = f"max by (namespace, container, resource) (last_over_time(kube_pod_container_resource_{kind}{{{sel}}}[{days}d]))"
-        for r in client.query(q, at=end):
+        q = current(f"kube_pod_container_resource_{kind}{{{sel}}}", "namespace, container, resource")
+        for r in client.query(q, at=now):
             spec[r["metric"]["container"]][f"{r['metric']['resource']}_{kind}"] = float(r["value"][1])
     replicas = {r["metric"]["deployment"]: int(float(r["value"][1])) for r in client.query(
-        f'max by (deployment) (last_over_time(kube_deployment_spec_replicas{{namespace="{namespace}"}}[{days}d]))', at=end)}
+        current(f'kube_deployment_spec_replicas{{namespace="{namespace}"}}', "deployment"), at=now)}
 
     stats = []
     for name in sorted(cpu_pod):

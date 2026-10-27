@@ -1,6 +1,8 @@
 # The "before" state of the demo: the same five workloads `kubesage simulate` backfills history for,
-# with the same oversized requests. Pods run the pause image, so requests reserve capacity without
-# using any. tests/test_demo_manifests.py keeps this file in sync with kubesage/simulate/scenarios.py.
+# with the same oversized requests. Pods run app.py (from the demo-app ConfigMap) with a small baseline
+# CPU burn, so live metrics look like the history; memory stays small to spare the host.
+# Apply with `kubectl apply -k deploy/k8s/demo/`.
+# tests/test_demo_manifests.py keeps this file in sync with kubesage/simulate/scenarios.py.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -23,10 +25,16 @@ spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
       containers:
         - name: payment-service
-          image: registry.k8s.io/pause:3.10
+          image: python:3.13.12-alpine3.22
+          command: [python, /app/app.py, serve]
+          env: [{name: BASELINE_CPU, value: "0.10"}]
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          volumeMounts: [{name: app, mountPath: /app}]
           resources:
             requests: {cpu: "2", memory: 4Gi}
             limits: {cpu: "2", memory: 4Gi}
+      volumes: [{name: app, configMap: {name: demo-app}}]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -45,10 +53,16 @@ spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
       containers:
         - name: report-worker
-          image: registry.k8s.io/pause:3.10
+          image: python:3.13.12-alpine3.22
+          command: [python, /app/app.py, serve]
+          env: [{name: BASELINE_CPU, value: "0.005"}]
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          volumeMounts: [{name: app, mountPath: /app}]
           resources:
             requests: {cpu: "2", memory: 2Gi}
             limits: {cpu: "2", memory: 2Gi}
+      volumes: [{name: app, configMap: {name: demo-app}}]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -67,10 +81,16 @@ spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
       containers:
         - name: auth-api
-          image: registry.k8s.io/pause:3.10
+          image: python:3.13.12-alpine3.22
+          command: [python, /app/app.py, serve]
+          env: [{name: BASELINE_CPU, value: "0.06"}]
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          volumeMounts: [{name: app, mountPath: /app}]
           resources:
             requests: {cpu: 250m, memory: 512Mi}
             limits: {cpu: 500m, memory: 1Gi}
+      volumes: [{name: app, configMap: {name: demo-app}}]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -89,10 +109,26 @@ spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
       containers:
         - name: checkout-web
-          image: registry.k8s.io/pause:3.10
+          image: python:3.13.12-alpine3.22
+          command: [python, /app/app.py, serve]
+          env: [{name: BASELINE_CPU, value: "0.05"}]
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          volumeMounts: [{name: app, mountPath: /app}]
           resources:
             requests: {cpu: 500m, memory: 512Mi}
             limits: {cpu: "1", memory: 768Mi}
+      volumes: [{name: app, configMap: {name: demo-app}}]
+---
+# `kubesage spike` sends its load here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-web
+  namespace: demo
+spec:
+  selector: {app: checkout-web}
+  ports: [{port: 8080, targetPort: 8080}]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -111,7 +147,13 @@ spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
       containers:
         - name: catalog-api
-          image: registry.k8s.io/pause:3.10
+          image: python:3.13.12-alpine3.22
+          command: [python, /app/app.py, serve]
+          env: [{name: BASELINE_CPU, value: "0.12"}]
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          volumeMounts: [{name: app, mountPath: /app}]
           resources:
             requests: {cpu: 250m, memory: 256Mi}
             limits: {cpu: 500m, memory: 384Mi}
+      volumes: [{name: app, configMap: {name: demo-app}}]

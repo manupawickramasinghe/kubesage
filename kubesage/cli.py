@@ -118,6 +118,22 @@ def cmd_apply(args: argparse.Namespace) -> None:
         sys.exit(f"{failed} step(s) failed")
 
 
+def cmd_spike(args: argparse.Namespace) -> None:
+    from kubesage import live
+
+    job = live.spike_job(namespace=args.namespace, target=args.target, rps=args.rps, work_ms=args.work_ms,
+                         seconds=args.seconds)
+    proc = live.start_spike(job)
+    if proc.returncode != 0:
+        sys.exit(f"could not start spike: {proc.stderr.strip()}")
+    cores = args.rps * args.work_ms / 1000
+    name = job["metadata"]["name"]
+    console.print(f"started {name}: {args.rps:g} rps x {args.work_ms} ms = ~{cores:.1f} cores on {args.target} "
+                  f"for {args.seconds}s")
+    console.print(f"  watch: kubectl -n {args.namespace} get hpa,pods -w    "
+                  f"latency: kubectl -n {args.namespace} logs -f job/{name}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="kubesage", description="AI FinOps agent for Kubernetes")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -147,6 +163,14 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--out-dir", default="out")
     ap.add_argument("--dry-run", action="store_true", help="server-side dry run, change nothing")
     ap.set_defaults(func=cmd_apply)
+
+    sp = sub.add_parser("spike", help="live demo: send a burst of CPU-heavy traffic to a demo Service")
+    sp.add_argument("--namespace", default="demo")
+    sp.add_argument("--target", default="checkout-web", help="Service name (port 8080)")
+    sp.add_argument("--rps", type=float, default=40)
+    sp.add_argument("--work-ms", type=int, default=50, help="CPU milliseconds burned per request")
+    sp.add_argument("--seconds", type=int, default=180)
+    sp.set_defaults(func=cmd_spike)
 
     args = parser.parse_args(argv)
     args.func(args)
