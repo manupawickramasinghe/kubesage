@@ -1,0 +1,40 @@
+# LLM tiers for the 3-stage router. The Meta Model API is OpenAI-compatible.
+#
+# VERIFY BEFORE DEMO DAY: model IDs and prices change. Check https://ai.developer.meta.com/docs/
+#   - muse-spark-1.3 at $1.25 / $4.25 per 1M tokens matches public pricing trackers (Sep 2026).
+#   - muse-glimmer-30b and muse-wonder-1.0 IDs/prices came from a Gemini chat and are UNVERIFIED.
+#   - "Muse Spark 1.3 Contributor" is listed at $0.10 / $0.20 and may be a cheaper triage option.
+# All costs shown by kubesage are computed from the numbers below.
+
+provider:
+  base_url: https://api.meta.ai/v1
+  api_key_env: MODEL_API_KEY
+  timeout_s: 120
+
+tiers:
+  # Stage 2: cheap, high-volume. Reads every workload's stats and decides who needs a bigger model.
+  triage:
+    model: muse-glimmer-30b          # UNVERIFIED
+    input_per_mtok: 0.30             # UNVERIFIED
+    cached_input_per_mtok: null
+    output_per_mtok: 1.20            # UNVERIFIED
+    max_output_tokens: 3000
+    extra_body: {}                   # provider-specific knobs, e.g. {reasoning_effort: low}
+
+  # Stage 3a: routine right-sizing and standard KEDA rules.
+  worker:
+    model: muse-spark-1.3
+    input_per_mtok: 1.25
+    cached_input_per_mtok: 0.15      # UNVERIFIED
+    output_per_mtok: 4.25
+    max_output_tokens: 2000
+    extra_body: {}
+
+  # Stage 3b: root-cause reasoning (leaks, OOMs) and node-pool SKU planning.
+  strategist:
+    model: muse-wonder-1.0           # UNVERIFIED
+    input_per_mtok: 4.00             # UNVERIFIED
+    cached_input_per_mtok: 0.20      # UNVERIFIED
+    output_per_mtok: 20.00           # UNVERIFIED
+    max_output_tokens: 3000
+    extra_body: {}

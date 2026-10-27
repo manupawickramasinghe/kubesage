@@ -1,0 +1,30 @@
+# Node SKU catalog used for cost math and node-pool recommendations.
+# Prices are approximate Azure East US Linux pay-as-you-go list prices. Update before quoting numbers.
+
+region: azure-eastus
+hours_per_month: 730
+
+# Per-core and per-GiB unit prices are derived from this SKU, assuming 1 vCPU costs as much as
+# `cpu_to_gib_cost_ratio` GiB of RAM (roughly how general-purpose VM prices split).
+pricing_reference: D4s_v5
+cpu_to_gib_cost_ratio: 7.5
+
+# Share of each node that pods can actually request (kube-reserved, system daemons, eviction headroom).
+allocatable_cpu: 0.90
+allocatable_mem: 0.80
+min_nodes: 2
+
+# The "before" state of the demo story: a node pool sized for the old, oversized requests.
+current_pool:
+  sku: D8s_v5
+  nodes: 3
+
+skus:
+  - {name: B2s,     family: burstable,         vcpu: 2, memory_gib: 4,  hourly_usd: 0.0416}
+  - {name: B4ms,    family: burstable,         vcpu: 4, memory_gib: 16, hourly_usd: 0.166}
+  - {name: D2s_v5,  family: general-purpose,   vcpu: 2, memory_gib: 8,  hourly_usd: 0.096}
+  - {name: D4s_v5,  family: general-purpose,   vcpu: 4, memory_gib: 16, hourly_usd: 0.192}
+  - {name: D8s_v5,  family: general-purpose,   vcpu: 8, memory_gib: 32, hourly_usd: 0.384}
+  - {name: E4s_v5,  family: memory-optimised,  vcpu: 4, memory_gib: 32, hourly_usd: 0.252}
+  - {name: F4s_v2,  family: compute-optimised, vcpu: 4, memory_gib: 8,  hourly_usd: 0.169}
+  - {name: F8s_v2,  family: compute-optimised, vcpu: 8, memory_gib: 16, hourly_usd: 0.338}

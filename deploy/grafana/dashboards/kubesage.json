@@ -1,0 +1,122 @@
+{
+  "uid": "kubesage-overview",
+  "title": "KubeSage · requested vs used",
+  "tags": ["kubesage"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": {"from": "now-30d", "to": "now"},
+  "refresh": "",
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "namespace",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "vm"},
+        "query": {"query": "label_values(kube_pod_container_resource_requests, namespace)", "refId": "ns"},
+        "definition": "label_values(kube_pod_container_resource_requests, namespace)",
+        "current": {"text": "demo", "value": "demo"},
+        "refresh": 2
+      },
+      {
+        "name": "container",
+        "label": "workload",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "vm"},
+        "query": {"query": "label_values(kube_pod_container_resource_requests{namespace=\"$namespace\"}, container)", "refId": "c"},
+        "definition": "label_values(kube_pod_container_resource_requests{namespace=\"$namespace\"}, container)",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {"text": "All", "value": "$__all"},
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "CPU cores requested",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "vm"},
+      "targets": [{"refId": "A", "expr": "sum(last_over_time(kube_pod_container_resource_requests{namespace=\"$namespace\", container=~\"$container\", resource=\"cpu\"}[1d]))"}],
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 2, "color": {"mode": "fixed", "fixedColor": "orange"}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "CPU cores used (p95 over range)",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "vm"},
+      "targets": [{"refId": "A", "expr": "quantile_over_time(0.95, sum(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container=~\"$container\"}[5m]))[$__range:5m])", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 2, "color": {"mode": "fixed", "fixedColor": "green"}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Memory requested",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "vm"},
+      "targets": [{"refId": "A", "expr": "sum(last_over_time(kube_pod_container_resource_requests{namespace=\"$namespace\", container=~\"$container\", resource=\"memory\"}[1d]))"}],
+      "fieldConfig": {"defaults": {"unit": "bytes", "color": {"mode": "fixed", "fixedColor": "orange"}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Container restarts (range)",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "vm"},
+      "targets": [{"refId": "A", "expr": "sum(max_over_time(kube_pod_container_status_restarts_total{namespace=\"$namespace\", container=~\"$container\"}[$__range]) - min_over_time(kube_pod_container_status_restarts_total{namespace=\"$namespace\", container=~\"$container\"}[$__range]))", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "CPU: used vs requested (cores)",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 9},
+      "datasource": {"type": "prometheus", "uid": "vm"},
+      "targets": [
+        {"refId": "A", "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container=~\"$container\"}[5m]))", "legendFormat": "{{container}} used"},
+        {"refId": "B", "expr": "sum by (container) (kube_pod_container_resource_requests{namespace=\"$namespace\", container=~\"$container\", resource=\"cpu\"})", "legendFormat": "{{container}} requested"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "none", "custom": {"lineWidth": 1, "fillOpacity": 8, "showPoints": "never"}},
+        "overrides": [{"matcher": {"id": "byRegexp", "options": ".*requested"}, "properties": [{"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 6]}}, {"id": "custom.fillOpacity", "value": 0}, {"id": "custom.lineWidth", "value": 2}]}]
+      },
+      "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Memory: working set vs limit (per pod, max)",
+      "gridPos": {"x": 0, "y": 13, "w": 24, "h": 9},
+      "datasource": {"type": "prometheus", "uid": "vm"},
+      "targets": [
+        {"refId": "A", "expr": "max by (container) (container_memory_working_set_bytes{namespace=\"$namespace\", container=~\"$container\"})", "legendFormat": "{{container}} working set"},
+        {"refId": "B", "expr": "max by (container) (kube_pod_container_resource_limits{namespace=\"$namespace\", container=~\"$container\", resource=\"memory\"})", "legendFormat": "{{container}} limit"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "bytes", "custom": {"lineWidth": 1, "fillOpacity": 8, "showPoints": "never"}},
+        "overrides": [{"matcher": {"id": "byRegexp", "options": ".*limit"}, "properties": [{"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 6]}}, {"id": "custom.fillOpacity", "value": 0}, {"id": "custom.lineWidth", "value": 2}]}]
+      },
+      "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Restarts per hour (OOM kills show up here)",
+      "gridPos": {"x": 0, "y": 22, "w": 24, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "vm"},
+      "targets": [{"refId": "A", "expr": "sum by (container) (increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\", container=~\"$container\"}[1h]))", "legendFormat": "{{container}}"}],
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 0, "custom": {"drawStyle": "bars", "fillOpacity": 80}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    }
+  ]
+}

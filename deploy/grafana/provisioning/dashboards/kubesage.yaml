@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: kubesage
+    folder: KubeSage
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
