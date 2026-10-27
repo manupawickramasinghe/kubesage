@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -56,6 +57,18 @@ class AnalysisResult(BaseModel):
     notes: list[str]
     llm_cost_usd: float
     baselines_usd: dict[str, float]
+
+
+def write_run(result: AnalysisResult, run_dir: Path) -> Path:
+    """Persist a run as report.json + manifests/, the layout `apply` and `gitops` read."""
+    (run_dir / "manifests").mkdir(parents=True, exist_ok=True)
+    files = {name: text for w in result.workloads for name, text in w.manifests.items()}
+    if result.node_pool:
+        files.update(result.node_pool.migrations)
+    for name, text in files.items():
+        (run_dir / "manifests" / name).write_text(text)
+    (run_dir / "report.json").write_text(result.model_dump_json(indent=2))
+    return run_dir
 
 
 def _compact(s: WorkloadStats) -> dict:
