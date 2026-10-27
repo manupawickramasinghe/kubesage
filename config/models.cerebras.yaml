@@ -1,0 +1,36 @@
+# Cerebras profile, selected with KUBESAGE_MODELS=cerebras. OpenAI-compatible endpoint.
+#
+# Cerebras' shared endpoint currently serves two models (Oct 2026): gpt-oss-120b at $0.35 / $0.75 and
+# qwen-3.8-27b at $0.99 / $1.49 per 1M tokens. The biggest model is also the cheapest, so every tier
+# uses gpt-oss-120b and the tiers differ by reasoning effort: more effort means more (billed) reasoning tokens.
+# Prices: https://benchlm.ai/hosts/cerebras, verify on Cerebras' pricing page before quoting.
+
+provider:
+  base_url: https://api.cerebras.ai/v1
+  api_key_env: CEREBRAS_API_KEY
+  timeout_s: 120
+
+tiers:
+  triage:
+    label: OSS low
+    model: gpt-oss-120b
+    input_per_mtok: 0.35
+    output_per_mtok: 0.75
+    max_output_tokens: 4000
+    extra_body: {reasoning_effort: low}
+
+  worker:
+    label: OSS medium
+    model: gpt-oss-120b
+    input_per_mtok: 0.35
+    output_per_mtok: 0.75
+    max_output_tokens: 6000
+    extra_body: {reasoning_effort: medium}
+
+  strategist:
+    label: OSS high
+    model: gpt-oss-120b
+    input_per_mtok: 0.35
+    output_per_mtok: 0.75
+    max_output_tokens: 10000
+    extra_body: {reasoning_effort: high}

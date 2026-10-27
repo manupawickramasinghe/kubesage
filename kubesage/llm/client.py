@@ -89,6 +89,22 @@ class LLMClient:
             self._seen_prefixes.add(key)
         return tokens if hit else 0
 
+    def _post(self, body: dict, attempts: int = 4) -> dict:
+        """POST /chat/completions, retrying rate limits and 5xx with backoff (honours Retry-After)."""
+        for attempt in range(attempts):
+            try:
+                resp = self._http.post("/chat/completions", json=body)
+            except httpx.HTTPError as exc:
+                raise LLMError(f"{body['model']}: {exc}") from exc
+            if resp.status_code == 429 or resp.status_code >= 500:
+                if attempt + 1 < attempts:
+                    time.sleep(float(resp.headers.get("retry-after") or 2 ** attempt))
+                    continue
+            if resp.is_error:
+                raise LLMError(f"{body['model']}: HTTP {resp.status_code}: {resp.text[:500]}")
+            return resp.json()
+        raise AssertionError("unreachable")
+
     def _live(self, tier: str, system: str, user: str, schema: type[T]) -> tuple[T, tuple[int, int, int]]:
         cfg = self.models.tiers[tier]
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
@@ -96,12 +112,7 @@ class LLMClient:
         for _ in range(2):  # one retry with the validation error fed back
             body = {"model": cfg.model, "messages": messages, "temperature": cfg.temperature,
                     "max_tokens": cfg.max_output_tokens, "response_format": {"type": "json_object"}, **cfg.extra_body}
-            try:
-                resp = self._http.post("/chat/completions", json=body)
-                resp.raise_for_status()
-            except httpx.HTTPError as exc:
-                raise LLMError(f"{cfg.model}: {exc}") from exc
-            data = resp.json()
+            data = self._post(body)
             usage = data.get("usage") or {}
             inp += usage.get("prompt_tokens", 0)
             out += usage.get("completion_tokens", 0)

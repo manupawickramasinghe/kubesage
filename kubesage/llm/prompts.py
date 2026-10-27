@@ -41,7 +41,9 @@ Rules:
 - Memory limit: at least 1.15x mem_pod_max_mib. Memory request: at least mem_pod_p50_mib.
 - When a workload has recurring peaks, prefer keeping the pod shape and scaling replicas: a ScalingPlan with
   cron_windows that start ~10 minutes before the peak, plus an optional CPU utilization target.
-- min_replicas 0 only for batch/idle workloads, and then without a CPU target (KEDA cannot scale to zero on CPU).
+- min_replicas 0 ONLY when the workload's signals include "batch-pattern" (idle between runs). Never scale a
+  service with steady traffic (web frontends, APIs) to zero: it would be offline outside its cron windows.
+  With min_replicas 0, set no CPU target (KEDA cannot scale to zero on CPU).
 - Cron: exactly 5 fields "M H * * DOW", numeric minute and hour, DOW "*", a range like 1-5 or a list like 0,6.
   Timezone: {tz}.
 - Memory growth followed by restarts at the limit means a leak: say so, buy time with config, and put the

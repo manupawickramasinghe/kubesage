@@ -50,6 +50,7 @@ class AnalysisResult(BaseModel):
     mode: str
     namespace: str
     window_days: int
+    tiers: dict[str, str] = {}  # tier key -> display label, so a report renders the same wherever it's opened
     stats: list[WorkloadStats]
     workloads: list[WorkloadResult]
     node_pool: NodePoolResult | None
@@ -148,7 +149,9 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
         "raw_series_to_strategist": round(strategist.cost(raw_points * RAW_TOKENS_PER_POINT, 0, out_tokens), 6),
     }
     return AnalysisResult(generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), mode=llm.mode,
-                          namespace=namespace, window_days=days, stats=stats, workloads=results, node_pool=node_pool,
+                          namespace=namespace, window_days=days, stats=stats,
+                          tiers={name: t.label or name for name, t in llm.models.tiers.items()},
+                          workloads=results, node_pool=node_pool,
                           ledger=ledger, notes=notes, llm_cost_usd=round(llm_cost, 6), baselines_usd=baselines)
 
 
