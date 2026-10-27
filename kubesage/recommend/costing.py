@@ -19,15 +19,33 @@ def average_replicas(plan: ScalingPlan | None, fixed: int) -> float:
     """Expected replica count over a week. CPU-triggered scale-out is not modelled (unknown in advance)."""
     if plan is None:
         return float(fixed)
-    extra = sum((w.desired_replicas - plan.min_replicas) * cron.window_hours_per_week(w.start, w.end) / 168
-                for w in plan.cron_windows)
-    return plan.min_replicas + max(extra, 0.0)
+    replicas = [plan.min_replicas] * cron.MINUTES_PER_WEEK
+    for w in plan.cron_windows:
+        # HPA uses the largest active trigger, rather than adding overlapping cron targets together.
+        for minute in cron.active_minutes(w.start, w.end):
+            replicas[minute] = max(replicas[minute], w.desired_replicas)
+    return sum(replicas) / cron.MINUTES_PER_WEEK
 
 
 def peak_replicas(plan: ScalingPlan | None, fixed: int) -> int:
+    """Replicas at the scheduled peak: what the node pool is sized for."""
     if plan is None:
         return fixed
     return max([plan.min_replicas, 1, *(w.desired_replicas for w in plan.cron_windows)])
+
+
+def burst_replicas(plan: ScalingPlan | None, fixed: int) -> int:
+    """Replicas if a CPU autoscaler goes all the way to its ceiling. Checked against the pool, not sized for:
+    sizing every workload for its maximum at once is the over-provisioning KubeSage removes."""
+    if plan is not None and plan.cpu_utilization_target is not None:
+        return max(plan.max_replicas, peak_replicas(plan, fixed))
+    return peak_replicas(plan, fixed)
+
+
+def allocatable(sku: str, nodes: int, catalog: SkuCatalog) -> tuple[float, float]:
+    """(cores, MiB) that pods can request on `nodes` of `sku`."""
+    s = catalog.get(sku)
+    return nodes * s.vcpu * catalog.allocatable_cpu, nodes * s.memory_gib * 1024 * catalog.allocatable_mem
 
 
 class Demand(BaseModel):

@@ -104,11 +104,11 @@ The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
 .venv/bin/kubesage serve --host 0.0.0.0 --gitops-repo ~/src/my-gitops --gitops-base ../base   # present from the laptop
 ```
 
-![KubeSage AI Control Center](docs/control-center.png)
+![KubeSage AI Control Center](docs/images/ui-control-center.png)
 
 One page for the whole pitch, top to bottom. Every part is explained in the [UI guide](docs/ui-guide.md).
-- **Steps**: ① **Analyze** (find the waste), ② **Apply fixes** (with a dry-run switch), ③ **Send traffic** (prove it
-  still scales). Each shows its status.
+- **Steps**: ① **Analyze** (find the waste), ② **Apply fixes** (with a Validate only switch), ③ **Send traffic**
+  (watch CPU, scaling and request health). Applied status comes from live Kubernetes specs and survives reloads.
 - **Savings**: what the node pool saves per month (billing view) with a before/after bar, the requested-capacity
   cost (allocation view), what the LLM calls of the run cost, and the triage counts.
 - **Cluster**: an isometric drawing of the live cluster, polled every 3 s. Each slab is a real machine, labelled
@@ -118,12 +118,17 @@ One page for the whole pitch, top to bottom. Every part is explained in the [UI 
   Click a machine for its hardware, OS, meters and cost-model label, or a pod or legend chip for that
   workload's scaling, pods and recommendation. Every motion is a real event: pods dropping in, fading out or
   moving machines.
-- **Reserved vs used**: bullet charts per workload, CPU and memory: reserved now, used (p95 / p99) and the
+- **Reserved vs used**: bullet charts per workload, CPU and memory: reserved at analysis, used (p95 / p99) and the
   recommended request.
 - **How it decided**: the model-router flow for the run (stats → triage → which tier, or stopped at triage) next
   to every LLM call with its tokens and cost, and the all-on-the-strategist and raw-series baselines.
 - **Recommendations**: one row per workload with status, tier and before → after cost. Open it for the diagnosis,
   guardrail clamps, follow-ups, the router trace and the manifests.
+
+Choose older analyses, download reports and manifests, search/filter recommendations and inspect live
+field differences from the latest plan. Traffic results include successful/failed requests and p50/p95
+latency; reaching a replica limit can produce errors even when scaling works. See the [review and live
+verification results](docs/ui-review.md).
 
 The header has **Reset demo**, a light/dark toggle, and **GitOps PR** when a GitOps repo is configured. Selecting a
 workload anywhere highlights it in every diagram.

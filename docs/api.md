@@ -8,14 +8,23 @@ other websites can't trigger actions. There's no authentication beyond that.
 |---|---|---|
 | GET | `/` | the UI (`kubesage/web/static/index.html`) |
 | GET | `/fonts/<file>.woff2` | vendored fonts, cached for a day; only files in `static/fonts` |
-| GET | `/api/config` | `{namespace, mode: "live"\|"mock", tiers: {triage: model, …}, gitops: bool}` |
-| GET | `/api/report` | the latest run: `{run, report}`, or 404 before the first analysis |
+| GET | `/api/config` | `{namespace, mode: "live"\|"mock", tiers: {triage: model, …}, gitops: bool, operation}` |
+| GET | `/api/reports` | Up to 50 completed runs, newest first, for the configured namespace: `{runs: [{run, generated_at, mode, namespace, llm_cost_usd, monthly_savings_usd}]}`. Savings can be negative. |
+| GET | `/api/report?run=<id>` | `{run, report}` for a selected run; omit `run` for the latest valid report. 404 before the first analysis. |
 | GET | `/api/cluster` | live nodes, pods, scaling (see below), or `{available: false}` |
-| POST | `/api/analyze` | runs the full pipeline and stores a run: `{run, report}`. 409 if one is already running; 502 for metrics or LLM errors. |
-| POST | `/api/apply` | `{dry_run: bool}` → `{run, dry_run, steps: [{file, ok, skipped, output}]}` |
+| POST | `/api/analyze` | Runs the full pipeline and atomically stores a report and manifests: `{run, report}`. 502 for metrics or LLM errors. |
+| POST | `/api/apply` | `{run?, dry_run: bool}` → `{run, dry_run, ok, error, steps: [{file, ok, skipped, output}]}`. Selected run is pinned for the whole operation. An omitted `run` means the newest run, and is refused if that run belongs to another namespace: writes never fall back to an older run. |
 | POST | `/api/spike` | `{rps 1–200, work_ms 1–500, seconds 10–900, target?}` → `{job, TARGET, RPS, WORK_MS, SECONDS}` |
-| POST | `/api/reset` | runs `scripts/demo-reset.sh` → `{ok, output: [last lines]}` |
-| POST | `/api/gitops` | `{open_pr: bool}` → `{branch, commit, pushed, pr_url}`; 400 unless started with `--gitops-repo`/`--gitops-base` |
+| POST | `/api/reset` | runs `scripts/demo-reset.sh` → `{ok, output: [last lines], error?}`; only available for namespace `demo` |
+| POST | `/api/gitops` | `{run?, open_pr: bool}` → `{branch, commit, pushed, pr_url}`; 400 unless started with `--gitops-repo`/`--gitops-base` |
+
+Mutations share a lock: overlapping analyze, apply, spike, reset or GitOps requests return 409. Request bodies
+must be JSON objects of at most 64 KiB. Invalid parameter types or ranges return 400.
+
+Apply skips migrations when the target SKU lacks the planned number of Ready, schedulable nodes. A skipped
+step is reported even when the response is 200; `ok` does not mean every manifest was written. A failed or
+timed-out command returns 502 with its step output, and dependent remaining steps are skipped. A dry run
+validates the steps it executes with Kubernetes without saving changes; skipped steps remain unvalidated.
 
 ## `GET /api/cluster`
 
@@ -40,13 +49,38 @@ other websites can't trigger actions. There's no authentication beyond that.
       "cpu_used_m": 123, "mem_used_mi": 13.4, "restarts": 0
     }]
   }],
-  "scaling": {"checkout-web": {"min": 1, "max": 3, "triggers": ["cron", "cpu"], "current": 3, "desired": 3, "cpu": 10}}
+  "scaling": {"checkout-web": {"min": 1, "max": 3, "triggers": ["cron", "cpu"], "current": 3, "desired": 3,
+                               "cpu": 10, "cpu_target": 70}}
 }
 ```
 
 Unscheduled pods are listed under a pseudo-node named `(pending)` with role `pending`. `host`, `cpu_model` and
 `os` come from the `kubesage.io/host`, `kubesage.io/cpu` and `kubesage.io/os` node annotations, which
 `cluster-up.sh` and `join-node.sh` set.
+
+The response also includes:
+
+- `observed_at` and `operation` (the active mutation's name and start time, or null);
+- `deployments`, keyed by name: desired/ready/updated/available replicas, node selector and live resource
+  requests/limits;
+- `plan`: comparison of the **latest** analysis's Deployment and ScaledObject fields with live objects.
+  `state` is `none`, `pending`, `partial`, `applied` or `unknown`; `matched`/`total` count fully matching
+  workloads. `ready` additionally checks Deployment rollout readiness. `workloads[name].checks[]` contains
+  `{field, expected, actual, match}` for drift inspection. `capacity` reports `{sku, required, ready, available}`;
+- `active_jobs[]`: running or pending KubeSage traffic jobs, including target, load parameters and expected
+  `ends_at`. CPU targets and HPA conditions are included under `scaling` when available.
+- `traffic`: the latest managed traffic job, including completed/failed jobs, or null. It contains `job`,
+  `status`, `succeeded_requests`, `failed_requests`, `p50_ms`, `p95_ms`, `elapsed` and `logs_available`.
+  Request counters sum the load generator's interval reports; latency comes from its latest interval.
+  Missing results are null, not zero. Logs reads are bounded and cached for ten seconds; raw logs are never
+  returned. A completed Kubernetes Job can still contain failed HTTP requests.
+
+Plan verification comes from Kubernetes, so reloading the page or restarting the server retains it. It is
+separate from a browser's last dry-run result. Historical report selection does not change which run the
+cluster endpoint verifies. Cluster samples are shared across tabs for two seconds.
+
+Reports and writes are restricted to the configured namespace. Invalid or mismatched pinned runs return
+400 before any writes. Known credential values are redacted from outgoing JSON, including error output.
 
 ## `report.json`
 
@@ -65,3 +99,9 @@ Written to `out/<run>/report.json` and returned by `/api/report` and `/api/analy
   - `node_label`, `migrations {file: yaml}`, `notes[]`;
 - `ledger[]`: `{stage, workload, tier, model, input_tokens, cached_tokens, output_tokens, cost_usd}`;
 - `llm_cost_usd`, `baselines_usd {all_calls_on_strategist, raw_series_to_strategist}`, `notes[]`.
+
+Each run is an immutable snapshot, published only after all files are complete. Node sizing includes CPU
+autoscalers at their maximum replicas; workload costs use scheduled average replicas with overlapping cron
+targets combined by their maximum. The model can therefore recommend additional node capacity instead of a
+cost reduction. The UI downloads this report as JSON and its manifests as a YAML bundle without a separate
+download endpoint.

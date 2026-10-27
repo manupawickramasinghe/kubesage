@@ -43,5 +43,5 @@ def analyze_now(*, vm: str, namespace: str, days: int, tz: str, mode: str,
                          namespace=namespace, days=days, tz=tz, raw_points=raw_points)
     except LLMError as exc:
         raise AnalysisError(f"LLM call failed: {exc}") from exc
-    run_dir = write_run(result, Path(out_dir) / datetime.now().strftime("%Y%m%d-%H%M%S"))
+    run_dir = write_run(result, Path(out_dir) / datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
     return result, run_dir, models

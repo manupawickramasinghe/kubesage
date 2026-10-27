@@ -93,7 +93,7 @@
     border: 1px solid var(--border); background: var(--card); color: var(--fg-2); font-size: 12px; font-weight: 500; white-space: nowrap; }
   .badge .ic { width: 13px; height: 13px; }
   .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
-  .num { width: 58px; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+  .num { width: 68px; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--card);
     color: var(--fg); font: 13px var(--sans); font-variant-numeric: tabular-nums; }
   .field { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
@@ -291,10 +291,82 @@
   .tip .r span { opacity: .7; }
   .tip .r b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 
+  .skip { position: fixed; top: -60px; left: 16px; z-index: 100; }
+  .skip:focus { top: 12px; }
+  .hero { padding-top: 32px; }
+  .lede { max-width: 740px; }
+  .section-nav { display: flex; gap: 18px; overflow-x: auto; padding: 16px 0 0; font-size: 13px; }
+  .section-nav a { color: var(--fg-2); text-decoration: none; white-space: nowrap; padding: 4px 0; }
+  .section-nav a:hover { color: var(--fg); text-decoration: underline; }
+  section[id] { scroll-margin-top: 90px; }
+  .notice { display: flex; align-items: start; gap: 10px; padding: 12px 14px; margin-top: 16px;
+    border: 1px solid var(--border); border-radius: 9px; background: var(--secondary); overflow-wrap: anywhere; }
+  .notice[data-kind="err"] { border-color: var(--crit); }
+  .notice .btn { margin-left: auto; flex: none; }
+  .notice p { margin: 0; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 24px; }
+  .toolbar label { font-size: 12px; color: var(--muted); }
+  select, .search { height: 36px; max-width: 100%; padding: 0 10px; border: 1px solid var(--input); border-radius: 8px;
+    color: var(--fg); background: var(--card); font: 13px var(--sans); }
+  .toolbar select { max-width: 280px; }
+  .toolbar .spacer { flex: 1; }
+  .snapshot { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+  .live-line { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 14px; font-size: 12.5px; }
+  .live-line strong { display: inline-flex; align-items: center; gap: 5px; font-weight: 500; }
+  .live-line .ic { width: 14px; height: 14px; }
+  .plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .plan-route { margin: 8px 0; font-size: 22px; font-weight: 500; letter-spacing: -.02em; }
+  .plan-summary { margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .plan-summary summary { cursor: pointer; font-size: 13px; font-weight: 500; }
+  .plan-summary p { color: var(--fg-2); }
+  .plan-summary ul { padding-left: 18px; color: var(--fg-2); }
+  .filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .search { flex: 1; min-width: 150px; }
+  .file-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  a:focus-visible, select:focus-visible, .search:focus-visible { outline: 2px solid var(--rec); outline-offset: 3px; }
+  .brow:focus-visible .row-hit { stroke: var(--rec); stroke-width: 2; fill: var(--secondary); }
+  .wlf:focus-visible .path { stroke-width: 4; }
+  .wlf:focus-visible .lbl { text-decoration: underline; }
+  .brow:focus-visible, .wlf:focus-visible { outline: none; }
+  table.mini { overflow-wrap: anywhere; }
+  #ledger td:not(:first-child), #ledger th:not(:first-child) { white-space: nowrap; padding-left: 8px; }
+  .step { transition: border-color .2s; }
+  .step.next { border-color: var(--fg-2); }
+  .advanced { font-size: 12.5px; margin-top: 10px; color: var(--fg-2); }
+  .advanced summary { cursor: pointer; }
+  .advanced .field { margin: 10px 0 0; }
+  .traffic-result { margin-top: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+  .traffic-result[data-kind="err"] { border-color: var(--crit); }
+  .traffic-result b { display: flex; gap: 5px; align-items: center; margin-bottom: 3px; }
+  .traffic-result small { display: block; color: var(--muted); margin-top: 3px; }
+  @media (max-width: 600px) {
+    .brand span { display: none; }
+    .top-inner { gap: 8px; }
+    .actions { gap: 2px; }
+    .actions .btn { padding: 0 8px; }
+    .hero { padding-top: 24px; }
+    .figures { grid-template-columns: 1fr 1fr; }
+    .fig.hero-fig { grid-column: 1 / -1; }
+    .fig:last-child { grid-column: 1 / -1; }
+    .fig { padding: 14px 16px; }
+    .fig:nth-child(3) { border-left: 1px solid var(--border); }
+    .fig .value { font-size: 23px; }
+    .card-head { padding: 16px 14px 0; }
+    .card-body { padding: 14px; }
+    .plan-grid { grid-template-columns: 1fr; gap: 12px; }
+    .toolbar select { max-width: 100%; flex: 1; min-width: 0; }
+    .toolbar .spacer { display: none; }
+    .wl summary .money { width: 100%; }
+    .wl-body { padding-left: 4px; }
+    .inspector { min-width: 0; }
+  }
+
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
+<a class="skip btn btn-primary" href="#main">Skip to dashboard</a>
 <header class="top">
   <div class="top-inner">
     <div class="brand"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
@@ -311,43 +383,56 @@
   <div class="progress"></div>
 </header>
 
-<main>
+<main id="main" tabindex="-1">
   <section class="hero">
     <p class="eyebrow" id="runinfo">No analysis yet</p>
-    <h1><span id="headline">Your cluster, <em>right-sized.</em></span></h1>
-    <p class="lede">KubeSage reads 30 days of metrics, sends each workload to the cheapest model that can fix it,
-      and turns the answer into manifests you can apply.</p>
+    <h1><span id="headline">Less waste. <em>Room to grow.</em></span></h1>
+    <p class="lede">Find unused Kubernetes capacity, review a guarded plan, then watch your workloads scale under real traffic.
+      Start with <b>Analyze</b> to see what could change and what it would cost.</p>
+    <nav class="section-nav" aria-label="Dashboard sections"><a href="#cluster-card">Live cluster</a><a href="#capacity-card">Capacity evidence</a>
+      <a href="#decision-card">AI decisions</a><a href="#recommendations-card">Recommendations</a><a href="#activity-card">Activity</a></nav>
+    <div id="notice" class="notice" role="status" hidden><div id="notice-text"></div><button id="dismiss-notice" class="btn btn-ghost btn-icon btn-sm" aria-label="Dismiss message">×</button></div>
     <ol class="steps">
       <li class="step" id="step-analyze"><span class="step-n">1</span>
         <div class="step-b"><b>Find the waste</b>
-          <p>Reads the metrics, triages every workload with the cheapest model and writes fixed manifests. About a cent.</p>
+          <p>Review usage history and create a plan. No cluster changes. Live analysis usually costs about $0.01.</p>
           <div class="step-a"><button id="btn-analyze" class="btn btn-primary btn-sm" data-act></button></div>
           <p class="step-s" id="st-analyze"></p></div></li>
       <li class="step" id="step-apply"><span class="step-n">2</span>
         <div class="step-b"><b>Fix it on the cluster</b>
-          <p>Shrinks requests, adds autoscaling and moves the pods to the cheaper machine. Watch the cluster below.</p>
+          <p>Review the plan below, validate it, then apply resource requests, scaling rules and machine placement.</p>
           <div class="step-a"><button id="btn-apply" class="btn btn-outline btn-sm" data-act></button>
-            <label class="switch"><input type="checkbox" id="dryrun" role="switch"> Dry run</label></div>
+            <label class="switch" title="Validate changes with Kubernetes without saving them"><input type="checkbox" id="dryrun" role="switch"> Validate only</label></div>
           <p class="step-s" id="st-apply"></p></div></li>
       <li class="step" id="step-spike"><span class="step-n">3</span>
         <div class="step-b"><b>Prove it still scales</b>
-          <p>Sends real HTTP load at checkout-web. Its CPU climbs and the autoscaler adds pods.</p>
+          <p>Send real HTTP requests to checkout-web. Watch CPU rise; replicas can increase up to the scaling limit.</p>
           <div class="step-a"><button id="btn-spike" class="btn btn-outline btn-sm" data-act></button>
-            <label class="field">req/s <input class="num" id="rps" type="number" value="80" min="1" max="200"></label>
+            <label class="field">req/s <input class="num" id="rps" type="number" value="60" min="1" max="200"></label>
             <label class="field">seconds <input class="num" id="secs" type="number" value="180" min="10" max="900"></label>
-            <input id="workms" type="hidden" value="50"></div>
-          <p class="step-s" id="st-spike"></p></div></li>
+            </div>
+          <details class="advanced"><summary>Traffic settings</summary><label class="field">CPU work per request (ms)
+            <input class="num" id="workms" type="number" value="50" min="1" max="500"></label>
+            <p id="load-estimate"></p></details>
+          <p class="step-s" id="st-spike"></p><div id="traffic-result" class="traffic-result" role="status" hidden></div></div></li>
     </ol>
+    <div class="toolbar"><label for="report-select">Analysis run</label><select id="report-select" aria-label="Select analysis run"><option value="">Loading runs…</option></select>
+      <span class="spacer"></span><button id="btn-export" class="btn btn-outline btn-sm" disabled>Download report</button>
+      <button id="btn-manifests" class="btn btn-outline btn-sm" disabled>Download manifests</button></div>
+    <p class="snapshot" id="snapshot-note">Savings and recommendations are estimates from an analysis. The cluster below is live.</p>
     <div class="figures" id="figures"></div>
+    <div class="notice"><p><b>Demo data:</b> usage history is a synthetic backfill with a live metrics tail. Machines, pods, traffic and live LLM calls are real.
+      Dollar amounts use a cloud pricing model; they are potential savings, not a measured bill reduction.</p></div>
+    <div id="plan"></div>
   </section>
 
-  <section class="card" id="cluster-card">
+  <section class="card" id="cluster-card" tabindex="-1">
     <div class="card-head">
-      <div><h2>Cluster</h2>
-        <p class="desc">Each slab is a real machine in the cluster. Each glass box is a pod: as tall as the CPU it reserves,
-          with a glowing core as tall as the CPU it uses right now. Live, every 3 seconds. Click a machine or a pod.</p></div>
+      <div><h2>Live cluster</h2>
+        <p class="desc">Tall glass around a small core means reserved CPU is sitting unused. Select a machine, pod or workload chip for details.</p></div>
     </div>
     <div class="card-body">
+      <div id="cluster-status" class="live-line" role="status">Connecting to the cluster…</div>
       <div class="cluster">
         <div class="stage-wrap">
           <div class="key" id="key"></div>
@@ -360,32 +445,34 @@
           </svg>
           <div class="legend" id="legend"></div>
         </div>
-        <aside class="inspector" id="inspector" aria-live="polite"></aside>
+        <aside class="inspector" id="inspector" aria-label="Selected machine or workload details"></aside>
       </div>
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="capacity-card">
     <div class="card-head"><div><h2>Reserved vs used</h2>
-      <p class="desc">Per pod, over the analysis window. The gap between the light bar and the dark bar is what you pay for and never use.</p></div>
-      <div class="chart-legend"><span><i class="sw-trk"></i>Reserved now</span><span><i class="sw-use"></i>Used (CPU p95, memory p99)</span>
+      <p class="desc">Per pod, from the selected analysis. These values stay fixed after Apply so you can compare the original reservation with the plan.</p></div>
+      <div class="chart-legend"><span><i class="sw-trk"></i>Reserved at analysis</span><span><i class="sw-use"></i>Used (CPU p95, memory p99)</span>
         <span><i class="sw-rec"></i>Recommended</span></div></div>
     <div class="card-body"><div class="charts" id="bars" data-focus-scope></div></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="decision-card">
     <div class="card-head"><div><h2>How it decided</h2>
       <p class="desc">Free statistics first, one cheap triage call for everything, and a bigger model only where a workload needs one.</p></div></div>
     <div class="card-body"><div class="decide"><div><div id="flow" data-focus-scope></div><div class="totals" id="totals"></div></div>
       <div id="ledger"></div></div></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="recommendations-card">
     <div class="card-head"><div><h2>Recommendations</h2><p class="desc">What changes, why, and what the guardrails overrode.</p></div></div>
-    <div class="card-body"><div class="rows" id="workloads"><p class="empty">No analysis yet. Press <b>Analyze</b>.</p></div></div>
+    <div class="card-body"><div class="filterbar"><label for="workload-search" class="sr-only">Search workloads</label><input id="workload-search" class="search" type="search" placeholder="Find a workload…">
+      <label for="status-filter" class="sr-only">Filter by status</label><select id="status-filter"><option value="all">All workloads</option><option value="changes">Changes proposed</option><option value="COMPLEX">Complex</option><option value="ROUTINE">Routine</option><option value="HEALTHY">Healthy</option></select>
+      <span id="workload-count" class="muted"></span></div><div class="rows" id="workloads"><p class="empty">No analysis yet. Press <b>Analyze</b>.</p></div></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="activity-card">
     <div class="card-head"><div><h2>Activity</h2></div></div>
     <div class="card-body"><ol class="log" id="log"></ol></div>
   </section>
@@ -402,6 +489,7 @@ const tok = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
 const cores = (m) => (m == null ? "—" : (m / 1000).toFixed(2));
 const mib = (v) => (v == null ? "—" : v >= 1024 ? (v / 1024).toFixed(1) + " GiB" : Math.round(v) + " MiB");
 const sum = (xs, key) => xs.reduce((a, x) => a + (x[key] ?? 0), 0);
+const measured = (xs, key) => xs.some((x) => x[key] != null) ? sum(xs, key) : null;
 const shortNode = (n) => n.replace(/^k3d-[^-]+-/, "");
 const shortPod = (p, app) => (p.startsWith(app + "-") ? "…" + p.slice(app.length) : p);
 const appOf = (id) => id.split("/").pop();
@@ -433,7 +521,7 @@ const statusBadge = (st) => `<span class="badge"><span style="color:${STATUS[st]
 
 let TIER = {triage: "triage", worker: "worker", strategist: "strategist"};  // replaced by the report's labels
 let config = {}, report = null, runId = null, cluster = null, sel = null, hoverApp = null, lastSig = "";
-let applied = null, spikeEnds = 0;  // what this browser session did, for the step statuses
+let applied = null, spikeEnds = 0, spikeJob = null, isBusy = false, polling = false, pollAgain = false, reports = [], latestRun = null;
 const order = [];  // workload -> colour slot, first seen first; the report goes first so colours never shuffle
 const seenPods = new Set();
 
@@ -446,10 +534,45 @@ function color(app) {
 async function api(path, body) {
   const opts = body === undefined ? {headers: {"X-KubeSage": "1"}}
     : {method: "POST", headers: {"Content-Type": "application/json", "X-KubeSage": "1"}, body: JSON.stringify(body)};
+  // Analyze is bounded by the server's own LLM timeouts and holds the operation lock until it ends; giving up
+  // here would report a failure while the run is still going and make every retry a 409.
+  if (path !== "/api/analyze") opts.signal = AbortSignal.timeout(body === undefined ? 45000 : 360000);
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({error: res.statusText}));
-  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), {status: res.status});
+  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), {status: res.status, data});
   return data;
+}
+
+// Polling updates the numbers without taking keyboard focus away from an inspector or diagram.
+function replaceHTML(el, html) {
+  const active = document.activeElement, within = active && el.contains(active);
+  const attr = within && ["data-pod", "data-node", "data-pick", "data-close", "data-app"].find((a) => active.hasAttribute(a));
+  const selector = attr ? `${active.tagName.toLowerCase()}[${attr}="${CSS.escape(active.getAttribute(attr))}"]${active.hasAttribute("data-key") ? `[data-key="${CSS.escape(active.getAttribute("data-key"))}"]` : ""}` : null;
+  const open = [...el.querySelectorAll("details[data-preserve][open]")].map((d) => d.dataset.preserve);
+  el.innerHTML = html;
+  open.forEach((id) => { const d = el.querySelector(`details[data-preserve="${CSS.escape(id)}"]`); if (d) d.open = true; });
+  if (within) (selector && el.querySelector(selector) || $("#cluster-card")).focus({preventScroll: true});
+}
+
+function notice(message, kind = "ok") {
+  const el = $("#notice");
+  el.hidden = false;
+  el.dataset.kind = kind;
+  el.setAttribute("role", kind === "err" ? "alert" : "status");
+  $("#notice-text").textContent = message;
+}
+
+function updateControls() {
+  const blocked = isBusy || !!cluster?.operation;
+  $$("[data-act]").forEach((b) => (b.disabled = blocked));
+  $("#btn-apply").disabled = blocked || !report || !cluster?.available;
+  $("#btn-gitops").disabled = blocked || !report;
+  $("#btn-reset").disabled = blocked || !cluster?.available || config.namespace !== "demo";
+  const active = (cluster?.active_jobs || []).length > 0 || spikeEnds > Date.now();
+  $("#btn-spike").disabled = blocked || !cluster?.available || active;
+  $("#report-select").disabled = isBusy || !reports.length;
+  $("#dryrun").disabled = isBusy;
+  ["#btn-export", "#btn-manifests"].forEach((s) => ($(s).disabled = !report));
 }
 
 function log(msg, kind = "") {
@@ -462,16 +585,23 @@ function log(msg, kind = "") {
 }
 
 async function busy(button, fn) {
-  const acts = $$("[data-act]"), ic = button.querySelector(".ic"), original = ic && ic.outerHTML;
-  acts.forEach((b) => (b.disabled = true));
+  if (isBusy) return;
+  const ic = button.querySelector(".ic"), original = ic && ic.outerHTML;
+  isBusy = true; updateControls();
   document.body.classList.add("busy");
+  $("main").setAttribute("aria-busy", "true");
   if (ic) ic.outerHTML = icon("loader", "spin");
-  try { await fn(); } catch (e) { log(e.message, "err"); }
+  try { await fn(); } catch (e) {
+    log(e.message, "err"); notice(e.message, "err");
+    (e.data?.steps || []).filter((s) => !s.ok).forEach((s) => log(`${s.file}: ${s.output}`, "err"));
+    if (e.data?.steps) { applied = null; await refreshCluster(); }
+  }
   finally {
     const cur = button.querySelector(".ic");
     if (cur && original) cur.outerHTML = original;
-    acts.forEach((b) => (b.disabled = false));
+    isBusy = false; updateControls();
     document.body.classList.remove("busy");
+    $("main").setAttribute("aria-busy", "false");
   }
 }
 
@@ -512,10 +642,11 @@ function bindTips(root, describe, onSelect) {
   root.addEventListener("pointerleave", hideTip);
   root.addEventListener("focusin", (ev) => {
     const t = target(ev); if (!t) return;
+    t.setAttribute("aria-describedby", "tip");
     const b = t.getBoundingClientRect();
     showTip(b.left + b.width / 2, b.bottom, describe(t));
   });
-  root.addEventListener("focusout", hideTip);
+  root.addEventListener("focusout", (ev) => { target(ev)?.removeAttribute("aria-describedby"); hideTip(); });
   root.addEventListener("click", (ev) => onSelect(target(ev)));
   root.addEventListener("keydown", (ev) => {
     if ((ev.key === "Enter" || ev.key === " ") && target(ev)) { ev.preventDefault(); onSelect(target(ev)); }
@@ -526,6 +657,7 @@ function select(next) {
   sel = next && sel && next.kind === sel.kind && next.id === sel.id ? null : next;
   applyFocus();
   renderInspector();
+  hideTip();
 }
 
 function applyFocus() {
@@ -562,8 +694,9 @@ function renderFigures() {
     const max = Math.max(np.before_monthly_usd, np.after_monthly_usd) || 1, span = 220;
     const bar = (y, v, cls, label) => `<text class="tick" x="0" y="${y - 5}">${esc(label)}</text>
       <path class="${cls}" d="${hbar(0, y, (v / max) * span, 10)}"/><text class="val" x="${(v / max) * span + 6}" y="${y + 9}">${usd(v)}</text>`;
-    hero = fig("Saved per month · node pool", `${usd(np.before_monthly_usd - np.after_monthly_usd)}<small> /mo</small>`,
-      "what the node pool itself costs (billing view)", "hero-fig",
+    const savings = np.before_monthly_usd - np.after_monthly_usd;
+    hero = fig(savings >= 0 ? "Potential monthly savings" : "Additional monthly capacity", `${usd(Math.abs(savings))}<small> /mo</small>`,
+      savings >= 0 ? "estimated node-pool cost reduction" : "more capacity to support the proposed scaling plan", "hero-fig",
       `<svg class="poolbars" viewBox="0 0 300 66" role="img" aria-label="Node pool cost before and after">
         ${bar(14, np.before_monthly_usd, "trk", `Before · ${np.before_nodes}× ${np.before_sku}`)}
         ${bar(50, np.after_monthly_usd, "usebar", `After · ${np.choice.nodes}× ${np.choice.sku}`)}</svg>`);
@@ -571,13 +704,64 @@ function renderFigures() {
     hero = fig("Saved per month · node pool", "—", "No node-pool change recommended.", "hero-fig");
   }
   el.innerHTML = hero
-    + fig("Reserved capacity", `${usd(after)}<small> /mo</small>`, `was ${usd(before)} · allocation view`)
+    + fig("Planned reservations", `${usd(after)}<small> /mo</small>`, `was ${usd(before)} · allocation estimate`)
     + fig("Cost to find it", usd(r.llm_cost_usd), `${r.ledger.length} LLM calls${r.mode === "mock" ? " · estimated (mock)" : ""}`)
     + fig("Workloads", String(r.workloads.length), Object.keys(STATUS).map((k) =>
         `<span class="nw"><span style="color:${STATUS[k].color}">${icon(STATUS[k].icon)}</span> ${counts[k]} ${STATUS[k].label.toLowerCase()}</span>`).join(" &nbsp;"));
 }
 
 /* ---------- Isometric cluster ---------- */
+
+function manifestEntries() {
+  return [...(report?.workloads || []).flatMap((w) => Object.entries(w.manifests || {})),
+    ...Object.entries(report?.node_pool?.migrations || {})];
+}
+
+function download(name, content, type) {
+  const url = URL.createObjectURL(new Blob([content], {type})), a = document.createElement("a");
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function refreshReports() {
+  const data = await api("/api/reports");
+  reports = data.runs || [];
+  latestRun = reports[0]?.run || runId;
+  $("#report-select").innerHTML = reports.length ? reports.map((r, i) => `<option value="${esc(r.run)}">${i === 0 ? "Latest · " : ""}${esc(r.run)} · ${esc(r.mode || "analysis")}</option>`).join("")
+    : '<option value="">No analysis yet</option>';
+  $("#report-select").value = runId || "";
+  updateControls();
+}
+
+function renderPlan() {
+  const el = $("#plan"), np = report?.node_pool;
+  if (!report) { el.textContent = ""; return; }
+  const changed = report.workloads.filter((w) => w.recommendation).length;
+  const clamps = report.workloads.reduce((n, w) => n + (w.guardrail_notes || []).length, 0);
+  el.innerHTML = `<details class="plan-summary"><summary>Review the plan · ${changed} workloads · ${manifestEntries().length} manifests · ${clamps} guardrail adjustments</summary>
+    <div class="plan-grid"><div><p class="muted">Machine placement · cloud pricing model</p>
+      ${np ? `<div class="plan-route">${esc(np.before_nodes)} × ${esc(np.before_sku)} → ${esc(np.choice.nodes)} × ${esc(np.choice.sku)}</div>
+      <p>${esc(np.choice.rationale)}</p>${(np.notes || []).length ? `<ul>${np.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}` : "<p>No machine-pool change proposed.</p>"}</div>
+      <div><p><b>Before you apply</b></p><p>Validate only asks Kubernetes to check the manifests without saving changes. Apply writes the selected run to the cluster.</p>
+      <p>Resource guardrails use observed usage to set a floor. A workload can cost more when its measured needs or scaling limits require extra capacity.</p>
+      <p>Moving pods does not switch off a machine or reduce a real cloud bill automatically.</p></div></div>
+    ${np && Object.keys(np.migrations || {}).length ? `<details class="files"><summary>Machine migration manifests (${Object.keys(np.migrations).length})</summary><pre>${Object.entries(np.migrations).map(([f, t]) => `<span class="file"># ${esc(f)}</span>\n${esc(t)}`).join("\n")}</pre></details>` : ""}</details>`;
+}
+
+function renderClusterStatus() {
+  const c = cluster, el = $("#cluster-status");
+  if (!c?.available) {
+    el.innerHTML = `${icon("complex")}<strong>${c ? "Cluster not reachable" : "Connecting to cluster…"}</strong><span class="muted">${esc(c?.error || "Live data is unavailable. Analysis reports remain available.")}</span>`;
+    return;
+  }
+  const nodes = c.nodes.filter((n) => n.role !== "pending"), pods = nodes.flatMap((n) => n.pods).filter((p) => !["Terminating", "Succeeded", "Failed"].includes(p.phase));
+  const pending = c.nodes.flatMap((n) => n.pods).filter((p) => p.phase === "Pending").length;
+  el.innerHTML = `<strong>${icon(nodes.every((n) => n.ready) ? "healthy" : "complex")} ${nodes.filter((n) => n.ready).length}/${nodes.length} machines ready</strong>
+    <span>${pods.filter((p) => p.ready).length}/${pods.length} pods ready${pending ? ` · ${pending} pending` : ""}</span>
+    <span class="muted">${c.metrics ? "Live metrics" : "Usage metrics unavailable"} · refreshed ${esc(new Date(c.observed_at || Date.now()).toLocaleTimeString())} · polls every 3s</span>
+    ${nodes.some((n) => n.k3d) ? '<span class="muted">Desktop usage covers its Kubernetes container only.</span>' : ""}
+    ${c.operation ? `<strong>${icon("loader", "spin")} ${esc(c.operation.name)} in progress</strong>` : ""}`;
+}
 
 const ISO = {slot: 34, gap: 14, margin: 18, cols: 3, slab: 14, zpc: 46, nodeGap: 120};  // zpc: height of one CPU core
 const COS30 = Math.cos(Math.PI / 6);
@@ -626,9 +810,10 @@ function renderCluster() {
     scene.innerHTML = "";
     svg.setAttribute("viewBox", "0 0 10 1");
     empty.hidden = false;
-    empty.textContent = c ? "Cluster not reachable. Start it with scripts/cluster-up.sh." : "Connecting…";
+    empty.textContent = c ? "Cluster not reachable. Reports are still available; live actions resume when the connection returns." : "Connecting…";
     return;
   }
+  if (!c.nodes.length) { scene.innerHTML = ""; empty.hidden = false; empty.textContent = "No machines found in this cluster."; return; }
   empty.hidden = true;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const P = (x, y, z = 0) => {
@@ -640,16 +825,18 @@ function renderCluster() {
   const slotXY = (ox, oy, k) => [ox + ISO.margin + (k % ISO.cols) * (ISO.slot + ISO.gap),
                                  oy + ISO.margin + Math.floor(k / ISO.cols) * (ISO.slot + ISO.gap)];
   const W = ISO.margin * 2 + ISO.cols * ISO.slot + (ISO.cols - 1) * ISO.gap;
-  const column = $(".stage-wrap").clientWidth < 560;  // phones: one node under the next
-  let T = 0, prevD = 0, out = "";
+  const column = $(".stage-wrap").clientWidth < 560 || c.nodes.length > 2;
+  let T = 0, prevD = 0, prevHeight = 2 * ISO.zpc, out = "";
   c.nodes.forEach((n, i) => {
     const pods = [...n.pods].sort((a, b) => a.app.localeCompare(b.app) || a.name.localeCompare(b.name));
     const rows = Math.max(2, Math.ceil(pods.length / ISO.cols));
     const D = ISO.margin * 2 + rows * ISO.slot + (rows - 1) * ISO.gap;
     // Origin (T, -T) moves along the screen's horizontal, (T, T) straight down: below the previous labels,
     // leaving headroom for 2-core pods.
-    if (i) T += column ? (W + prevD) / 2 + ISO.slab + 100 + 2 * ISO.zpc - ISO.margin : (W + D + ISO.nodeGap) / 2;
+    const maxHeight = Math.max(2 * ISO.zpc, ...pods.map((p) => Math.max(p.cpu_request_m || 0, p.cpu_used_m || 0) / 1000 * ISO.zpc));
+    if (i) T += column ? (W + prevD) / 2 + ISO.slab + 100 + Math.max(maxHeight, prevHeight) - ISO.margin : (W + prevD + D + ISO.nodeGap) / 2;
     prevD = D;
+    prevHeight = maxHeight;
     const ox = T, oy = column ? T : -T, slab = box(ox, oy, W, D, -ISO.slab, 0);
     const live = pods.filter((p) => p.phase !== "Terminating");
     const reqM = sum(live, "cpu_request_m"), usedM = sum(live, "cpu_used_m");
@@ -694,19 +881,20 @@ function renderCluster() {
     const hw = n.role === "pending" ? "waiting for a machine" : [cpuName(n.cpu_model), n.cpu_cores != null ? `${n.cpu_cores} threads` : "",
       n.mem_mi != null ? `${mib(n.mem_mi)} RAM` : ""].filter(Boolean).join(" · ");
     const now = n.cpu_used_m != null ? `using ${cores(n.cpu_used_m)} cores · ${mib(n.mem_used_mi)}${n.k3d ? " (k3d node)" : ""}` : "";
-    const use = live.length ? `pods reserve ${cores(reqM)} cores, use ${cores(usedM)}` : "no workload pods";
+    const use = live.length ? `pods reserve ${cores(reqM)} cores, use ${live.some((p) => p.cpu_used_m != null) ? cores(usedM) : "—"}` : "no workload pods";
     const tag = n.role === "control-plane" ? "control plane" : n.role;
     g += `<text class="nl-name" x="${cx.toFixed(1)}" y="${by + 28}">${esc(n.host || shortNode(n.name))}<tspan class="nl-tag" dx="8">${esc(tag)}</tspan></text>
       <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 46}">${esc(hw)}</text>
       <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 63}">${esc(now)}</text>
       <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 80}">${esc(use)}</text></g>`;
-    minX = Math.min(minX, cx - 130); maxX = Math.max(maxX, cx + 130); maxY = Math.max(maxY, by + 86);
+    const labelHalf = Math.max(140, hw.length * 3.2, (n.host || n.name).length * 4.5 + tag.length * 3.5);
+    minX = Math.min(minX, cx - labelHalf); maxX = Math.max(maxX, cx + labelHalf); maxY = Math.max(maxY, by + 86);
     out += g;
   });
   minY = Math.min(minY, ISO.margin - 2 * ISO.zpc - 8);  // headroom for 2-core pods, so the frame doesn't jump
   const pad = 10;
   svg.setAttribute("viewBox", `${(minX - pad).toFixed(0)} ${(minY - pad).toFixed(0)} ${(maxX - minX + 2 * pad).toFixed(0)} ${(maxY - minY + 2 * pad).toFixed(0)}`);
-  scene.innerHTML = out;
+  replaceHTML(scene, out);
   c.nodes.forEach((n) => n.pods.forEach((p) => seenPods.add(p.name)));
   tweenCores(tweens);
   applyFocus();
@@ -740,8 +928,8 @@ function renderLegend() {
   (report?.workloads || []).forEach((w) => (counts[appOf(w.id)] ??= 0));
   const apps = Object.keys(counts).sort((a, b) => order.indexOf(a) - order.indexOf(b) || a.localeCompare(b));
   apps.forEach(color);
-  $("#legend").innerHTML = apps.map((a) => `<button class="chip" data-app="${esc(a)}" aria-pressed="false">
-    <span class="dot" style="--c:${color(a)}"></span>${esc(a)}<span class="n">${counts[a]} pod${counts[a] === 1 ? "" : "s"}</span></button>`).join("");
+  replaceHTML($("#legend"), apps.map((a) => `<button class="chip" data-app="${esc(a)}" aria-pressed="false">
+    <span class="dot" style="--c:${color(a)}"></span>${esc(a)}<span class="n">${counts[a]} pod${counts[a] === 1 ? "" : "s"}</span></button>`).join(""));
   applyFocus();
 }
 
@@ -757,28 +945,28 @@ const closeBtn = `<button class="btn btn-ghost btn-icon btn-sm" data-close aria-
 
 function renderInspector() {
   const el = $("#inspector"), c = cluster;
-  if (!c || !c.available) { el.innerHTML = `<p class="muted">Waiting for the cluster…</p>`; return; }
+  if (!c || !c.available) { replaceHTML(el, `<p class="muted">${c ? "Live inspection is unavailable while the cluster is disconnected." : "Waiting for the cluster…"}</p>`); return; }
   const pods = c.nodes.flatMap((n) => n.pods.map((p) => ({...p, node: n.name}))).filter((p) => p.phase !== "Terminating");
   if (sel?.kind === "node") {
     const n = c.nodes.find((x) => x.name === sel.id);
-    if (n) { el.innerHTML = nodePanel(n, pods.filter((p) => p.node === n.name)); return; }
+    if (n) { replaceHTML(el, nodePanel(n, pods.filter((p) => p.node === n.name))); return; }
   }
-  if (sel?.kind === "app") { el.innerHTML = appPanel(sel.id, pods.filter((p) => p.app === sel.id)); return; }
-  const req = sum(pods, "cpu_request_m"), used = sum(pods, "cpu_used_m");
+  if (sel?.kind === "app") { replaceHTML(el, appPanel(sel.id, pods.filter((p) => p.app === sel.id))); return; }
+  const req = sum(pods, "cpu_request_m"), used = measured(pods, "cpu_used_m");
   const apps = [...new Set(pods.map((p) => p.app))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
-  el.innerHTML = `<div class="insp-h"><b>Whole cluster</b></div>
+  replaceHTML(el, `<div class="insp-h"><b>Whole cluster</b></div>
     <div class="big">${c.metrics && req ? Math.round((used / req) * 100) + "%" : "—"}</div>
     <div class="muted">${c.metrics ? "of the CPU reserved by workload pods is in use right now" : "live usage appears once metrics-server is ready"}</div>
     <dl class="kv"><dt>Machines</dt><dd>${esc(c.nodes.filter((n) => n.role !== "pending").map((n) => n.host || n.name).join(", "))}</dd>
       <dt>Real capacity</dt><dd>${sum(c.nodes, "cpu_cores")} threads · ${mib(sum(c.nodes, "mem_mi"))}</dd>
       <dt>Cost model</dt><dd>${usd(sum(c.nodes, "pool_monthly_usd"))}/mo</dd>
       <dt>CPU reserved · used</dt><dd>${cores(req)} · ${cores(used)} cores</dd>
-      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(sum(pods, "mem_used_mi"))}</dd></dl>
+      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(measured(pods, "mem_used_mi"))}</dd></dl>
     <table class="mini"><tr><th>Workload</th><th>Pods</th><th>Reserved</th><th>Used</th></tr>${apps.map((a) => {
       const ps = pods.filter((p) => p.app === a);
       return `<tr><td><button class="linkish" data-pick="${esc(a)}"><span class="dot" style="--c:${color(a)}"></span>${esc(a)}</button></td>
-        <td>${ps.length}</td><td>${cores(sum(ps, "cpu_request_m"))}</td><td>${cores(sum(ps, "cpu_used_m"))}</td></tr>`;
-    }).join("")}</table>`;
+        <td>${ps.length}</td><td>${cores(sum(ps, "cpu_request_m"))}</td><td>${cores(measured(ps, "cpu_used_m"))}</td></tr>`;
+    }).join("")}</table>`);
 }
 
 function nodePanel(n, pods) {
@@ -803,14 +991,19 @@ function nodePanel(n, pods) {
 
 function appPanel(app, pods) {
   const w = report?.workloads.find((x) => appOf(x.id) === app), sc = cluster.scaling[app] || {}, rec = w?.recommendation;
+  const deployment = cluster.deployments?.[app], livePlan = cluster.plan?.run === runId ? cluster.plan.workloads?.[app] : null;
+  const differences = livePlan?.checks.filter((c) => !c.match) || [];
   const tags = [w ? statusBadge(w.triage.status) : "", w?.tier ? `<span class="badge">${esc(TIER[w.tier])}</span>` : ""].join("");
   const scaling = sc.min != null ? `KEDA ${sc.min}–${sc.max} · ${esc((sc.triggers || []).join(" + "))}` : "fixed replicas";
   return `<div class="insp-h"><span class="dot" style="--c:${color(app)}"></span><b>${esc(app)}</b>${closeBtn}</div><div class="insp-tags">${tags}</div>
     <dl class="kv"><dt>Pods ready</dt><dd>${pods.filter((p) => p.ready).length} of ${pods.length}${sc.desired != null && sc.desired !== pods.length ? ` → ${sc.desired}` : ""}</dd>
-      <dt>Scaling</dt><dd>${scaling}</dd>${sc.cpu != null ? `<dt>CPU vs target</dt><dd>${sc.cpu}%</dd>` : ""}
-      <dt>CPU reserved · used</dt><dd>${cores(sum(pods, "cpu_request_m"))} · ${cores(sum(pods, "cpu_used_m"))}</dd>
-      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(sum(pods, "mem_used_mi"))}</dd>
-      ${w ? `<dt>Cost</dt><dd>${usd(w.monthly_before_usd)} → ${usd(w.monthly_after_usd)}/mo</dd>` : ""}</dl>
+      <dt>Scaling</dt><dd>${scaling}</dd>${sc.cpu != null ? `<dt>CPU vs target</dt><dd>${sc.cpu}% / ${sc.cpu_target ?? "—"}%</dd>` : ""}
+      <dt>CPU reserved · used</dt><dd>${cores(sum(pods, "cpu_request_m"))} · ${cores(measured(pods, "cpu_used_m"))}</dd>
+      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(measured(pods, "mem_used_mi"))}</dd>
+      ${deployment ? `<dt>Live request / pod</dt><dd>${cores(deployment.cpu_request_m)} cores · ${mib(deployment.mem_request_mi)}</dd>` : ""}
+      ${livePlan ? `<dt>Plan vs live specs</dt><dd>${livePlan.state === "applied" ? "Matches" : `${differences.length} differences`}</dd>` : ""}
+      ${w ? `<dt>Analysis cost estimate</dt><dd>${usd(w.monthly_before_usd)} → ${usd(w.monthly_after_usd)}/mo</dd>` : ""}</dl>
+    ${differences.length ? `<details class="files" data-preserve="drift"><summary>View differences from this plan</summary><ul>${differences.map((c) => `<li><b>${esc(c.field)}</b><br>Live: ${esc(JSON.stringify(c.actual) ?? "unset")}<br>Planned: ${esc(JSON.stringify(c.expected) ?? "unset")}</li>`).join("")}</ul></details>` : ""}
     ${rec ? `<p class="note">${esc(rec.diagnosis)}</p>` : w ? `<p class="note">${esc(w.triage.summary)}</p>` : ""}
     ${pods.length ? `<table class="mini" style="margin-top:10px"><tr><th>Pod</th><th>Node</th><th>Used / reserved</th></tr>${pods.map((p) =>
       `<tr><td>${esc(shortPod(p.name, app))}</td><td>${esc(shortNode(p.node))}</td><td>${cores(p.cpu_used_m)} / ${cores(p.cpu_request_m)}</td></tr>`).join("")}</table>`
@@ -826,23 +1019,24 @@ function niceMax(v) {
 }
 
 function bullet(rows, key, title, fmt, W) {
-  const L = 128, R = W < 400 ? 88 : 96, rowH = 32, top = 6, H = top + rows.length * rowH + 22;
+  const compact = W < 480, L = compact ? 8 : 128, R = compact ? 12 : 136, rowH = compact ? 58 : 36, top = 6, H = top + rows.length * rowH + 22;
   const max = niceMax(Math.max(...rows.flatMap((r) => [r[key].req, r[key].used, r[key].rec ?? 0])));
   const x = (v) => L + (Math.min(v, max) / max) * (W - L - R);
   let s = "";
   [0, max / 2, max].forEach((t) => {
     s += `<line class="gridline" x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${H - 18}"/>
-      <text class="tick" x="${x(t)}" y="${H - 4}" text-anchor="middle">${fmt(t)}</text>`;
+      <text class="tick" x="${x(t)}" y="${H - 4}" text-anchor="${t === 0 ? "start" : t === max ? "end" : "middle"}">${fmt(t)}</text>`;
   });
   rows.forEach((r, i) => {
-    const v = r[key], y = top + i * rowH + rowH / 2;
-    s += `<g class="brow" data-app="${esc(r.app)}" data-key="${key}" data-tip tabindex="0" role="button" aria-label="${esc(r.app)}">
-      <rect class="row-hit" x="0" y="${y - rowH / 2 + 1}" width="${W}" height="${rowH - 2}" rx="6"/>
-      <circle cx="8" cy="${y}" r="4" style="fill:${color(r.app)}"/><text class="lbl" x="18" y="${y + 4}">${esc(r.app)}</text>
+    const v = r[key], y = top + i * rowH + (compact ? 38 : rowH / 2), labelY = compact ? y - 21 : y + 4;
+    s += `<g class="brow" data-app="${esc(r.app)}" data-key="${key}" data-tip tabindex="0" role="button"
+      aria-label="${esc(`Inspect ${r.app}, ${title}: reserved ${fmt(v.req)}, used ${fmt(v.used)}${v.rec != null ? `, recommended ${fmt(v.rec)}` : ""}`)}">
+      <rect class="row-hit" x="1" y="${top + i * rowH + 1}" width="${W - 2}" height="${rowH - 2}" rx="6"/>
+      <circle cx="8" cy="${labelY - 4}" r="4" style="fill:${color(r.app)}"/><text class="lbl" x="18" y="${labelY}">${esc(r.app)}</text>
       <path class="trk" d="${hbar(L, y - 7, x(v.req) - L, 14)}"/>
       <path class="usebar" d="${hbar(L, y - 3, x(v.used) - L, 6, 3)}"/>
       ${v.rec != null ? `<line class="recmark" x1="${x(v.rec)}" x2="${x(v.rec)}" y1="${y - 10}" y2="${y + 10}"/>` : ""}
-      <text class="val" x="${W - R + 10}" y="${y + 4}">${fmt(v.req)}${v.rec != null ? " → " + fmt(v.rec) : ""}</text></g>`;
+      <text class="val" x="${compact ? W - 8 : W - R + 10}" y="${labelY}" ${compact ? 'text-anchor="end"' : ""}>${fmt(v.req)}${v.rec != null ? " → " + fmt(v.rec) : ""}</text></g>`;
   });
   return `<figure class="chart"><figcaption>${title}</figcaption>
     <svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${title}: reserved, used and recommended per workload">${s}</svg></figure>`;
@@ -872,7 +1066,7 @@ function describeBar(t) {
   const r = barRows().find((x) => x.app === t.dataset.app), cpu = t.dataset.key === "cpu";
   const f = cpu ? (v) => v.toFixed(2) + " cores" : (v) => mib(v * 1024), v = r[t.dataset.key];
   return {title: r.app, sub: cpu ? "CPU per pod" : "Memory per pod", rows: [
-    ["Reserved now", f(v.req)], [cpu ? "Used, p95" : "Used, p99", f(v.used)],
+    ["Reserved at analysis", f(v.req)], [cpu ? "Used, p95" : "Used, p99", f(v.used)],
     ["Recommended", v.rec != null ? f(v.rec) : "no change"], ["Pods", String(r.s.replicas)]]};
 }
 
@@ -909,7 +1103,7 @@ function renderFlow(animate) {
   rows.forEach((w, i) => {
     const y = top + i * rowH + rowH / 2, y2 = slot[w.id], app = appOf(w.id), mid = (xT + 8 + xO) / 2;
     const d = `M${xL + 8},${y}H${xT}M${xT + 8},${y}C${mid},${y} ${mid},${y2} ${xO},${y2}`;
-    s += `<g class="wlf" data-app="${esc(app)}" data-wl="${esc(w.id)}" data-tip tabindex="0" role="button" aria-label="${esc(app)}" style="--c:${color(app)}">
+    s += `<g class="wlf" data-app="${esc(app)}" data-wl="${esc(w.id)}" data-tip tabindex="0" role="button" aria-label="${esc(`Inspect ${app}: ${STATUS[w.triage.status].label}, ${w.tier ? TIER[w.tier] : "stopped at triage"}`)}" style="--c:${color(app)}">
       <text class="lbl" x="${xL - 4}" y="${y + 4}" text-anchor="end">${esc(app)}</text><circle cx="${xL + 4}" cy="${y}" r="4" style="fill:var(--c)"/>
       <path class="hit" d="${d}"/><path class="path" d="${d}" pathLength="1" style="animation-delay:${i * 90}ms"/></g>`;
   });
@@ -921,7 +1115,7 @@ function renderFlow(animate) {
       <text class="flow-out" x="${xO + 16}" y="${(y0 + y1) / 2 - 2}">${esc(name)}</text>
       <text class="val" x="${xO + 16}" y="${(y0 + y1) / 2 + 13}">${esc(sub)}</text>`;
   });
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="Model routing for each workload" class="${animate && !reduceMotion.matches ? "draw" : ""}">${s}</svg>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="Model routing for each workload">${s}</svg>`;
   const inTok = sum(r.ledger, "input_tokens"), outTok = sum(r.ledger, "output_tokens"), b = r.baselines_usd;
   $("#totals").innerHTML = `<b>${r.ledger.length} calls · ${usd(r.llm_cost_usd)}</b> · ${tok(inTok)} in / ${tok(outTok)} out
     ${tri ? `· triage on ${esc(tri.model)}` : ""} <br><span class="muted">Same calls all on ${esc(TIER.strategist)}: ${usd(b.all_calls_on_strategist)} ·
@@ -950,15 +1144,20 @@ function renderWorkloads() {
   const stats = Object.fromEntries(r.stats.map((s) => [s.id, s]));
   const calls = Object.fromEntries(r.ledger.filter((e) => e.stage === "recommend").map((e) => [e.workload, e]));
   const triShare = (r.ledger.find((e) => e.stage === "triage")?.cost_usd || 0) / Math.max(r.workloads.length, 1);
-  $("#workloads").innerHTML = r.workloads.map((w) => {
+  const query = $("#workload-search").value.trim().toLowerCase(), filter = $("#status-filter").value;
+  const visible = r.workloads.filter((w) => w.id.toLowerCase().includes(query) && (filter === "all" || filter === "changes" && !!w.recommendation || w.triage.status === filter));
+  $("#workload-count").textContent = `${visible.length} of ${r.workloads.length}`;
+  const open = new Set([...$$("details.wl[open]")].map((el) => el.dataset.id));
+  $("#workloads").innerHTML = visible.map((w) => {
     const s = stats[w.id], rec = w.recommendation, e = calls[w.id], app = appOf(w.id);
     const delta = w.monthly_before_usd - w.monthly_after_usd, files = Object.entries(w.manifests);
     const money = rec ? `<s>${usd(w.monthly_before_usd)}</s> → <b>${usd(w.monthly_after_usd)}</b>/mo` : `<b>${usd(w.monthly_before_usd)}</b>/mo`;
-    return `<details class="wl"><summary><span class="dot" style="--c:${color(app)}"></span><span class="name">${esc(app)}</span>
+    return `<details class="wl" data-id="${esc(w.id)}" ${open.has(w.id) ? "open" : ""}><summary><span class="dot" style="--c:${color(app)}"></span><span class="name">${esc(app)}</span>
         ${statusBadge(w.triage.status)}${w.tier ? `<span class="badge">${esc(TIER[w.tier])}</span>` : ""}
         ${rec ? `<span class="badge">risk ${esc(rec.risk)}</span>` : ""}<span class="spacer"></span><span class="money">${money}</span>${icon("chev", "chev")}</summary>
       <div class="wl-body">
         <p>${esc(rec ? rec.diagnosis : w.triage.summary)}</p>
+        ${delta < 0 ? `<p><b>${usd(-delta)}/mo additional capacity.</b> The estimate includes the proposed resource requests and scaling schedule; review these alongside the guardrail adjustments.</p>` : ""}
         <p class="muted">CPU p95 ${s.cpu_pod_p95.toFixed(2)} of ${(s.cpu_request_cores ?? 0).toFixed(2)} cores · memory p99 ${Math.round(s.mem_pod_p99_mib)} of
           ${Math.round(s.mem_request_mib ?? 0)} MiB · ${s.replicas} pod${s.replicas === 1 ? "" : "s"} · ${s.restarts} restarts</p>
         ${rec && (w.guardrail_notes.length || rec.follow_ups.length) ? `<ul>${w.guardrail_notes.map((n) => `<li class="guard">${esc(n)}</li>`).join("")}
@@ -966,25 +1165,55 @@ function renderWorkloads() {
         <div class="trace">${esc(TIER.triage)} share ${usd(triShare)}${e ? ` → ${esc(TIER[w.tier])} ${tok(e.input_tokens)} in / ${tok(e.output_tokens)} out ${usd(e.cost_usd)}
           · diagnosis ${usd(triShare + e.cost_usd)} · ${delta >= 0 ? `saves ${usd(delta)}/mo` : `costs ${usd(-delta)}/mo more`}` : " · stopped at triage"}</div>
         ${files.length ? `<details class="files"><summary>Manifests (${files.length})</summary><pre>${files.map(([f, t]) =>
-          `<span class="file"># ${esc(f)}</span>\n${esc(t)}`).join("\n")}</pre></details>` : ""}
+          `<span class="file"># ${esc(f)}</span>\n${esc(t)}`).join("\n")}</pre><button class="btn btn-outline btn-sm" data-download="${esc(w.id)}">Download workload manifests</button></details>` : ""}
       </div></details>`;
-  }).join("");
+  }).join("") || '<p class="empty">No workloads match. Try another name or status.</p>';
 }
 
 /* ---------- Steps ---------- */
 
 function renderSteps() {
-  const r = report, left = Math.round((spikeEnds - Date.now()) / 1000);
-  const loadgen = (cluster?.nodes || []).some((n) => n.pods.some((p) => p.app === "loadgen" && p.phase === "Running"));
+  const r = report, plan = cluster?.plan?.run === runId ? cluster.plan : null;
+  const traffic = cluster?.traffic;
+  if (traffic?.job === spikeJob && ["completed", "failed"].includes(traffic.status)) spikeEnds = 0;
+  const jobs = cluster?.active_jobs || [], ends = Math.max(spikeEnds, ...jobs.map((j) => Date.parse(j.ends_at) || 0));
+  const left = Math.max(0, Math.ceil((ends - Date.now()) / 1000)), loadgen = jobs.length > 0;
+  const verified = plan?.state === "applied", validation = applied?.run === runId && applied.dry;
   $("#step-analyze").classList.toggle("done", !!r);
+  $("#step-analyze").classList.toggle("next", !r);
   $("#st-analyze").textContent = r ? `Last run ${new Date(r.generated_at).toLocaleString()} · ${usd(r.llm_cost_usd)} · `
     + `${r.workloads.filter((w) => w.recommendation).length} of ${r.workloads.length} workloads get changes.` : "Not run yet.";
-  $("#step-apply").classList.toggle("done", !!applied);
-  $("#st-apply").textContent = applied ? `${applied.dry ? "Dry run" : "Applied"} at ${applied.at}: ${applied.ok} of ${applied.total} changes ok.`
-    : r ? "Ready: applies the latest run." : "Run step 1 first.";
+  $("#step-apply").classList.toggle("done", verified);
+  $("#step-apply").classList.toggle("next", !!r && !verified);
+  let applyText = !r ? "Analyze first to create a plan." : !cluster?.available ? "Connect the cluster to validate or apply." :
+    verified ? `Live specs match this plan. ${plan.ready ? "Workloads are ready." : "Waiting for the rollout to finish."}` :
+    plan?.state === "partial" ? `${plan.matched} of ${plan.total} workload plans fully match live specs. Review differences in the inspector.` :
+    runId !== latestRun && latestRun ? "Viewing an older run. Apply uses this selected run; review its plan first." : "Review the plan, then validate or apply this run.";
+  if (plan?.capacity && plan.capacity.ready < plan.capacity.required) applyText += ` Placement needs ${plan.capacity.required} ready ${plan.capacity.sku} machines; ${plan.capacity.ready} available. Migration will be skipped.`;
+  if (validation) applyText += ` Validation: ${applied.ok}/${applied.total} checked${applied.skipped ? `, ${applied.skipped} skipped` : ""}. No changes saved.`;
+  if (applied?.run === runId && !applied.dry && applied.skipped) applyText += ` Last apply skipped ${applied.skipped} steps; inspect Activity.`;
+  $("#st-apply").textContent = applyText;
   $("#step-spike").classList.toggle("done", left > 0 || loadgen);
-  $("#st-spike").textContent = left > 0 ? `Load running for another ${left} s. Watch checkout-web in the cluster.`
-    : loadgen ? "The load generator is still running." : "Optional. Most convincing after step 2.";
+  const sc = cluster?.scaling?.["checkout-web"];
+  const scalingText = sc?.max != null ? `${sc.current ?? "—"}/${sc.max} replicas · CPU ${sc.cpu ?? "—"}% / ${sc.cpu_target ?? "—"}% target.` : "Apply a scaling plan first to test autoscaling.";
+  const ceiling = sc?.current >= sc?.max ? " At replica limit: CPU can rise without more pods." : "";
+  $("#st-spike").textContent = (left > 0 ? `Traffic running · ${left}s left. ` : loadgen ? "Traffic job is starting or finishing. " : "Optional. ") + scalingText + ceiling;
+  const load = (+$("#rps").value || 0) * (+$("#workms").value || 0) / 1000;
+  $("#load-estimate").textContent = `About ${load.toFixed(1)} CPU cores of requested work for ${$("#secs").value}s. This consumes real machine CPU.`;
+  const result = $("#traffic-result");
+  result.hidden = !traffic;
+  if (traffic) {
+    const failed = traffic.status === "failed" || traffic.failed_requests > 0;
+    const state = {pending: "Traffic queued", running: "Traffic running", completed: "Traffic finished", failed: "Traffic job failed"}[traffic.status] || "Traffic results";
+    const samples = traffic.succeeded_requests != null;
+    const html = `<b>${icon(failed ? "complex" : traffic.status === "completed" && traffic.succeeded_requests > 0 ? "healthy" : "zap")}${esc(state)}${traffic.failed_requests > 0 ? " · request errors" : ""}</b>
+      ${samples ? `${traffic.succeeded_requests.toLocaleString()} successful · ${traffic.failed_requests.toLocaleString()} failed requests
+        <small>Latest interval: p50 ${traffic.p50_ms.toLocaleString()} ms · p95 ${traffic.p95_ms.toLocaleString()} ms</small>`
+        : '<span class="muted">Request results are unavailable. CPU and replica counts alone do not measure request success.</span>'}`;
+    result.dataset.kind = failed ? "err" : "ok";
+    if (result.innerHTML !== html) result.innerHTML = html;
+  }
+  updateControls();
 }
 
 /* ---------- Wiring ---------- */
@@ -997,19 +1226,29 @@ function renderReport(animate) {
     $("#runinfo").innerHTML = `<span class="badge">Run ${esc(runId)}</span>${r.window_days}-day window · namespace ${esc(r.namespace)} ·
       ${new Date(r.generated_at).toLocaleString()}`;
   }
-  renderFigures(); renderBars(); renderFlow(animate); renderWorkloads(); renderLegend(); renderInspector(); renderSteps();
+  $("#snapshot-note").textContent = r ? `Analysis snapshot · ${runId} · ${r.window_days} days of history. Savings are modelled; live requests and usage appear in the cluster inspector.`
+    : "Savings and recommendations are estimates from an analysis. The cluster below is live.";
+  renderFigures(); renderPlan(); renderBars(); renderFlow(animate); renderWorkloads(); renderLegend(); renderInspector(); renderSteps();
   if (animate) sweep($("#headline"));
 }
 
 async function refreshCluster() {
+  // A refresh asked for mid-poll (e.g. right after Apply) runs once that poll ends; that poll may predate the change.
+  if (polling) { pollAgain = true; return; }
+  polling = true;
   try {
-    const c = await api("/api/cluster"), sig = JSON.stringify(c);
+    const c = await api("/api/cluster"), sig = JSON.stringify({...c, observed_at: undefined});
+    cluster = c;
+    renderClusterStatus(); renderSteps();
     if (sig === lastSig) return;
     lastSig = sig; cluster = c;
   } catch (e) {
-    cluster = {available: false}; lastSig = "";
+    cluster = {available: false, error: "Cannot reach the cluster API. Check the server and Kubernetes connection."}; lastSig = "";
+  } finally {
+    polling = false;
+    if (pollAgain) { pollAgain = false; setTimeout(refreshCluster, 0); }
   }
-  renderCluster(); renderLegend(); renderInspector(); renderSteps();
+  renderCluster(); renderLegend(); renderInspector(); renderSteps(); renderClusterStatus();
 }
 
 function setLabel(id, iconName, text) { $(id).innerHTML = `${icon(iconName)}<span>${text}</span>`; }
@@ -1019,6 +1258,7 @@ function initTheme() {
   const paint = () => {
     const dark = (document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
     $("#btn-theme").innerHTML = icon(dark ? "sun" : "moon");
+    $("#btn-theme").setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
     return dark;
   };
   $("#btn-theme").onclick = () => {
@@ -1055,34 +1295,72 @@ $("#inspector").addEventListener("click", (ev) => {
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && sel) select(null); });
 
 $("#btn-analyze").onclick = (ev) => busy(ev.currentTarget, async () => {
+  notice("Analyzing usage history and checking the proposed changes…");
   log("analyzing: stats → triage → remediation → node pool");
   const res = await api("/api/analyze", {});
-  runId = res.run; report = res.report;
+  runId = res.run; report = res.report; applied = null;
+  await refreshReports();
   renderReport(true);
   log(`analysis ${res.run} done · LLM ${usd(report.llm_cost_usd)}${report.mode === "mock" ? " (mock)" : ""}`, "ok");
+  notice(`Analysis complete: ${report.workloads.filter((w) => w.recommendation).length} workloads have proposed changes. Review the plan before applying.`);
+  await refreshCluster();
 });
 $("#btn-apply").onclick = (ev) => busy(ev.currentTarget, async () => {
-  const dry = $("#dryrun").checked, res = await api("/api/apply", {dry_run: dry});
+  const dry = $("#dryrun").checked;
+  notice(dry ? "Validating this plan with Kubernetes. No changes are saved…" : "Applying the selected plan. Live specs and rollout readiness will update below…");
+  const res = await api("/api/apply", {dry_run: dry, run: runId});
   res.steps.forEach((s) => log(`${s.skipped ? "skip" : s.ok ? "ok" : "ERR"} ${s.file}: ${s.skipped || s.output}`, s.skipped ? "" : s.ok ? "ok" : "err"));
-  log(`${dry ? "dry run of" : "applied"} ${res.run}`, "ok");
-  applied = {dry, at: new Date().toLocaleTimeString(), ok: res.steps.filter((s) => s.ok && !s.skipped).length, total: res.steps.length};
+  const skipped = res.steps.filter((s) => s.skipped).length;
+  log(`${dry ? "validated" : "applied"} ${res.run}${skipped ? ` · ${skipped} skipped` : ""}`, "ok");
+  applied = {run: res.run, dry, skipped, ok: res.steps.filter((s) => s.ok && !s.skipped).length, total: res.steps.length};
+  notice(`${dry ? "Validation complete. No changes saved." : "Apply finished; watching rollout readiness."} ${applied.ok}/${applied.total} changes ${dry ? "checked" : "written"}${skipped ? `; ${skipped} skipped. Open Activity for details.` : "."}`, skipped ? "warn" : "ok");
   renderSteps();
-  refreshCluster();
+  await refreshCluster();
 });
 $("#btn-spike").onclick = (ev) => busy(ev.currentTarget, async () => {
+  const inputs = [$("#rps"), $("#secs"), $("#workms")];
+  if (inputs.some((el) => !el.reportValidity())) return;
   const res = await api("/api/spike", {rps: +$("#rps").value, work_ms: +$("#workms").value, seconds: +$("#secs").value});
   log(`spike ${res.job}: ${res.RPS} rps × ${res.WORK_MS} ms on ${res.TARGET} for ${res.SECONDS}s`, "ok");
   spikeEnds = Date.now() + +res.SECONDS * 1000;
+  spikeJob = res.job;
+  notice(`Traffic started: ${res.RPS} requests/s for ${res.SECONDS}s. Select checkout-web to watch CPU and scaling.`);
   renderSteps();
+  await refreshCluster();
 });
 $("#btn-reset").onclick = (ev) => busy(ev.currentTarget, async () => {
+  notice("Resetting demo workloads and removing demo scaling rules and traffic jobs…");
   const res = await api("/api/reset", {});
+  applied = null; spikeEnds = 0; spikeJob = null;
   log("demo reset to the 'before' state", res.ok ? "ok" : "err");
-  refreshCluster();
+  notice("Demo reset. Workloads are back to their original reservations and placement; reports remain available.");
+  await refreshCluster();
 });
 $("#btn-gitops").onclick = (ev) => busy(ev.currentTarget, async () => {
-  const res = await api("/api/gitops", {open_pr: true});
+  const res = await api("/api/gitops", {open_pr: true, run: runId});
   log(res.pr_url ? `PR opened: ${res.pr_url}` : `committed ${res.commit.slice(0, 10)} on ${res.branch}`, "ok");
+});
+
+$("#dismiss-notice").onclick = () => ($("#notice").hidden = true);
+$("#dryrun").onchange = () => setLabel("#btn-apply", "check", $("#dryrun").checked ? "Validate plan" : "Apply fixes");
+["#rps", "#secs", "#workms"].forEach((id) => $(id).addEventListener("input", renderSteps));
+$("#report-select").onchange = (ev) => busy(ev.currentTarget, async () => {
+  const selected = ev.currentTarget.value;
+  try {
+    const res = await api(`/api/report?run=${encodeURIComponent(selected)}`);
+    runId = res.run; report = res.report; renderReport(false);
+    notice(`Viewing ${selected === latestRun ? "the latest" : "a historical"} analysis: ${selected}. Live cluster data continues to refresh.`);
+  } catch (e) { $("#report-select").value = runId || ""; throw e; }
+});
+$("#btn-export").onclick = () => report && download(`kubesage-${runId}.json`, JSON.stringify(report, null, 2) + "\n", "application/json");
+$("#btn-manifests").onclick = () => report && download(`kubesage-${runId}.yaml`, manifestEntries().map(([f, t]) => `# ${f}\n${t.trim()}`).join("\n---\n") + "\n", "application/yaml");
+$("#workload-search").addEventListener("input", renderWorkloads);
+$("#status-filter").addEventListener("change", renderWorkloads);
+$("#workloads").addEventListener("click", (ev) => {
+  const button = ev.target.closest("[data-download]");
+  if (!button) return;
+  const w = report?.workloads.find((w) => w.id === button.dataset.download);
+  if (w) download(`${appOf(w.id)}-${runId}.yaml`, Object.entries(w.manifests).map(([f, t]) => `# ${f}\n${t.trim()}`).join("\n---\n") + "\n", "application/yaml");
 });
 
 let laidOutAt = $("main").clientWidth;
@@ -1100,14 +1378,16 @@ new ResizeObserver(() => {
     const live = config.mode !== "mock";
     $("#mode").innerHTML = `<span class="pulse-dot" style="--c:${live ? "var(--good)" : "var(--warn)"}"></span>${live ? "Live LLM" : "Mock LLM"}`;
     $("#btn-gitops").hidden = !config.gitops;
-  } catch (e) { log(e.message, "err"); }
+  } catch (e) { $("#mode").textContent = "Server unavailable"; log(e.message, "err"); notice("Cannot load server configuration. Check the KubeSage server connection.", "err"); }
   try {
     const res = await api("/api/report");
     runId = res.run; report = res.report;
   } catch (e) { if (e.status !== 404) log(e.message, "err"); }
+  try { await refreshReports(); } catch (e) { log(e.message, "err"); }
   renderReport(true);
   await refreshCluster();
   setInterval(refreshCluster, 3000);
+  setInterval(renderSteps, 1000);
 })();
 </script>
 </body>
