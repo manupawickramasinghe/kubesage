@@ -1,4 +1,5 @@
-# Local metrics stack: VictoriaMetrics (Prometheus-compatible TSDB, takes backfilled history) + Grafana.
+# Local metrics stack: VictoriaMetrics (Prometheus-compatible TSDB, takes backfilled history) + Grafana,
+# plus vmalert and Alertmanager for the lab test cases' alerts (rules in deploy/alerts/).
 # Ports bind to localhost by default; set BIND_ADDR=0.0.0.0 to reach them from another machine.
 name: kubesage
 
@@ -27,6 +28,34 @@ services:
       - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - victoriametrics
+    restart: unless-stopped
+
+  vmalert:
+    image: victoriametrics/vmalert:v1.110.0
+    command:
+      - -datasource.url=http://victoriametrics:8428
+      - -notifier.url=http://alertmanager:9093
+      - -rule=/etc/alerts/rules.yml
+      - -evaluationInterval=15s
+    volumes:
+      - ./deploy/alerts:/etc/alerts:ro
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8880:8880"
+    depends_on:
+      - victoriametrics
+      - alertmanager
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=  # one instance: no gossip
+    volumes:
+      - ./deploy/alerts/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:9193:9093"  # 9193: hosts often run another Alertmanager on 9093
     restart: unless-stopped
 
 volumes:

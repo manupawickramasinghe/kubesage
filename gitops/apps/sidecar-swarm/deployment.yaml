@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sidecar-swarm
+  labels: {app: sidecar-swarm}
+spec:
+  replicas: 80
+  selector:
+    matchLabels: {app: sidecar-swarm}
+  template:
+    metadata:
+      labels: {app: sidecar-swarm}
+    spec:
+      nodeSelector: {kubesage.io/pool: lab}
+      terminationGracePeriodSeconds: 2
+      containers:
+        - name: sidecar-swarm
+          image: docker.io/rancher/mirrored-pause:3.10.2
+          resources:
+            requests: {cpu: 1m, memory: 4Mi}
+            limits: {memory: 8Mi}

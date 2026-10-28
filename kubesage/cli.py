@@ -116,8 +116,9 @@ def cmd_serve(args: argparse.Namespace) -> None:
 
     settings = Settings(vm=args.vm, namespace=args.namespace, days=args.days, tz=args.tz, mode=args.mode,
                         out_dir=Path(args.out_dir), gitops_repo=Path(args.gitops_repo) if args.gitops_repo else None,
-                        gitops_base=args.gitops_base, gitops_path=args.gitops_path)
-    server = serve(settings, args.host, args.port)
+                        gitops_base=args.gitops_base, gitops_path=args.gitops_path, alertmanager=args.alertmanager,
+                        agent_prs=args.agent_prs, auto_agents=not args.no_auto_agents)
+    server = serve(settings, args.host, args.port, background=True)
     console.print(f"KubeSage AI Control Center on http://{args.host}:{args.port}  (Ctrl+C to stop)")
     if args.host not in ("127.0.0.1", "localhost", "::1"):
         console.print("[yellow]warning[/] anyone who can reach this address can apply changes to the cluster")
@@ -141,6 +142,134 @@ def cmd_spike(args: argparse.Namespace) -> None:
                   f"for {args.seconds}s")
     console.print(f"  watch: kubectl -n {args.namespace} get hpa,pods -w    "
                   f"latency: kubectl -n {args.namespace} logs -f job/{name}")
+
+
+ANSI = None
+
+
+def _clean(text: str) -> str:
+    """Terminal bytes from a tmux pane as plain text: no escape sequences, carriage returns resolved."""
+    import re
+    global ANSI
+    ANSI = ANSI or re.compile(r"\x1b(\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|[()][0-9A-Za-z]|[=>78DEHMc])")
+    text = ANSI.sub("", text)
+    return "".join(ch for ch in text.rsplit("\r", 1)[-1] if ch == "\t" or ch >= " ")
+
+
+def cmd_ring(args: argparse.Namespace) -> None:
+    from kubesage import ring
+
+    streams = [s for s in (args.streams or "").split(",") if s] or None
+    if args.action == "init":
+        r = ring.Ring(size_mb=args.mb)
+        console.print(f"ring at {r.path}: {r.stat()['capacity_bytes'] / 2 ** 20:.0f} MiB")
+        return
+    if args.action == "write":  # tmux pipe-pane target: one record per line of the pane's output
+        r = ring.Ring()
+        for raw in sys.stdin.buffer:
+            line = _clean(raw.decode("utf-8", "replace").rstrip("\n"))
+            if line.strip():
+                r.write(args.stream, line)
+        return
+    r = ring.Ring(create=False)
+    if args.action == "stat":
+        st = r.stat()
+        console.print(f"{st['path']}: {st['used_bytes'] / 2 ** 20:.1f} of {st['capacity_bytes'] / 2 ** 20:.0f} MiB, "
+                      f"{st['records']:,} records{', wrapped' if st['wrapped'] else ''}")
+        return
+    if args.action == "dump":
+        since = time.time() - args.minutes * 60 if args.minutes else 0
+        for rec in r.iter_since(since, streams=streams):
+            print(ring.format_line(rec), flush=False)
+        return
+    recs, last = r.tail(args.lines, streams=streams)  # tail
+    show = not streams or len(streams) > 1 or any(s.endswith("*") for s in streams)
+    for rec in recs:
+        print(ring.format_line(rec, show_stream=show), flush=True)
+    while args.follow:
+        time.sleep(0.3)
+        recs, last = r.read(last, streams=streams)
+        for rec in recs:
+            print(ring.format_line(rec, show_stream=show), flush=True)
+
+
+def cmd_tmux(args: argparse.Namespace) -> None:
+    """A tmux session that shows the ring: one pane per agent, test cases, journal, and an operator shell whose
+    output is piped into the ring (so the web tmux view mirrors it, read-only)."""
+    import shutil
+    import subprocess
+
+    from kubesage.agents.loader import load_team
+
+    tmux = shutil.which("tmux") or str(Path(__file__).resolve().parent.parent / ".bin" / "tmux")
+    if not Path(tmux).exists():
+        sys.exit("tmux not found: run scripts/install-tools.sh (it fetches one into .bin without sudo)")
+    exe = shutil.which("kubesage") or f"{sys.executable} -m kubesage.cli"
+    tail = lambda streams: f"{exe} ring tail -f -n 200 --streams {streams}"
+    t = lambda *a: subprocess.run([tmux, *a], check=True)
+    if subprocess.run([tmux, "has-session", "-t", args.session], capture_output=True).returncode != 0:
+        agents = [a.name for a in load_team().agents]
+        t("new-session", "-d", "-s", args.session, "-n", "agents", "-x", "240", "-y", "60", tail(f"agent/{agents[0]}"))
+        for name in agents[1:]:
+            t("split-window", "-t", f"{args.session}:agents", tail(f"agent/{name}"))
+            t("select-layout", "-t", f"{args.session}:agents", "tiled")
+        t("new-window", "-t", args.session, "-n", "testcases", tail("testcase/*,alerts,agent/team"))
+        t("split-window", "-t", f"{args.session}:testcases", "-h", tail("watch/pods,watch/events"))
+        t("new-window", "-t", args.session, "-n", "journal", tail("journal,access"))
+        t("new-window", "-t", args.session, "-n", "ops")
+        t("pipe-pane", "-t", f"{args.session}:ops", "-O", f"{exe} ring write --stream tmux/ops")
+        for i, title in enumerate(agents):
+            t("select-pane", "-t", f"{args.session}:agents.{i}", "-T", title)
+        t("set-option", "-t", args.session, "pane-border-status", "top")
+        t("select-window", "-t", f"{args.session}:agents")
+        console.print(f"tmux session {args.session!r}: windows agents, testcases, journal, ops "
+                      f"(ops is piped into the ring)")
+    if args.attach:
+        os.execvp(tmux, [tmux, "attach", "-t", args.session])
+
+
+def cmd_agents(args: argparse.Namespace) -> None:
+    from kubesage.agents import team as T
+    from kubesage.agents.loader import load_team
+
+    t = load_team()
+    if args.action == "list":
+        console.print(f"profile [cyan]{t.profile}[/] ({t.provider.base_url}); rules: {', '.join(n for n, _ in t.rules) or 'none'}")
+        for a in t.agents:
+            console.print(f"  [cyan]{a.name:<10}[/] {a.config.role:<9} {a.config.model:<7} {a.tier.label or ''} "
+                          f"({a.tier.model})  {a.config.description}")
+        return
+    s = T.TeamSettings(vm=args.vm, alertmanager=args.alertmanager, out_dir=Path(args.out_dir) / "agents", mode=args.mode,
+                       open_pr=args.open_pr)
+    tr = T.run(t, s, trigger="manual")
+    d = tr.snapshot()
+    console.print(f"team run {d['id']}: {d['state']} ({d['mode']}), ${d['cost_usd']:.4f}" + (f" — {d['error']}" if d["error"] else ""))
+    for issue in (d.get("diagnosis") or {}).get("issues", []):
+        console.print(f"  [yellow]{issue['id']}[/] {issue['title']}: {issue['root_cause']}")
+    ex = d.get("executor") or {}
+    if ex.get("commit"):
+        console.print(f"  committed {ex['commit'][:8]} on {ex['branch']} in {s.out_dir / 'repo'}")
+    if args.open_pr and ex.get("commit"):
+        console.print(f"  PR: {T.open_pr(tr, s, s.out_dir / d['id'])}")
+
+
+def cmd_testcase(args: argparse.Namespace) -> None:
+    from kubesage import lab
+
+    if args.action == "list":
+        active = lab.status(lab.lab_pods())
+        for tc in lab.CATALOG:
+            on = active.get(tc.name)
+            console.print(f"  [cyan]{tc.name:<13}[/] {tc.title:<32} {'[green]running[/] ' + str(on['phases']) if on else ''}")
+            console.print(f"                {tc.summary}")
+        return
+    if args.name not in lab.BY_NAME:
+        sys.exit(f"unknown test case {args.name!r}; one of {', '.join(lab.BY_NAME)}")
+    steps = (lab.start if args.action == "start" else lab.stop)(lab.BY_NAME[args.name])
+    for s in steps:
+        console.print(f"{'[green]ok[/]' if s['ok'] else '[red]FAILED[/]'} {s['cmd']}\n{s['output']}")
+    if not all(s["ok"] for s in steps):
+        sys.exit(1)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -196,6 +325,10 @@ def main(argv: list[str] | None = None) -> None:
     sv.add_argument("--gitops-repo", help="enable the GitOps PR button for this local repo clone")
     sv.add_argument("--gitops-base", help="kustomize base relative to --gitops-path, e.g. ../base")
     sv.add_argument("--gitops-path", default="kubesage/demo")
+    sv.add_argument("--alertmanager", default=os.environ.get("KUBESAGE_ALERTMANAGER_URL", "http://localhost:9193"))
+    sv.add_argument("--agent-prs", action="store_true",
+                    help="let the Executor agent push branches and open pull requests on this repo's origin")
+    sv.add_argument("--no-auto-agents", action="store_true", help="don't run the agent team when a lab alert fires")
     sv.set_defaults(func=cmd_serve)
 
     sp = sub.add_parser("spike", help="live demo: send a burst of CPU-heavy traffic to a demo Service")
@@ -205,6 +338,35 @@ def main(argv: list[str] | None = None) -> None:
     sp.add_argument("--work-ms", type=int, default=50, help="CPU milliseconds burned per request")
     sp.add_argument("--seconds", type=int, default=180)
     sp.set_defaults(func=cmd_spike)
+
+    rg = sub.add_parser("ring", help="the RAM ring buffer every terminal stream goes through (tmux view, web)")
+    rg.add_argument("action", choices=("tail", "dump", "stat", "write", "init"))
+    rg.add_argument("--streams", help="comma-separated stream names; a trailing * matches a prefix, e.g. agent/*")
+    rg.add_argument("-n", "--lines", type=int, default=100)
+    rg.add_argument("-f", "--follow", action="store_true")
+    rg.add_argument("--minutes", type=int, default=0, help="dump: only the last N minutes (0: everything held)")
+    rg.add_argument("--stream", default="tmux/pane", help="write: the stream to write stdin to")
+    rg.add_argument("--mb", type=int, default=None, help="init: size in MiB (default KUBESAGE_RING_MB or 500)")
+    rg.set_defaults(func=cmd_ring)
+
+    tx = sub.add_parser("tmux", help="open a tmux session over the ring: agents, test cases, journal, piped ops shell")
+    tx.add_argument("--session", default="kubesage")
+    tx.add_argument("--no-attach", dest="attach", action="store_false")
+    tx.set_defaults(func=cmd_tmux)
+
+    ag = sub.add_parser("agents", help="the agent team: list it, or run it once")
+    ag.add_argument("action", choices=("list", "run"))
+    ag.add_argument("--vm", default=os.environ.get("KUBESAGE_VM_URL", "http://localhost:8428"))
+    ag.add_argument("--alertmanager", default=os.environ.get("KUBESAGE_ALERTMANAGER_URL", "http://localhost:9193"))
+    ag.add_argument("--mode", choices=("auto", "mock", "live"), default="auto")
+    ag.add_argument("--out-dir", default="out")
+    ag.add_argument("--open-pr", action="store_true", help="push the Executor's branch and open a PR")
+    ag.set_defaults(func=cmd_agents)
+
+    tc = sub.add_parser("testcase", help="live test cases in the lab namespace")
+    tc.add_argument("action", choices=("list", "start", "stop"))
+    tc.add_argument("name", nargs="?")
+    tc.set_defaults(func=cmd_testcase)
 
     args = parser.parse_args(argv)
     args.func(args)

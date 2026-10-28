@@ -1,0 +1,8 @@
+# The namespace KubeSage's live test cases run in. Every workload here is pinned to the lab pool
+# (kubesage.io/pool=lab: the 3500U laptop), so a test case never squeezes the control plane.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab
+  labels:
+    kubesage.io/lab: "true"

@@ -1,0 +1,10 @@
+name: promql
+title: PromQL
+role: subagent
+order: 10
+model: small            # a size from ../models.yaml
+description: Container CPU, throttling, threads, memory, OOM kills, disk I/O and latency, from VictoriaMetrics.
+max_findings: 8
+settings:
+  namespaces: [lab]
+  window: 2m            # rate() window

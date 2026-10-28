@@ -1,0 +1,7 @@
+name: thinker
+title: Thinker
+role: thinker
+model: large            # the team's biggest model: it does the reasoning
+description: Reads every sub-agent's findings plus the custom rules, finds the root causes and decides what to do.
+settings:
+  max_issues: 6

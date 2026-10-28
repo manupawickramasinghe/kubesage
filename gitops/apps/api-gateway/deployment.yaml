@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  labels: {app: api-gateway}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: api-gateway}
+  template:
+    metadata:
+      labels: {app: api-gateway}
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "8080"}
+    spec:
+      nodeSelector: {kubesage.io/pool: lab}
+      terminationGracePeriodSeconds: 2
+      containers:
+        - name: api-gateway
+          image: python:3.13.12-alpine3.22
+          command: [python, -u, /src/api_gateway.py]
+          env:
+            - {name: WORK_MS, value: "30"}
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          resources:
+            requests: {cpu: 250m, memory: 64Mi}
+            limits: {cpu: 300m, memory: 128Mi}
+          volumeMounts:
+            - {name: src, mountPath: /src}
+      volumes:
+        - {name: src, configMap: {name: api-gateway-src}}

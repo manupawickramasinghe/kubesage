@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk-scorer
+  labels: {app: risk-scorer}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: risk-scorer}
+  template:
+    metadata:
+      labels: {app: risk-scorer}
+    spec:
+      nodeSelector: {kubesage.io/pool: lab}
+      terminationGracePeriodSeconds: 2
+      containers:
+        - name: risk-scorer
+          image: python:3.13.12-alpine3.22
+          command: [python, -u, /src/risk_scorer.py]
+          env:
+            - {name: WORKERS, value: "3"}
+          resources:
+            requests: {cpu: "3", memory: 128Mi}
+            limits: {cpu: "3", memory: 256Mi}
+          volumeMounts:
+            - {name: src, mountPath: /src}
+      volumes:
+        - {name: src, configMap: {name: risk-scorer-src}}

@@ -34,3 +34,7 @@ skus:
   - {name: E4s_v5,  family: memory-optimised,  vcpu: 4, memory_gib: 32, hourly_usd: 0.252}
   - {name: F4s_v2,  family: compute-optimised, vcpu: 4, memory_gib: 8,  hourly_usd: 0.169}
   - {name: F8s_v2,  family: compute-optimised, vcpu: 8, memory_gib: 16, hourly_usd: 0.338}
+  # Offered to the agent team's Thinker (gitops/infra/nodepools.tf), not to the right-sizing planner.
+  - {name: E8s_v5,  family: memory-optimised,  vcpu: 8, memory_gib: 64, hourly_usd: 0.504, planner: false}
+  - {name: F16s_v2, family: compute-optimised, vcpu: 16, memory_gib: 32, hourly_usd: 0.677, planner: false}
+  - {name: L8s_v3,  family: storage-optimised, vcpu: 8, memory_gib: 64, hourly_usd: 0.624, local_nvme_gib: 1788, planner: false}

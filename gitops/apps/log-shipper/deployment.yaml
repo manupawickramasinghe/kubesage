@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-shipper
+  labels: {app: log-shipper}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: log-shipper}
+  template:
+    metadata:
+      labels: {app: log-shipper}
+    spec:
+      nodeSelector: {kubesage.io/pool: lab}
+      terminationGracePeriodSeconds: 2
+      containers:
+        - name: log-shipper
+          image: python:3.13.12-alpine3.22
+          command: [python, -u, /src/log_shipper.py]
+          env:
+            - {name: WRITE_MBPS, value: "20"}
+            - {name: BLOCK_KB, value: "256"}
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          volumeMounts:
+            - {name: src, mountPath: /src}
+            - {name: spool, mountPath: /data}
+      volumes:
+        - {name: src, configMap: {name: log-shipper-src}}
+        - {name: spool, emptyDir: {sizeLimit: 512Mi}}

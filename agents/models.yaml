@@ -1,0 +1,43 @@
+# The models the agent team can use. Each agent picks a size in its agent.yaml (`model: small`), so changing
+# one agent's model is a one-line edit there, and changing what "small" means is a one-line edit here.
+#
+# KUBESAGE_MODELS selects the profile (the same variable the right-sizing pipeline uses); default_profile
+# applies when it isn't set. Prices are USD per million tokens and drive every cost the UI shows.
+
+default_profile: meta
+
+profiles:
+  # Cerebras' shared endpoint (Oct 2026) serves gpt-oss-120b ($0.35 / $0.75) and qwen-3.8-27b ($0.99 / $1.49).
+  # Sub-agents get the smaller dense model; the Thinker and Executor get gpt-oss-120b at different effort.
+  cerebras:
+    provider: {base_url: https://api.cerebras.ai/v1, api_key_env: CEREBRAS_API_KEY, timeout_s: 120}
+    models:
+      small:
+        label: Qwen 3.8 27B
+        model: qwen-3.8-27b
+        input_per_mtok: 0.99
+        output_per_mtok: 1.49
+        max_output_tokens: 6000
+      medium:
+        label: OSS 120B medium
+        model: gpt-oss-120b
+        input_per_mtok: 0.35
+        output_per_mtok: 0.75
+        max_output_tokens: 12000
+        extra_body: {reasoning_effort: medium}
+      large:
+        label: OSS 120B high
+        model: gpt-oss-120b
+        input_per_mtok: 0.35
+        output_per_mtok: 0.75
+        max_output_tokens: 16000
+        extra_body: {reasoning_effort: high}
+
+  # Meta Model API. VERIFY BEFORE DEMO DAY: the glimmer and wonder IDs and prices are UNVERIFIED (see
+  # config/models.yaml); muse-spark-1.3 matches public pricing trackers.
+  meta:
+    provider: {base_url: https://api.meta.ai/v1, api_key_env: MODEL_API_KEY, timeout_s: 120}
+    models:
+      small: {label: Glimmer, model: muse-glimmer-30b, input_per_mtok: 0.30, output_per_mtok: 1.20, max_output_tokens: 3000}
+      medium: {label: Spark, model: muse-spark-1.3, input_per_mtok: 1.25, output_per_mtok: 4.25, max_output_tokens: 6000}
+      large: {label: Wonder, model: muse-wonder-1.0, input_per_mtok: 4.00, output_per_mtok: 20.00, max_output_tokens: 8000}

@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: render-farm
+  labels: {app: render-farm}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: render-farm}
+  template:
+    metadata:
+      labels: {app: render-farm}
+    spec:
+      nodeSelector: {kubesage.io/pool: lab}
+      terminationGracePeriodSeconds: 2
+      containers:
+        - name: render-farm
+          image: python:3.13.12-alpine3.22
+          command: [python, -u, /src/render_farm.py]
+          env:
+            - {name: WORKERS, value: "4"}
+          resources:
+            requests: {cpu: 500m, memory: 128Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          volumeMounts:
+            - {name: src, mountPath: /src}
+      volumes:
+        - {name: src, configMap: {name: render-farm-src}}

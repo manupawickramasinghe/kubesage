@@ -1,0 +1,15 @@
+# The security test case: a workload someone started by hand, outside GitOps. Deliberately misconfigured
+# (bare Pod, floating :latest tag, root user, no resource limits) and otherwise inert: it only sleeps.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: debug-tools
+  namespace: lab
+  labels: {app: debug-tools}
+spec:
+  nodeSelector: {kubesage.io/pool: lab}
+  terminationGracePeriodSeconds: 1
+  containers:
+    - name: debug-tools
+      image: docker.io/library/busybox:latest
+      command: [sleep, "86400"]

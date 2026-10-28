@@ -1,0 +1,13 @@
+name: security
+title: Security
+role: subagent
+order: 40
+model: small
+description: Pod security posture, workloads created outside GitOps, RBAC, and probes against the Control Center.
+max_findings: 6
+settings:
+  namespaces: [lab, demo]
+  # Images from anywhere else are flagged. Tags must be pinned (no :latest, no missing tag).
+  allowed_registries: [docker.io/library/python, docker.io/rancher/mirrored-pause, python, registry.k8s.io]
+  # Control Center paths that exist; requests for anything else are probes.
+  known_paths: [/, /index.html, /favicon.ico, /api/, /fonts/]

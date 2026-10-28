@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-cache
+  labels: {app: ledger-cache}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: ledger-cache}
+  template:
+    metadata:
+      labels: {app: ledger-cache}
+    spec:
+      nodeSelector: {kubesage.io/pool: lab}
+      terminationGracePeriodSeconds: 2
+      containers:
+        - name: ledger-cache
+          image: python:3.13.12-alpine3.22
+          command: [python, -u, /src/ledger_cache.py]
+          env:
+            - {name: TARGET_MB, value: "700"}
+            - {name: CHUNK_MB, value: "16"}
+            - {name: EVERY_S, value: "2"}
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: src, mountPath: /src}
+      volumes:
+        - {name: src, configMap: {name: ledger-cache-src}}

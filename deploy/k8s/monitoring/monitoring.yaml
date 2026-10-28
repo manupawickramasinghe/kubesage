@@ -18,7 +18,7 @@ metadata:
   name: kubesage-kube-state-metrics
 rules:
   - apiGroups: [""]
-    resources: [pods]
+    resources: [pods, nodes]
     verbs: [list, watch]
   - apiGroups: [apps]
     resources: [deployments]
@@ -49,7 +49,7 @@ spec:
       containers:
         - name: kube-state-metrics
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0
-          args: ["--resources=pods,deployments", "--port=8080", "--telemetry-port=8081"]
+          args: ["--resources=pods,deployments,nodes", "--port=8080", "--telemetry-port=8081"]
           ports: [{containerPort: 8080}]
           readinessProbe: {httpGet: {path: /readyz, port: 8081}}
           resources:
@@ -77,7 +77,7 @@ metadata:
   name: kubesage-vmagent
 rules:
   - apiGroups: [""]
-    resources: [nodes]
+    resources: [nodes, pods]
     verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [nodes/metrics]
@@ -108,14 +108,29 @@ data:
         kubernetes_sd_configs: [{role: node}]
         metric_relabel_configs:
           - source_labels: [__name__]
-            regex: container_cpu_usage_seconds_total|container_memory_working_set_bytes
+            # the lab test cases also read throttling, threads, OOM kills, disk I/O and pressure stalls
+            regex: container_cpu_usage_seconds_total|container_memory_working_set_bytes|container_cpu_cfs_(throttled_)?periods_total|container_threads|container_oom_events_total|container_fs_(reads|writes)_bytes_total|container_pressure_(cpu|memory|io)_stalled_seconds_total
             action: keep
       - job_name: kube-state-metrics
         static_configs: [{targets: [kube-state-metrics.monitoring.svc:8080]}]
         metric_relabel_configs:
           - source_labels: [__name__]
-            regex: kube_pod_container_resource_(requests|limits)|kube_pod_container_status_restarts_total|kube_deployment_spec_replicas
+            regex: kube_pod_container_resource_(requests|limits)|kube_pod_container_status_restarts_total|kube_deployment_spec_replicas|kube_deployment_status_replicas_available|kube_pod_status_phase|kube_pod_info|kube_pod_owner|kube_pod_container_status_last_terminated_reason|kube_node_status_(capacity|allocatable)
             action: keep
+      # The lab test cases' own metrics (api-gateway's latency histogram), from pods annotated prometheus.io/scrape.
+      - job_name: lab-pods
+        kubernetes_sd_configs: [{role: pod, namespaces: {names: [lab]}}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            regex: "true"
+            action: keep
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - {source_labels: [__meta_kubernetes_namespace], target_label: namespace}
+          - {source_labels: [__meta_kubernetes_pod_name], target_label: pod}
+          - {source_labels: [__meta_kubernetes_pod_label_app], target_label: app}
 ---
 apiVersion: apps/v1
 kind: Deployment

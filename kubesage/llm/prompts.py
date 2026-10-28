@@ -54,7 +54,7 @@ Return JSON only, matching this JSON schema:
 
 
 def sku_system(catalog: SkuCatalog) -> str:
-    skus = [s.model_dump() for s in catalog.skus]
+    skus = [s.model_dump(exclude={"planner", "local_nvme_gib"}) for s in catalog.skus if s.planner]
     return f"""You are the capacity strategist of KubeSage, a Kubernetes FinOps agent.
 Region {catalog.region}. Node SKU catalog (hourly USD):
 {json.dumps(skus, separators=(",", ":"))}

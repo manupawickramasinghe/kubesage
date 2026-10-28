@@ -1,0 +1,9 @@
+# Alertmanager only holds alerts here: KubeSage polls GET /api/v2/alerts. No notifications leave the machine.
+route:
+  receiver: kubesage
+  group_by: [alertname, namespace]
+  group_wait: 5s
+  group_interval: 30s
+  repeat_interval: 1h
+receivers:
+  - name: kubesage
