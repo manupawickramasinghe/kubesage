@@ -125,6 +125,11 @@ def stop(tc: TestCase, gitops: Path = GITOPS) -> list[dict]:
     where = f"gitops/apps/{tc.app}" if tc.gitops else f"kubesage/lab/{tc.app}.yaml"
     steps.append(_step(f"kubectl delete {'-k' if tc.gitops else '-f'} {where}",
                        _kubectl("delete", *manifest_args(tc, gitops), "--ignore-not-found", "--wait=false")))
+    # An applied Executor fix changes the source, so its ConfigMap has another hash suffix: remove every version.
+    old = [n for n in _kubectl("-n", NAMESPACE, "get", "configmaps", "-o", "name").stdout.split()
+           if n.startswith(f"configmap/{tc.app}-src-")]
+    if old:
+        steps.append(_step(f"kubectl delete {' '.join(old)}", _kubectl("-n", NAMESPACE, "delete", *old, "--ignore-not-found")))
     return steps
 
 
