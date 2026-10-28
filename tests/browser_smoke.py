@@ -201,7 +201,7 @@ def check_layout(page):
 def run(args):
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    handler = partial(QuietHandler, directory=str(ROOT / "kubesage/web/static"))
+    handler = partial(QuietHandler, directory=str(ROOT / "dashboard"))
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{server.server_address[1]}/"

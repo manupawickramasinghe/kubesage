@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KubeSage · AI Control Center</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/finops.css">
+<link rel="stylesheet" href="css/lab.css">
+<link rel="stylesheet" href="css/agents.css">
+<link rel="stylesheet" href="css/tmux.css">
+</head>
+<body>
+<a class="skip btn btn-primary" href="#main">Skip to dashboard</a>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 2.5 20.5 7.4v9.2L12 21.5l-8.5-4.9V7.4z"/><path d="M12 12 20.5 7.4M12 12v9.5M12 12 3.5 7.4"/></svg>
+      KubeSage <span>AI Control Center</span></div>
+    <nav class="viewtabs" role="tablist" aria-label="Views">
+      <button class="viewtab" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="main" aria-selected="true"><span class="vt-long">FinOps dashboard</span><span class="vt-short">Dashboard</span></button>
+      <button class="viewtab" role="tab" id="tab-lab" data-view="lab" aria-controls="lab" aria-selected="false" tabindex="-1"><span class="vt-long">Architecture &amp; CLI lab</span><span class="vt-short">Lab</span></button>
+      <button class="viewtab" role="tab" id="tab-tmux" data-view="tmux" aria-controls="tmuxview" aria-selected="false" tabindex="-1">tmux</button>
+    </nav>
+    <span id="mode" class="badge">…</span>
+    <div class="actions">
+      <button id="btn-gitops" class="btn btn-outline" data-act hidden></button>
+      <button id="btn-reset" class="btn btn-ghost" data-act
+        title="Put the demo back in its oversized 'before' state: big requests, every workload on the 8600G"></button>
+      <button id="btn-theme" class="btn btn-ghost btn-icon" aria-label="Toggle dark mode"></button>
+    </div>
+  </div>
+  <div class="progress"></div>
+</header>
+
+<main id="main" tabindex="-1">
+  <section class="hero">
+    <p class="eyebrow" id="runinfo">No analysis yet</p>
+    <h1><span id="headline">Less waste. <em>Room to grow.</em></span></h1>
+    <p class="lede">Find unused Kubernetes capacity, review a guarded plan, then watch your workloads scale under real traffic.
+      Start with <b>Analyze</b> to see what could change and what it would cost.</p>
+    <nav class="section-nav" aria-label="Dashboard sections"><a href="#cluster-card">Live cluster</a><a href="#capacity-card">Capacity evidence</a>
+      <a href="#decision-card">AI decisions</a><a href="#recommendations-card">Recommendations</a><a href="#activity-card">Activity</a></nav>
+    <div id="notice" class="notice" role="status" hidden><div id="notice-text"></div><button id="dismiss-notice" class="btn btn-ghost btn-icon btn-sm" aria-label="Dismiss message">×</button></div>
+    <ol class="steps">
+      <li class="step" id="step-analyze"><span class="step-n">1</span>
+        <div class="step-b"><b>Find the waste</b>
+          <p>Review usage history and create a plan. No cluster changes. Live analysis usually costs about $0.01.</p>
+          <div class="step-a"><button id="btn-analyze" class="btn btn-primary btn-sm" data-act></button></div>
+          <p class="step-s" id="st-analyze"></p></div></li>
+      <li class="step" id="step-apply"><span class="step-n">2</span>
+        <div class="step-b"><b>Fix it on the cluster</b>
+          <p>Review the plan below, validate it, then apply resource requests, scaling rules and machine placement.</p>
+          <div class="step-a"><button id="btn-apply" class="btn btn-outline btn-sm" data-act></button>
+            <label class="switch" title="Validate changes with Kubernetes without saving them"><input type="checkbox" id="dryrun" role="switch"> Validate only</label></div>
+          <p class="step-s" id="st-apply"></p></div></li>
+      <li class="step" id="step-spike"><span class="step-n">3</span>
+        <div class="step-b"><b>Prove it still scales</b>
+          <p>Send real HTTP requests to checkout-web. Watch CPU rise; replicas can increase up to the scaling limit.</p>
+          <div class="step-a"><button id="btn-spike" class="btn btn-outline btn-sm" data-act></button>
+            <label class="field">req/s <input class="num" id="rps" type="number" value="60" min="1" max="200"></label>
+            <label class="field">seconds <input class="num" id="secs" type="number" value="180" min="10" max="900"></label>
+            </div>
+          <details class="advanced"><summary>Traffic settings</summary><label class="field">CPU work per request (ms)
+            <input class="num" id="workms" type="number" value="50" min="1" max="500"></label>
+            <p id="load-estimate"></p></details>
+          <p class="step-s" id="st-spike"></p><div id="traffic-result" class="traffic-result" role="status" hidden></div></div></li>
+    </ol>
+    <div class="toolbar"><label for="report-select">Analysis run</label><select id="report-select" aria-label="Select analysis run"><option value="">Loading runs…</option></select>
+      <span class="spacer"></span><button id="btn-export" class="btn btn-outline btn-sm" disabled>Download report</button>
+      <button id="btn-manifests" class="btn btn-outline btn-sm" disabled>Download manifests</button></div>
+    <p class="snapshot" id="snapshot-note">Savings and recommendations are estimates from an analysis. The cluster below is live.</p>
+    <div class="figures" id="figures"></div>
+    <div class="notice"><p><b>Demo data:</b> usage history is a synthetic backfill with a live metrics tail. Machines, pods, traffic and live LLM calls are real.
+      Dollar amounts use a cloud pricing model; they are potential savings, not a measured bill reduction.</p></div>
+    <div id="plan"></div>
+  </section>
+
+  <section class="card" id="cluster-card" tabindex="-1">
+    <div class="card-head">
+      <div><h2>Live cluster</h2>
+        <p class="desc">Tall glass around a small core means reserved CPU is sitting unused. Select a machine, pod or workload chip for details.</p></div>
+    </div>
+    <div class="card-body">
+      <div id="cluster-status" class="live-line" role="status">Connecting to the cluster…</div>
+      <div class="cluster">
+        <div class="stage-wrap">
+          <div class="key" id="key"></div>
+          <p class="empty" id="cluster-empty">Connecting…</p>
+          <svg id="iso" viewBox="0 0 10 1" role="group" aria-label="Isometric view of the cluster nodes and pods">
+            <defs><filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+            <g id="scene" data-focus-scope></g>
+          </svg>
+          <div class="legend" id="legend"></div>
+        </div>
+        <aside class="inspector" id="inspector" aria-label="Selected machine or workload details"></aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="capacity-card">
+    <div class="card-head"><div><h2>Reserved vs used</h2>
+      <p class="desc">Per pod, from the selected analysis. These values stay fixed after Apply so you can compare the original reservation with the plan.</p></div>
+      <div class="chart-legend"><span><i class="sw-trk"></i>Reserved at analysis</span><span><i class="sw-use"></i>Used (CPU p95, memory p99)</span>
+        <span><i class="sw-rec"></i>Recommended</span></div></div>
+    <div class="card-body"><div class="charts" id="bars" data-focus-scope></div></div>
+  </section>
+
+  <section class="card" id="decision-card">
+    <div class="card-head"><div><h2>How it decided</h2>
+      <p class="desc">Free statistics first, one cheap triage call for everything, and a bigger model only where a workload needs one.</p></div></div>
+    <div class="card-body"><div class="decide"><div><div id="flow" data-focus-scope></div><div class="totals" id="totals"></div></div>
+      <div id="ledger"></div></div></div>
+  </section>
+
+  <section class="card" id="recommendations-card">
+    <div class="card-head"><div><h2>Recommendations</h2><p class="desc">What changes, why, and what the guardrails overrode.</p></div></div>
+    <div class="card-body"><div class="filterbar"><label for="workload-search" class="sr-only">Search workloads</label><input id="workload-search" class="search" type="search" placeholder="Find a workload…">
+      <label for="status-filter" class="sr-only">Filter by status</label><select id="status-filter"><option value="all">All workloads</option><option value="changes">Changes proposed</option><option value="COMPLEX">Complex</option><option value="ROUTINE">Routine</option><option value="HEALTHY">Healthy</option></select>
+      <span id="workload-count" class="muted"></span></div><div class="rows" id="workloads"><p class="empty">No analysis yet. Press <b>Analyze</b>.</p></div></div>
+  </section>
+
+  <section class="card" id="activity-card">
+    <div class="card-head"><div><h2>Activity</h2></div></div>
+    <div class="card-body"><ol class="log" id="log"></ol></div>
+  </section>
+</main>
+
+<div id="lab" class="lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
+  <section class="lab-hero">
+    <div><h1>Under <em>the hood.</em></h1>
+      <p>The same system, as an engineer sees it: the agent team working a live problem, the right-sizing pipeline with live
+        numbers, a read-only shell against the real cluster and the journal of everything KubeSage and Kubernetes just did.</p></div>
+    <nav class="lab-jump" aria-label="On this page">
+      <button class="btn btn-ghost btn-sm" data-jump="team">Agent team</button>
+      <button class="btn btn-ghost btn-sm" data-jump="pipeline">Pipeline</button>
+      <button class="btn btn-ghost btn-sm" data-jump="terminal">Terminal</button>
+    </nav>
+  </section>
+
+  <section class="team-card" id="team" aria-labelledby="team-title">
+    <div class="team-head">
+      <div><p class="kicker">Live incidents</p><h2 id="team-title">Agent team</h2>
+        <p>Start a test case to cause a real problem on the lab node. The sub-agents read the cluster, the Thinker works out
+          the cause, and the Executor writes the fix as a branch under <code>gitops/</code>. Agents, models and rules live in
+          the repo's <code>agents/</code> folder.</p></div>
+      <div class="team-run-ctl">
+        <label class="switch"><input type="checkbox" id="team-auto"> Auto-run on alerts</label>
+        <button id="team-run" class="btn btn-primary btn-sm">Run agent team</button>
+      </div>
+    </div>
+    <div class="tc-box">
+      <div class="tc-bar">
+        <label class="tc-label" for="tc-select">Test case</label>
+        <select id="tc-select"></select>
+        <button id="tc-start" class="btn btn-outline btn-sm">Start test</button>
+        <button id="tc-stop" class="btn btn-outline btn-sm">Stop</button>
+        <div class="tc-live" id="tc-live" aria-live="polite"></div>
+      </div>
+      <p class="tc-desc" id="tc-desc"></p>
+    </div>
+    <p class="team-msg" id="team-msg" role="status"></p>
+    <div class="run-bar" id="team-runbar"></div>
+    <div class="team-flow" id="team-flow"></div>
+    <p class="team-hint">Select an agent to see its own report; select it again to return to the diagnosis and the change.</p>
+    <div class="team-detail" id="team-detail"></div>
+    <details class="rules"><summary>Custom rules the Thinker and Executor follow (<code>agents/rules/</code>, read-only here)</summary>
+      <div id="team-rules"></div></details>
+  </section>
+
+  <section class="lab-sec" id="pipeline" aria-labelledby="flow-title">
+    <div class="sec-head">
+      <div><p class="kicker">FinOps dashboard, step by step</p><h2 id="flow-title">Right-sizing pipeline</h2>
+        <p>The five stages behind the dashboard, with live numbers. Click a stage to filter the journal to it; a violet light
+          and a moving connector mean that stage logged something in the last few seconds.</p></div>
+      <div class="lab-actions">
+        <button id="lab-backfill" class="btn btn-outline btn-sm" data-act title="Regenerate the 30-day history in VictoriaMetrics">Backfill 30 days</button>
+        <button id="lab-analyze" class="btn btn-primary btn-sm" data-act>Run analysis</button>
+        <button id="lab-apply" class="btn btn-outline btn-sm" data-act>Apply fixes</button>
+        <button id="lab-spike" class="btn btn-outline btn-sm" data-act>Send traffic</button>
+      </div>
+    </div>
+    <div class="flow-stages" id="flow-stages"></div>
+  </section>
+
+  <section class="tmux lab-sec" id="terminal" aria-label="Terminal">
+    <div class="tmux-panes">
+      <div class="pane pane-shell on" id="pane-0">
+        <div class="pane-h"><b>0: shell</b><span>read-only · kubectl, promql, kubesage</span><span class="sp"></span>
+          <button class="tbtn" id="sh-clear">clear</button></div>
+        <div class="scroll sh-out" id="sh-out" role="log" aria-live="polite" aria-label="Shell output"></div>
+        <form class="sh-line" id="sh-form"><span class="sh-prompt" id="sh-prompt">$</span>
+          <input id="sh-in" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Shell command"
+            placeholder="kubectl get pods -o wide · help"></form>
+        <div class="xkeys" id="xkeys" aria-label="Shortcuts"></div>
+      </div>
+      <div class="pane pane-journal" id="pane-1">
+        <div class="pane-h"><b>1: journalctl -f</b><span id="jr-filter-label">all stages</span><span class="sp"></span>
+          <span role="group" aria-label="Filter by stage" id="jr-filters"></span>
+          <button class="tbtn" id="jr-pause" aria-pressed="false">pause</button></div>
+        <div class="scroll jr" id="jr" aria-label="Live journal"></div>
+      </div>
+      <div class="pane pane-wire" id="pane-2">
+        <div class="pane-h"><b>2: wire</b><span>exactly what each stage sent and got back</span><span class="sp"></span>
+          <label>run <select id="wire-run" aria-label="Analysis run"></select></label>
+          <span role="tablist" aria-label="Exchange type" id="wire-kinds"></span></div>
+        <div class="wire"><div class="wire-list" id="wire-list" role="listbox" aria-label="Exchanges"></div>
+          <div class="wire-detail" id="wire-detail"></div></div>
+      </div>
+    </div>
+    <div class="tmux-status"><span>[kubesage]</span>
+      <span role="tablist" aria-label="Panes" id="tmux-windows"></span><span class="sp"></span>
+      <span id="tmux-clock"></span></div>
+  </section>
+</div>
+
+<div id="tmuxview" class="tmuxview" role="tabpanel" aria-labelledby="tab-tmux" hidden>
+  <section class="tmux" aria-label="tmux mirror">
+    <div class="tx-top">
+      <div class="tx-id"><b>tmux · kubesage</b>
+        <span class="tx-ro" title="Text piped from the server's RAM ring. Nothing typed here reaches a terminal."><svg class="ic" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11"
+          width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>read-only mirror</span>
+        <span id="tx-ring"></span></div>
+      <div class="tx-ctl">
+        <span class="tx-group"><label class="sr-only" for="tx-tc">Test case</label><select id="tx-tc"></select>
+          <button class="tbtn" id="tx-start">start test</button><button class="tbtn" id="tx-stop">stop</button>
+          <button class="tbtn" id="tx-run">run agents</button></span>
+        <span class="tx-group"><label class="sr-only" for="tx-range">Save range</label>
+          <select id="tx-range"><option value="5">last 5 min</option><option value="30">last 30 min</option><option value="0">all held</option></select>
+          <a class="tbtn" id="tx-save" href="/api/ring/dump?minutes=5" download style="display:inline-flex;align-items:center;text-decoration:none">save</a>
+          <button class="tbtn" id="tx-pause" aria-pressed="false">pause</button></span>
+      </div>
+    </div>
+    <div class="tx-win" id="tx-win"></div>
+    <div class="tmux-status"><span>[kubesage]</span>
+      <span role="tablist" aria-label="Windows" id="tx-windows"></span><span class="sp"></span>
+      <span id="tx-clock"></span></div>
+  </section>
+</div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+
+<script src="js/core.js"></script>
+<script src="js/finops.js"></script>
+<script src="js/lab.js"></script>
+<script src="js/agents.js"></script>
+<script src="js/tmux.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

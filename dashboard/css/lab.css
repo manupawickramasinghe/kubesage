@@ -1,0 +1,86 @@
+/* Under the hood: the right-sizing pipeline stages and the shell, journal and wire panes. */
+.lab { max-width: 1320px; margin: 0 auto; padding: 0 16px 72px; }
+.lab-hero { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; padding: 40px 0 20px; }
+.lab-hero h1 { font-size: clamp(32px, 5vw, 46px); }
+.lab-hero p { margin: 8px 0 0; max-width: 640px; color: var(--fg-2); }
+.lab-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.flow-stages { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; align-items: stretch; }
+@media (max-width: 1000px) { .flow-stages { grid-template-columns: 1fr; } }
+.stage { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0 14px 0 0; padding: 14px;
+  text-align: left; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--fg);
+  font: 13px/1.45 var(--sans); cursor: pointer; box-shadow: var(--shadow); transition: border-color .2s, box-shadow .2s; }
+.stage:last-child { margin-right: 0; }
+@media (max-width: 1000px) { .stage { margin: 0 0 14px; } }
+.stage:hover { border-color: var(--ring); }
+.stage:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.stage[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
+.stage-top { display: flex; align-items: baseline; gap: 8px; }
+.stage-n { font: 600 11px var(--mono); color: var(--muted); }
+.stage-name { font-weight: 600; }
+.stage-comp { font: 12px var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+.stage ul { margin: 2px 0 0; padding: 0; list-style: none; color: var(--fg-2); font-size: 12.5px; }
+.stage li { overflow-wrap: anywhere; }
+.stage-led { position: absolute; top: 14px; right: 14px; width: 8px; height: 8px; border-radius: 50%; background: var(--track); }
+.stage.active .stage-led { background: var(--rec); box-shadow: 0 0 0 4px color-mix(in srgb, var(--rec) 25%, transparent); }
+.stage::after { content: ""; position: absolute; top: 50%; right: -15px; width: 16px; height: 2px; background: var(--border); }
+.stage:last-child::after { display: none; }
+.stage.flowing::after { background: linear-gradient(90deg, var(--rec) 40%, transparent 40%) 0 0 / 8px 2px repeat-x; animation: dash .6s linear infinite; }
+@keyframes dash { to { background-position: 8px 0; } }
+@media (max-width: 1000px) { .stage::after { top: auto; bottom: -15px; right: auto; left: 24px; width: 2px; height: 16px; }
+  .stage.flowing::after { background: linear-gradient(180deg, var(--rec) 40%, transparent 40%) 0 0 / 2px 8px repeat-y; } }
+
+.tmux { --t-bg: #0f0f0e; --t-bg2: #171715; --t-fg: #e6e6e1; --t-dim: #8a8a83; --t-line: #2a2a27; --t-green: #6fdc8c;
+  --t-cyan: #6cd4ea; --t-yellow: #f2c94c; --t-red: #ff7b72; --t-violet: #b6a6ff;
+  margin-top: 24px; border-radius: 12px; overflow: hidden; background: var(--t-bg); color: var(--t-fg); border: 1px solid #000;
+  font: 12.5px/1.5 var(--mono); box-shadow: 0 8px 30px rgba(0, 0, 0, .18); }
+.tmux-panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 420px 380px; gap: 1px;
+  background: var(--t-line); }
+.pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--t-bg); }
+.pane-wire { grid-column: 1 / -1; }
+@media (max-width: 900px) { .tmux-panes { grid-template-columns: 1fr; grid-template-rows: 480px; }
+  .pane-wire { grid-column: auto; } .pane:not(.on) { display: none; } }
+.pane-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; background: var(--t-bg2);
+  color: var(--t-dim); border-bottom: 1px solid var(--t-line); }
+.pane-h b { color: var(--t-fg); font-weight: 600; }
+.pane-h .sp { flex: 1; }
+.tbtn { height: 24px; padding: 0 8px; border: 1px solid var(--t-line); border-radius: 6px; background: transparent;
+  color: var(--t-fg); font: 12px var(--mono); cursor: pointer; white-space: nowrap; }
+.tbtn:hover { background: #22221f; } .tbtn[aria-pressed="true"] { border-color: var(--t-violet); color: var(--t-violet); }
+.tbtn:focus-visible, .tmux input:focus-visible, .tmux select:focus-visible { outline: 2px solid var(--t-violet); outline-offset: 1px; }
+.scroll { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px; }
+.sh-out div { white-space: pre; }  /* tables keep their columns; the pane scrolls sideways like a terminal */
+.sh-out div.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.jr div { white-space: pre-wrap; overflow-wrap: anywhere; }
+.sh-prompt { color: var(--t-green); } .sh-err { color: var(--t-red); } .sh-dim { color: var(--t-dim); }
+.sh-line { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--t-line); }
+.sh-line input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--t-fg); font: inherit; }
+.xkeys { display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px; background: var(--t-bg2); border-top: 1px solid var(--t-line);
+  scrollbar-width: thin; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+.xkeys::after { content: ""; flex: 0 0 24px; }
+.jr .t { color: var(--t-dim); } .jr .u { color: var(--t-cyan); } .jr .warn { color: var(--t-yellow); } .jr .error { color: var(--t-red); }
+.jr .st { color: var(--t-violet); }
+.wire { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); flex: 1; min-height: 0; }
+@media (max-width: 900px) { .wire { grid-template-columns: 1fr; grid-template-rows: 150px minmax(0, 1fr); } }
+.wire-list { overflow: auto; border-right: 1px solid var(--t-line); }
+.wire-list button { display: block; width: 100%; padding: 6px 10px; border: 0; border-bottom: 1px solid var(--t-line);
+  background: transparent; color: var(--t-fg); font: 12px/1.4 var(--mono); text-align: left; cursor: pointer; }
+.wire-list button[aria-selected="true"] { background: #22221f; color: var(--t-violet); }
+.wire-list button span { display: block; color: var(--t-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wire-detail { min-width: 0; overflow: auto; padding: 8px 12px; }
+.wire-detail h4 { margin: 10px 0 4px; color: var(--t-dim); font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.wire-detail pre { margin: 0; max-height: none; padding: 8px; background: var(--t-bg2); border: 1px solid var(--t-line); color: var(--t-fg); }
+.wire-detail .req { color: var(--t-green); font-weight: 600; overflow-wrap: anywhere; }
+.tmux select { height: 24px; border: 1px solid var(--t-line); border-radius: 6px; background: var(--t-bg); color: var(--t-fg); font: 12px var(--mono); }
+.tmux-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 3px 10px; background: #1f6f43; color: #e9ffef; }
+.tmux-status button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0 2px; }
+.tmux-status button[aria-selected="true"] { background: #e9ffef; color: #1f6f43; }
+.tmux-status .sp { flex: 1; }
+
+/* ---------- Lab sections ---------- */
+.lab, .tmuxview { scroll-margin-top: 80px; }
+.lab-jump { display: flex; flex-wrap: wrap; gap: 4px; }
+.lab-sec { margin-top: 36px; scroll-margin-top: 72px; }
+.sec-head { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
+.sec-head p, .team-head p { margin: 6px 0 0; max-width: 640px; color: var(--fg-2); font-size: 13.5px; }
+.lab .kicker { margin: 0 0 6px; font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }

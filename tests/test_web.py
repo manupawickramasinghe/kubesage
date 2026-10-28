@@ -1,4 +1,4 @@
-"""Web UI server: page, report API, CSRF header check, and that the page's script parses."""
+"""Web UI server: dashboard files, report API, CSRF header check, and that the page's scripts parse."""
 import json
 import re
 import shutil
@@ -52,8 +52,27 @@ def test_serves_page_and_report(base_url, result):
     assert json.loads(get(base_url + "/api/cluster")[1]) == {"available": False}
     assert json.loads(get(base_url + "/api/config")[1])["mode"] == "mock"
     assert get(base_url + "/fonts/inter-latin-var.woff2")[1][:4] == b"wOF2"  # vendored, no CDN
-    with pytest.raises(urllib.error.HTTPError):
-        get(base_url + "/fonts/../server.py")
+    assert b"function showView" in get(base_url + "/js/main.js")[1]
+    for path in ("/fonts/../server.py", "/README.md", "/fonts/OFL-Inter.txt"):
+        with pytest.raises(urllib.error.HTTPError):
+            get(base_url + path)
+
+
+def test_dashboard_files_stay_inside_the_folder(tmp_path, monkeypatch):
+    (tmp_path / "dashboard" / "js").mkdir(parents=True)
+    (tmp_path / "dashboard" / "js" / "app.js").write_text("")
+    (tmp_path / "secret.js").write_text("")
+    monkeypatch.setattr(web, "DASHBOARD", tmp_path / "dashboard")
+    assert web._dashboard_file("/js/app.js") == tmp_path / "dashboard" / "js" / "app.js"
+    assert web._dashboard_file("/../secret.js") is None
+    assert web._dashboard_file("/js/missing.js") is None
+
+
+def test_page_links_every_dashboard_file():
+    page = (web.DASHBOARD / "index.html").read_text()
+    linked = set(re.findall(r'(?:href|src)="((?:css|js)/[^"]+)"', page))
+    on_disk = {str(f.relative_to(web.DASHBOARD)) for f in web.DASHBOARD.glob("*/*") if f.suffix in (".css", ".js")}
+    assert linked == on_disk
 
 
 def test_quantities():
@@ -405,11 +424,9 @@ def test_traffic_log_read_is_bounded_and_handles_kubectl_failure(monkeypatch):
 
 
 @pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
-def test_page_script_parses(tmp_path):
-    page = (web.REPO_ROOT / "kubesage/web/static/index.html").read_text()
-    script = re.search(r"<script>(.*)</script>", page, re.S).group(1)
-    (tmp_path / "page.js").write_text(script)
-    subprocess.run(["node", "--check", str(tmp_path / "page.js")], check=True)
+def test_page_scripts_parse():
+    for script in sorted(web.DASHBOARD.glob("js/*.js")):
+        subprocess.run(["node", "--check", str(script)], check=True)
 
 
 def test_cluster_read_overlapping_an_operation_is_not_cached(tmp_path):
