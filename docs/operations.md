@@ -38,12 +38,15 @@ Check: `kubectl get nodes` shows both Ready, and `kubectl top nodes` lists both.
 
 ## Demo day checklist
 
+The UI's **Demo** tab checks items 2 to 4 live under **Before you present**, with a fix next to anything amber.
+
 1. Both machines on the same network. Ideally the desktop keeps 192.168.1.9 (a DHCP reservation).
 2. `kubectl get nodes`: both Ready. `kubectl top nodes`: both report usage.
-3. **Reset demo** in the UI: every pod back on the desktop, with big requests.
+3. **Reset demo** in the UI: every pod back on the desktop, with big requests. Stop any test case left running.
 4. Header shows **Live LLM**. If it shows Mock, the API key isn't in the server's environment.
-5. Rehearse 1 → 2 → 3 once, then Reset. A full run takes ~5 s for Analyze, ~1 min for pods to settle after
-   Apply, and 3 min for the traffic.
+5. Rehearse the Demo tab's run of show once (**Start the demo**), then Reset and stop the test case. Analyze takes
+   ~5 s, pods take ~1 min to settle after Apply, the traffic runs 3 min, and an agent team run takes 15–35 s after
+   its alert fires (about a minute after **Start test**). See [ui-guide.md](ui-guide.md#presenting-the-demo).
 6. Fallback with no internet: start the server with `--mode mock`. Analyze then uses deterministic answers and
    the UI shows "Mock LLM".
 

@@ -61,22 +61,24 @@ KUBESAGE_MODELS=cerebras .venv/bin/kubesage serve --host 0.0.0.0
 ```
 
 A `kubesage serve` may already be running in the background on :8600 from the previous session. Check with
-`ss -ltnp | grep 8600` and stop it before starting your own. If you change `index.html` or `server.py`, restart
-the server: the page is read once at startup.
+`ss -ltnp | grep 8600` and stop it before starting your own. If you change Python code, restart the server. Files
+in `dashboard/` are read on every request, so a page edit needs only a reload.
 
 The cluster was left in the **"before"** state (Reset demo): every workload on the desktop with oversized
 requests. The latest analysis run in `out/` is from the live model.
 
 ## The UI in code
 
-Everything is in **one file**, `kubesage/web/static/index.html`: HTML, CSS, one `<script>`, and inline SVG. The
-server is `kubesage/web/server.py`.
+The web dashboard is its own folder, `dashboard/`, split by view; [dashboard/README.md](../dashboard/README.md)
+lists the files. The server is `kubesage/web/server.py`, which serves the folder as it is.
 
 Hard constraints:
 
-- **No CDN and no build step.** Fonts are vendored in `kubesage/web/static/fonts`: Inter for text and Instrument
-  Serif for headings, both SIL OFL. The user chose them from ascender.club, so keep them.
-- **Exactly one `<script>` tag.** `tests/test_web.py` extracts it and runs `node --check`.
+- **No CDN and no build step.** Fonts are vendored in `dashboard/fonts`: Inter for text and Instrument Serif for
+  headings, both SIL OFL. The user chose them from ascender.club, so keep them.
+- **Plain scripts, loaded in order.** The files in `dashboard/js/` share one global scope; `main.js` is last
+  because it starts everything. `tests/test_web.py` runs `node --check` on each and checks that `index.html` links
+  every CSS and JS file.
 - Every POST needs the `X-KubeSage: 1` header. Use the `api()` helper.
 - **Escaping:** data goes into `innerHTML` only through `esc()`, and tooltips are built with `textContent`.
   Pod, node and model text is untrusted.
@@ -100,6 +102,9 @@ Main functions:
 | `renderFlow` | the router flow and the LLM ledger |
 | `renderWorkloads` | the recommendation rows |
 | `select`, `applyFocus`, `bindTips` | cross-diagram selection, highlighting, tooltips, keyboard |
+| `DEMO`, `goStep`, `renderDemo`, `renderDock` | `demo.js`: the run of show, the Demo tab and the caption bar. Each step names its view, what to ring, its narration, its button and its live status |
+| `renderTeam`, `renderTeamDetail` | `agents.js`: the agent team diagram, the diagnosis and the diff |
+| `showView` | `main.js`: the view for the URL hash, and which pollers run |
 
 ## UX review: where to look first
 
