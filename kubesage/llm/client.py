@@ -6,6 +6,7 @@ and its cost telemetry can be demoed without an API key. Mock entries are always
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import threading
@@ -17,6 +18,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from kubesage.config import ModelsConfig
+from kubesage.journal import log
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -55,6 +57,7 @@ class LLMClient:
         self._seen_prefixes: set[tuple[str, str]] = set()
         self._lock = threading.Lock()
         self._http = None
+        self.trace: list[dict] = []  # every exchange, for the run's trace.json; the key appears only as its env var
         if mode == "live":
             key = os.environ.get(models.provider.api_key_env)
             if not key:
@@ -67,16 +70,39 @@ class LLMClient:
         cfg = self.models.tiers[tier]
         started = time.perf_counter()
         if self.mode == "live":
-            result, (inp, cached, out) = self._live(tier, system, user, schema)
+            result, (inp, cached, out), exchanges = self._live(tier, system, user, schema)
         else:
             result = mock()
             inp = estimate_tokens(system) + estimate_tokens(user)
             cached = self._mock_cached(tier, system)
             out = estimate_tokens(result.model_dump_json())
+            exchanges = [{"request": self._request(self._body(tier, [{"role": "system", "content": system},
+                                                                    {"role": "user", "content": user}])),
+                          "response": {"note": "mock mode: not sent; deterministic stand-in",
+                                       "body": json.loads(result.model_dump_json())}, "sent": False}]
         entry = LedgerEntry(stage=stage, workload=workload, tier=tier, model=cfg.model, input_tokens=inp,
                             cached_tokens=cached, output_tokens=out, cost_usd=cfg.cost(inp, cached, out),
                             latency_ms=int((time.perf_counter() - started) * 1000), mock=self.mode != "live")
+        with self._lock:
+            for attempt, exchange in enumerate(exchanges, 1):
+                self.trace.append({"kind": "llm", "stage": 2 if stage == "triage" else 3, "llm_stage": stage,
+                                   "workload": workload, "tier": tier, "label": cfg.label or tier, "model": cfg.model,
+                                   "attempt": attempt, **exchange})
+        log("router", f"{stage} {workload} on {cfg.label or tier} ({cfg.model}{', mock' if entry.mock else ''}): "
+                      f"{inp} in{f' ({cached} cached)' if cached else ''} / {out} out tokens, ${entry.cost_usd:.4f}, "
+                      f"{entry.latency_ms} ms", stage=2 if stage == "triage" else 3)
         return result, entry
+
+    def _body(self, tier: str, messages: list[dict]) -> dict:
+        cfg = self.models.tiers[tier]
+        return {"model": cfg.model, "messages": messages, "temperature": cfg.temperature,
+                "max_tokens": cfg.max_output_tokens, "response_format": {"type": "json_object"}, **cfg.extra_body}
+
+    def _request(self, body: dict) -> dict:
+        provider = self.models.provider
+        return {"method": "POST", "url": provider.base_url.rstrip("/") + "/chat/completions",
+                "headers": {"Authorization": f"Bearer ${provider.api_key_env}", "Content-Type": "application/json"},
+                "body": body}
 
     def _mock_cached(self, tier: str, system: str) -> int:
         """Pretend the provider caches a repeated system prompt, the way real prefix caching would."""
@@ -105,21 +131,24 @@ class LLMClient:
             return resp.json()
         raise AssertionError("unreachable")
 
-    def _live(self, tier: str, system: str, user: str, schema: type[T]) -> tuple[T, tuple[int, int, int]]:
+    def _live(self, tier: str, system: str, user: str, schema: type[T]) -> tuple[T, tuple[int, int, int], list[dict]]:
         cfg = self.models.tiers[tier]
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         inp = cached = out = 0
+        exchanges = []
         for _ in range(2):  # one retry with the validation error fed back
-            body = {"model": cfg.model, "messages": messages, "temperature": cfg.temperature,
-                    "max_tokens": cfg.max_output_tokens, "response_format": {"type": "json_object"}, **cfg.extra_body}
+            body = self._body(tier, list(messages))
+            started = time.perf_counter()
             data = self._post(body)
+            exchanges.append({"request": self._request(body), "response": {"status": 200, "body": data},
+                              "latency_ms": int((time.perf_counter() - started) * 1000), "sent": True})
             usage = data.get("usage") or {}
             inp += usage.get("prompt_tokens", 0)
             out += usage.get("completion_tokens", 0)
             cached += (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0
             content = data["choices"][0]["message"]["content"] or ""
             try:
-                return schema.model_validate_json(_strip_fences(content)), (inp, cached, out)
+                return schema.model_validate_json(_strip_fences(content)), (inp, cached, out), exchanges
             except ValidationError as exc:
                 messages += [{"role": "assistant", "content": content},
                              {"role": "user", "content": f"That JSON failed validation:\n{exc}\nReply with corrected JSON only."}]

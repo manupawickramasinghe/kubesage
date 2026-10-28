@@ -362,6 +362,87 @@
     .inspector { min-width: 0; }
   }
 
+
+  /* ---------- View switcher + Architecture & CLI lab ---------- */
+  .viewtabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--secondary); }
+  .viewtab { height: 30px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--fg-2);
+    font: 500 13px var(--sans); cursor: pointer; white-space: nowrap; }
+  .viewtab[aria-selected="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
+  .viewtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .lab { max-width: 1320px; margin: 0 auto; padding: 0 16px 72px; }
+  .lab-hero { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; padding: 40px 0 20px; }
+  .lab-hero h1 { font-size: clamp(32px, 5vw, 46px); }
+  .lab-hero p { margin: 8px 0 0; max-width: 640px; color: var(--fg-2); }
+  .lab-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .flow-stages { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; align-items: stretch; }
+  @media (max-width: 1000px) { .flow-stages { grid-template-columns: 1fr; } }
+  .stage { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0 14px 0 0; padding: 14px;
+    text-align: left; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--fg);
+    font: 13px/1.45 var(--sans); cursor: pointer; box-shadow: var(--shadow); transition: border-color .2s, box-shadow .2s; }
+  .stage:last-child { margin-right: 0; }
+  @media (max-width: 1000px) { .stage { margin: 0 0 14px; } }
+  .stage:hover { border-color: var(--ring); }
+  .stage:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .stage[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
+  .stage-top { display: flex; align-items: baseline; gap: 8px; }
+  .stage-n { font: 600 11px var(--mono); color: var(--muted); }
+  .stage-name { font-weight: 600; }
+  .stage-comp { font: 12px var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+  .stage ul { margin: 2px 0 0; padding: 0; list-style: none; color: var(--fg-2); font-size: 12.5px; }
+  .stage li { overflow-wrap: anywhere; }
+  .stage-led { position: absolute; top: 14px; right: 14px; width: 8px; height: 8px; border-radius: 50%; background: var(--track); }
+  .stage.active .stage-led { background: var(--rec); box-shadow: 0 0 0 4px color-mix(in srgb, var(--rec) 25%, transparent); }
+  .stage::after { content: ""; position: absolute; top: 50%; right: -15px; width: 16px; height: 2px; background: var(--border); }
+  .stage:last-child::after { display: none; }
+  .stage.flowing::after { background: linear-gradient(90deg, var(--rec) 40%, transparent 40%) 0 0 / 8px 2px repeat-x; animation: dash .6s linear infinite; }
+  @keyframes dash { to { background-position: 8px 0; } }
+  @media (max-width: 1000px) { .stage::after { top: auto; bottom: -15px; right: auto; left: 24px; width: 2px; height: 16px; }
+    .stage.flowing::after { background: linear-gradient(180deg, var(--rec) 40%, transparent 40%) 0 0 / 2px 8px repeat-y; } }
+  .flow-note { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  .tmux { --t-bg: #0f0f0e; --t-bg2: #171715; --t-fg: #e6e6e1; --t-dim: #8a8a83; --t-line: #2a2a27; --t-green: #6fdc8c;
+    --t-cyan: #6cd4ea; --t-yellow: #f2c94c; --t-red: #ff7b72; --t-violet: #b6a6ff;
+    margin-top: 24px; border-radius: 12px; overflow: hidden; background: var(--t-bg); color: var(--t-fg); border: 1px solid #000;
+    font: 12.5px/1.5 var(--mono); box-shadow: 0 8px 30px rgba(0, 0, 0, .18); }
+  .tmux-panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 420px 380px; gap: 1px;
+    background: var(--t-line); }
+  .pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--t-bg); }
+  .pane-wire { grid-column: 1 / -1; }
+  @media (max-width: 900px) { .tmux-panes { grid-template-columns: 1fr; grid-template-rows: 480px; }
+    .pane-wire { grid-column: auto; } .pane:not(.on) { display: none; } }
+  .pane-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; background: var(--t-bg2);
+    color: var(--t-dim); border-bottom: 1px solid var(--t-line); }
+  .pane-h b { color: var(--t-fg); font-weight: 600; }
+  .pane-h .sp { flex: 1; }
+  .tbtn { height: 24px; padding: 0 8px; border: 1px solid var(--t-line); border-radius: 6px; background: transparent;
+    color: var(--t-fg); font: 12px var(--mono); cursor: pointer; white-space: nowrap; }
+  .tbtn:hover { background: #22221f; } .tbtn[aria-pressed="true"] { border-color: var(--t-violet); color: var(--t-violet); }
+  .tbtn:focus-visible, .tmux input:focus-visible, .tmux select:focus-visible { outline: 2px solid var(--t-violet); outline-offset: 1px; }
+  .scroll { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px; }
+  .sh-out div { white-space: pre; }  /* tables keep their columns; the pane scrolls sideways like a terminal */
+  .jr div { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .sh-prompt { color: var(--t-green); } .sh-err { color: var(--t-red); } .sh-dim { color: var(--t-dim); }
+  .sh-line { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--t-line); }
+  .sh-line input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--t-fg); font: inherit; }
+  .xkeys { display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px; background: var(--t-bg2); border-top: 1px solid var(--t-line); }
+  .jr .t { color: var(--t-dim); } .jr .u { color: var(--t-cyan); } .jr .warn { color: var(--t-yellow); } .jr .error { color: var(--t-red); }
+  .jr .st { color: var(--t-violet); }
+  .wire { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); flex: 1; min-height: 0; }
+  @media (max-width: 900px) { .wire { grid-template-columns: 1fr; grid-template-rows: 150px minmax(0, 1fr); } }
+  .wire-list { overflow: auto; border-right: 1px solid var(--t-line); }
+  .wire-list button { display: block; width: 100%; padding: 6px 10px; border: 0; border-bottom: 1px solid var(--t-line);
+    background: transparent; color: var(--t-fg); font: 12px/1.4 var(--mono); text-align: left; cursor: pointer; }
+  .wire-list button[aria-selected="true"] { background: #22221f; color: var(--t-violet); }
+  .wire-list button span { display: block; color: var(--t-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wire-detail { min-width: 0; overflow: auto; padding: 8px 12px; }
+  .wire-detail h4 { margin: 10px 0 4px; color: var(--t-dim); font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .wire-detail pre { margin: 0; max-height: none; padding: 8px; background: var(--t-bg2); border: 1px solid var(--t-line); color: var(--t-fg); }
+  .wire-detail .req { color: var(--t-green); font-weight: 600; overflow-wrap: anywhere; }
+  .tmux select { height: 24px; border: 1px solid var(--t-line); border-radius: 6px; background: var(--t-bg); color: var(--t-fg); font: 12px var(--mono); }
+  .tmux-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 3px 10px; background: #1f6f43; color: #e9ffef; }
+  .tmux-status button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0 2px; }
+  .tmux-status button[aria-selected="true"] { background: #e9ffef; color: #1f6f43; }
+  .tmux-status .sp { flex: 1; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -372,6 +453,10 @@
     <div class="brand"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
       <path d="M12 2.5 20.5 7.4v9.2L12 21.5l-8.5-4.9V7.4z"/><path d="M12 12 20.5 7.4M12 12v9.5M12 12 3.5 7.4"/></svg>
       KubeSage <span>AI Control Center</span></div>
+    <nav class="viewtabs" role="tablist" aria-label="Views">
+      <button class="viewtab" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="main" aria-selected="true">FinOps dashboard</button>
+      <button class="viewtab" role="tab" id="tab-lab" data-view="lab" aria-controls="lab" aria-selected="false" tabindex="-1">Architecture &amp; CLI lab</button>
+    </nav>
     <span id="mode" class="badge">…</span>
     <div class="actions">
       <button id="btn-gitops" class="btn btn-outline" data-act hidden></button>
@@ -477,6 +562,58 @@
     <div class="card-body"><ol class="log" id="log"></ol></div>
   </section>
 </main>
+
+<div id="lab" class="lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
+  <section class="lab-hero">
+    <div><h1>Under <em>the hood.</em></h1>
+      <p>The same system, as an engineer sees it: the dataflow with live numbers, a read-only shell against the real
+        cluster, the journal of everything KubeSage and Kubernetes just did, and the exact requests each stage sent.</p></div>
+    <div class="lab-actions">
+      <button id="lab-backfill" class="btn btn-outline btn-sm" data-act title="Regenerate the 30-day history in VictoriaMetrics">Backfill 30 days</button>
+      <button id="lab-analyze" class="btn btn-primary btn-sm" data-act>Run analysis</button>
+      <button id="lab-apply" class="btn btn-outline btn-sm" data-act>Apply fixes</button>
+      <button id="lab-spike" class="btn btn-outline btn-sm" data-act>Send traffic</button>
+      <button id="lab-reset" class="btn btn-ghost btn-sm" data-act>Reset demo</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="flow-title">
+    <h2 id="flow-title" class="sr-only">Dataflow</h2>
+    <div class="flow-stages" id="flow-stages"></div>
+    <p class="flow-note">Click a stage to filter the journal to it. A violet light and a moving connector mean that stage
+      logged something in the last few seconds. Numbers come from the live cluster, VictoriaMetrics and the selected run.</p>
+  </section>
+
+  <section class="tmux" aria-label="Terminal">
+    <div class="tmux-panes">
+      <div class="pane pane-shell on" id="pane-0">
+        <div class="pane-h"><b>0: shell</b><span>read-only · kubectl, promql, kubesage</span><span class="sp"></span>
+          <button class="tbtn" id="sh-clear">clear</button></div>
+        <div class="scroll sh-out" id="sh-out" role="log" aria-live="polite" aria-label="Shell output"></div>
+        <form class="sh-line" id="sh-form"><span class="sh-prompt" id="sh-prompt">$</span>
+          <input id="sh-in" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Shell command"
+            placeholder="kubectl get pods -o wide · help"></form>
+        <div class="xkeys" id="xkeys" aria-label="Shortcuts"></div>
+      </div>
+      <div class="pane pane-journal" id="pane-1">
+        <div class="pane-h"><b>1: journalctl -f</b><span id="jr-filter-label">all stages</span><span class="sp"></span>
+          <span role="group" aria-label="Filter by stage" id="jr-filters"></span>
+          <button class="tbtn" id="jr-pause" aria-pressed="false">pause</button></div>
+        <div class="scroll jr" id="jr" aria-label="Live journal"></div>
+      </div>
+      <div class="pane pane-wire" id="pane-2">
+        <div class="pane-h"><b>2: wire</b><span>exactly what each stage sent and got back</span><span class="sp"></span>
+          <label>run <select id="wire-run" aria-label="Analysis run"></select></label>
+          <span role="tablist" aria-label="Exchange type" id="wire-kinds"></span></div>
+        <div class="wire"><div class="wire-list" id="wire-list" role="listbox" aria-label="Exchanges"></div>
+          <div class="wire-detail" id="wire-detail"></div></div>
+      </div>
+    </div>
+    <div class="tmux-status"><span>[kubesage]</span>
+      <span role="tablist" aria-label="Panes" id="tmux-windows"></span><span class="sp"></span>
+      <span id="tmux-clock"></span></div>
+  </section>
+</div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 
 <script>
@@ -573,6 +710,8 @@ function updateControls() {
   $("#report-select").disabled = isBusy || !reports.length;
   $("#dryrun").disabled = isBusy;
   ["#btn-export", "#btn-manifests"].forEach((s) => ($(s).disabled = !report));
+  ["analyze", "apply", "spike", "reset"].forEach((k) => ($(`#lab-${k}`).disabled = $(`#btn-${k}`).disabled));
+  $("#lab-backfill").disabled = blocked || config.namespace !== "demo";
 }
 
 function log(msg, kind = "") {
@@ -1363,6 +1502,399 @@ $("#workloads").addEventListener("click", (ev) => {
   if (w) download(`${appOf(w.id)}-${runId}.yaml`, Object.entries(w.manifests).map(([f, t]) => `# ${f}\n${t.trim()}`).join("\n---\n") + "\n", "application/yaml");
 });
 
+/* ---------- Architecture & CLI lab: everything here is read from the server, nothing is simulated ---------- */
+
+const lab = {last: 0, events: [], filter: null, paused: false, status: null, trace: null, traceRun: null, kind: "llm",
+  pick: 0, history: [], hpos: 0, recent: {}, timers: [], polling: false, pane: 0};
+const STAGES = [[1, "Metrics"], [2, "Triage"], [3, "Remediation"], [4, "Autoscaling"], [5, "Nodes"]];
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const hostOf = (url) => { try { return new URL(url).host; } catch (e) { return url || ""; } };
+const pathOf = (url) => { try { return new URL(url).pathname; } catch (e) { return url || ""; } };
+const ago = (s) => (s < 90 ? `${Math.max(0, Math.round(s))} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
+const shq = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
+const shortcuts = () => ["kubectl get pods -o wide", "kubectl get scaledobjects,hpa", "kubectl top nodes", "kubectl top pods",
+  "kubectl events --types Warning",
+  `promql 'sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="${config.namespace || "demo"}"}[5m]))'`,
+  "kubesage route", "kubesage ledger", "kubesage plan", "kubesage runs", "help"];
+
+function stageFacts(n) {
+  const st = lab.status, r = report, c = cluster?.available ? cluster : null;
+  const tier = (k) => st?.tiers?.[k] || null;
+  const calls = (pred) => (r?.ledger || []).filter(pred);
+  const total = (es, k) => es.reduce((a, e) => a + (e[k] || 0), 0);
+  if (n === 1) {
+    const vm = st?.vm, promql = (lab.trace?.exchanges || []).filter((x) => x.kind === "promql").length;
+    return {comp: `VictoriaMetrics ${vm ? hostOf(vm.url) : ""}`, lines: [
+      !vm ? "checking…" : vm.ok ? `${vm.series} live memory series in ${st.namespace}` : `unreachable: ${vm.error || ""}`,
+      vm?.last_sample_age_s != null ? `newest sample ${ago(vm.last_sample_age_s)} old` : "",
+      promql ? `${promql} PromQL queries in run ${lab.trace.run}` : "",
+      r ? `${r.stats.length} workloads × ${r.window_days} days → stats, $0` : ""]};
+  }
+  if (n === 2) {
+    const t = tier("triage"), e = calls((x) => x.stage === "triage")[0];
+    return {comp: t ? `${t.label} · ${t.model}` : "…", lines: [
+      e ? `${tok(e.input_tokens)} in / ${tok(e.output_tokens)} out · ${usd(e.cost_usd)} · ${e.latency_ms ?? "?"} ms${e.mock ? " · mock" : ""}` : "no run yet",
+      r ? ["HEALTHY", "ROUTINE", "COMPLEX"].map((k) => `${r.workloads.filter((w) => w.triage.status === k).length} ${k.toLowerCase()}`).join(" · ") : "",
+      st ? `via ${hostOf(st.provider.base_url)} (${st.mode})` : ""]};
+  }
+  if (n === 3) {
+    const w = tier("worker"), s = tier("strategist"), es = calls((x) => x.stage !== "triage");
+    const guards = (r?.workloads || []).reduce((a, x) => a + x.guardrail_notes.length, 0), np = r?.node_pool;
+    return {comp: w && s ? `${w.label} + ${s.label} · ${w.model === s.model ? w.model : `${w.model}, ${s.model}`}` : "…", lines: [
+      es.length ? `${es.length} calls · ${tok(total(es, "input_tokens"))} in (${tok(total(es, "cached_tokens"))} cached) · ${usd(total(es, "cost_usd"))}` : "",
+      r ? `${guards} guardrail override${guards === 1 ? "" : "s"}` : "",
+      np ? `pool ${np.before_nodes}× ${np.before_sku} → ${np.choice.nodes}× ${np.choice.sku}` : ""]};
+  }
+  if (n === 4) {
+    const sc = Object.entries(c?.scaling || {}).filter(([, v]) => v.min != null || v.current != null), jobs = (c?.active_jobs || []).length;
+    return {comp: `KEDA · ${sc.filter(([, v]) => v.min != null).length} ScaledObjects`, lines: [
+      ...sc.slice(0, 3).map(([app, v]) => `${app}: ${v.current ?? "–"}→${v.desired ?? "–"} pods (${v.min ?? "?"}–${v.max ?? "?"})`
+        + (v.cpu != null ? ` · CPU ${v.cpu}%${v.cpu_target ? ` of ${v.cpu_target}%` : ""}` : "")),
+      !c ? "cluster unreachable" : jobs ? `traffic job running` : sc.length ? "" : "no autoscaling objects (before state)"]};
+  }
+  const nodes = (c?.nodes || []).filter((x) => x.role !== "pending");
+  return {comp: `k3s · ${nodes.length} machine${nodes.length === 1 ? "" : "s"}`, lines: nodes.map((x) =>
+    `${x.host || shortNode(x.name)} · ${cpuName(x.cpu_model) || "?"} · ${x.pods.filter((p) => p.phase !== "Terminating").length} pods`)};
+}
+
+function renderStages() {
+  const root = $("#flow-stages");
+  if (!root.children.length) {
+    root.innerHTML = STAGES.map(([n, name]) => `<button class="stage" data-stage="${n}" aria-pressed="false">
+      <span class="stage-led" aria-hidden="true"></span>
+      <span class="stage-top"><span class="stage-n">STAGE 0${n}</span><span class="stage-name">${name}</span></span>
+      <span class="stage-comp"></span><ul></ul></button>`).join("");
+    root.addEventListener("click", (ev) => { const b = ev.target.closest(".stage"); if (b) setFilter(+b.dataset.stage); });
+  }
+  const now = Date.now(), live = (n) => now - (lab.recent[n] || 0) < 6000;
+  STAGES.forEach(([n, name]) => {
+    const card = root.querySelector(`[data-stage="${n}"]`), f = stageFacts(n), lines = f.lines.filter(Boolean);
+    card.querySelector(".stage-comp").textContent = f.comp;
+    card.querySelector("ul").replaceChildren(...lines.map((t) => Object.assign(document.createElement("li"), {textContent: t})));
+    card.classList.toggle("active", live(n));
+    card.classList.toggle("flowing", live(n) || live(n + 1));
+    card.setAttribute("aria-pressed", String(lab.filter === n));
+    card.setAttribute("aria-label", `Stage ${n}, ${name}: ${f.comp}. ${lines.join(". ")}. Filters the journal.`);
+  });
+}
+
+function setFilter(n) {
+  lab.filter = n && lab.filter !== n ? n : null;
+  $("#jr-filter-label").textContent = lab.filter ? `stage ${lab.filter}: ${STAGES[lab.filter - 1][1].toLowerCase()}` : "all stages";
+  $$("#jr-filters .tbtn").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.f === (lab.filter || 0))));
+  renderJournal();
+  renderStages();
+}
+
+function jrLine(e) {
+  const d = new Date(e.at), div = document.createElement("div");
+  div.className = e.level === "warning" ? "warn" : e.level === "error" || e.level === "critical" ? "error" : "";
+  const stamp = `${MON[d.getMonth()]} ${String(d.getDate()).padStart(2, " ")} ${d.toTimeString().slice(0, 8)}`;
+  const unit = e.unit.startsWith("k8s/") ? `${e.unit}:` : `kubesage[${lab.status?.pid ?? "?"}] ${e.unit}:`;
+  [["t", `${stamp} ${lab.status?.host || ""} `], ["u", `${unit} `], ["st", e.stage ? `[${e.stage}] ` : ""], ["", e.msg]].forEach(([cls, text]) => {
+    if (!text) return;
+    const span = document.createElement("span");
+    if (cls) span.className = cls;
+    span.textContent = text;
+    div.append(span);
+  });
+  return div;
+}
+
+function renderJournal(fresh) {
+  const box = $("#jr"), stick = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+  const show = (e) => !lab.filter || e.stage === lab.filter;
+  if (!fresh) box.replaceChildren(...lab.events.filter(show).slice(-600).map(jrLine));
+  else {
+    box.querySelector(".placeholder")?.remove();
+    fresh.filter(show).forEach((e) => box.append(jrLine(e)));
+  }
+  while (box.children.length > 800) box.firstElementChild.remove();
+  if (!box.children.length) box.append(Object.assign(document.createElement("div"), {className: "placeholder sh-dim",
+    textContent: lab.filter ? `No stage ${lab.filter} events yet. Press an action above, or run a command.` : "Waiting for events…"}));
+  if (stick && !lab.paused) box.scrollTop = box.scrollHeight;
+}
+
+async function pollEvents() {
+  if (lab.polling) return;
+  lab.polling = true;
+  try {
+    const res = await api(`/api/events?after=${lab.last}`);
+    if (res.last < lab.last) { lab.last = 0; lab.events = []; renderJournal(); return; }  // the server restarted
+    lab.last = res.last;
+    const now = Date.now();
+    res.events.forEach((e) => { if (e.stage && now - Date.parse(e.at) < 15000) lab.recent[e.stage] = now; });
+    lab.events.push(...res.events);
+    if (lab.events.length > 2000) lab.events.splice(0, lab.events.length - 2000);
+    if (res.events.length || !$("#jr").children.length) renderJournal(res.events);
+    renderStages();
+  } catch (e) { /* the next poll retries; stage 1 shows the connection state */ }
+  finally { lab.polling = false; }
+}
+
+async function refreshLab() {
+  try { lab.status = await api("/api/lab"); } catch (e) { lab.status = null; }
+  $("#sh-prompt").textContent = `kubesage@${lab.status?.host || "server"}:~$`;
+  const run = $("#wire-run").value || runId;
+  if (run && run !== lab.traceRun) await loadTrace(run);
+  renderStages();
+}
+
+/* Shell */
+function shPrint(text, cls = "") {
+  const d = document.createElement("div");
+  if (cls) d.className = cls;
+  d.textContent = text;
+  $("#sh-out").append(d);
+}
+const shScroll = () => ($("#sh-out").scrollTop = $("#sh-out").scrollHeight);
+
+async function shRun(raw) {
+  const cmd = raw.trim(), input = $("#sh-in");
+  shPrint(`${$("#sh-prompt").textContent} ${cmd}`, "sh-prompt");
+  if (cmd && lab.history.at(-1) !== cmd) lab.history.push(cmd);
+  lab.hpos = lab.history.length;
+  input.value = "";
+  if (cmd === "clear") { $("#sh-out").replaceChildren(); return; }
+  if (cmd === "history") { shPrint(lab.history.map((h, i) => `${String(i + 1).padStart(4)}  ${h}`).join("\n")); shScroll(); return; }
+  if (!cmd) { shScroll(); return; }
+  input.disabled = true;
+  try {
+    const res = await api("/api/shell", {cmd});
+    if (res.out) shPrint(res.out, res.exit ? "sh-err" : "");
+    shPrint(`[exit ${res.exit} · ${res.ms} ms]`, "sh-dim");
+  } catch (e) { shPrint(e.message, "sh-err"); }
+  finally { input.disabled = false; input.focus(); shScroll(); }
+}
+
+function shComplete(input) {
+  const words = [...new Set([...shortcuts(), "clear", "history", "kubectl get ", "kubectl describe ", "kubectl logs ",
+    "kubectl top ", "kubectl events ", "promql ", "kubesage "])];
+  const options = words.filter((w) => w.startsWith(input.value) && w !== input.value);
+  if (!options.length) return;
+  let common = options[0];
+  options.forEach((o) => { while (!o.startsWith(common)) common = common.slice(0, -1); });
+  if (common.length > input.value.length) input.value = common;
+  else shPrint(options.join("    "), "sh-dim"), shScroll();
+}
+
+/* Wire inspector */
+const KINDS = [["promql", "PromQL"], ["llm", "LLM"], ["kubectl", "kubectl"], ["backfill", "backfill"]];
+
+async function loadTrace(run) {
+  lab.traceRun = run;
+  try { lab.trace = await api(`/api/trace?run=${encodeURIComponent(run)}`); }
+  catch (e) { lab.trace = {run, error: e.message, exchanges: [], kubectl: [], backfill: null}; }
+  lab.pick = 0;
+  renderWire();
+}
+
+function wireItems() {
+  const t = lab.trace || {exchanges: [], kubectl: []};
+  if (lab.kind === "kubectl") return t.kubectl.map((k) => ({title: k.file, sub: k.cmd, k}));
+  if (lab.kind === "backfill") return (t.backfill || []).map((x) => ({title: `${x.request.method} ${pathOf(x.request.url)}`,
+    sub: `HTTP ${x.response.status} · ${x.latency_ms} ms`, x}));
+  return (t.exchanges || []).filter((x) => x.kind === lab.kind).map((x) => (x.kind === "llm"
+    ? {title: `${x.llm_stage} · ${x.workload}`, sub: `${x.label} · ${x.model}${x.sent ? ` · ${x.latency_ms} ms` : " · mock, not sent"}${x.attempt > 1 ? ` · retry ${x.attempt}` : ""}`, x}
+    : {title: x.request.params?.query || pathOf(x.request.url),
+       sub: `${pathOf(x.request.url).split("/").pop()} · ${x.response?.series ?? "?"} series · ${x.latency_ms ?? "?"} ms`, x}));
+}
+
+function renderWire() {
+  const t = lab.trace || {exchanges: [], kubectl: []}, sel = $("#wire-run");
+  const runs = reports.length ? reports : runId ? [{run: runId, mode: report?.mode}] : [];
+  sel.replaceChildren(...runs.map((r) => Object.assign(document.createElement("option"), {value: r.run, textContent: `${r.run} · ${r.mode}`})));
+  if (lab.traceRun) sel.value = lab.traceRun;
+  const count = {promql: t.exchanges.filter((x) => x.kind === "promql").length, llm: t.exchanges.filter((x) => x.kind === "llm").length,
+    kubectl: t.kubectl.length, backfill: (t.backfill || []).length};
+  $("#wire-kinds").innerHTML = KINDS.map(([k, label]) => `<button class="tbtn" role="tab" data-kind="${k}" aria-selected="${lab.kind === k}"
+    aria-pressed="${lab.kind === k}">${label} ${count[k]}</button>`).join(" ");
+  const items = wireItems();
+  lab.pick = Math.min(lab.pick, Math.max(items.length - 1, 0));
+  $("#wire-list").replaceChildren(...items.map((it, i) => {
+    const b = document.createElement("button");
+    b.setAttribute("role", "option");
+    b.setAttribute("aria-selected", String(i === lab.pick));
+    b.dataset.i = i;
+    b.append(document.createTextNode(it.title), Object.assign(document.createElement("span"), {textContent: it.sub}));
+    return b;
+  }));
+  renderWireDetail(items[lab.pick]);
+}
+
+function addBlock(box, tag, text, cls) {
+  const el = document.createElement(tag);
+  el.textContent = text;
+  if (cls) el.className = cls;
+  box.append(el);
+  return el;
+}
+
+function addJson(box, value) {
+  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2), limit = 12000;
+  const pre = addBlock(box, "pre", text.length > limit ? text.slice(0, limit) + "\n…" : text);
+  if (text.length > limit) {
+    const more = addBlock(box, "button", `show all ${(text.length / 1000).toFixed(0)}k characters`, "tbtn");
+    more.onclick = () => { pre.textContent = text; more.remove(); };
+  }
+}
+
+function curlFor(x) {
+  const req = x.request;
+  if (x.kind === "llm") {
+    const env = (req.headers?.Authorization || "").replace(/^Bearer /, "") || "$API_KEY";
+    return `curl -sS ${shq(req.url)} \\\n  -H "Authorization: Bearer ${env}" \\\n  -H 'Content-Type: application/json' \\\n  --data-binary @- <<'JSON'\n${JSON.stringify(req.body)}\nJSON`;
+  }
+  const params = Object.entries(req.params || {}).map(([k, v]) => `--data-urlencode ${shq(`${k}=${v}`)}`).join(" ");
+  if (req.method === "GET") return `curl -sG ${shq(req.url)}${params ? " " + params : ""}`;
+  if (req.body_bytes) return `curl -sS -X POST ${shq(req.url)} -H 'Content-Encoding: gzip' --data-binary @series.jsonl.gz`;
+  return `curl -sS -X POST -G ${shq(req.url)}${params ? " " + params : ""}`;
+}
+
+async function copyText(text, button) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {  // plain http on the LAN has no async clipboard
+    const area = Object.assign(document.createElement("textarea"), {value: text});
+    document.body.append(area); area.select(); document.execCommand("copy"); area.remove();
+  }
+  const label = button.textContent;
+  button.textContent = "copied";
+  setTimeout(() => (button.textContent = label), 1200);
+}
+
+function renderWireDetail(item) {
+  const box = $("#wire-detail");
+  box.replaceChildren();
+  if (!item) {
+    addBlock(box, "p", lab.trace?.error ? lab.trace.error
+      : lab.kind === "backfill" ? "No backfill in this server session yet. Backfill 30 days records its four VictoriaMetrics requests here."
+      : (lab.trace?.exchanges || []).length ? "Nothing of this kind in this run."
+      : "This run predates request tracing. Run an analysis to record what each stage sends.", "sh-dim");
+    return;
+  }
+  if (item.k) {
+    addBlock(box, "div", `$ ${item.k.cmd}`, "req");
+    addBlock(box, "button", "copy command", "tbtn").onclick = (ev) => copyText(item.k.cmd, ev.currentTarget);
+    addBlock(box, "h4", `manifest · ${item.k.file}`);
+    addJson(box, item.k.manifest);
+    return;
+  }
+  const x = item.x, req = x.request;
+  const query = req.params ? "?" + new URLSearchParams(Object.entries(req.params).map(([k, v]) => [k, String(v)])).toString() : "";
+  addBlock(box, "div", `${req.method} ${req.url}${query}`, "req");
+  addBlock(box, "button", "copy as curl", "tbtn").onclick = (ev) => copyText(curlFor(x), ev.currentTarget);
+  if (req.headers) { addBlock(box, "h4", "request headers"); addJson(box, Object.entries(req.headers).map(([k, v]) => `${k}: ${v}`).join("\n")); }
+  if (req.body) { addBlock(box, "h4", "request body, as sent"); addJson(box, req.body); }
+  if (req.body_preview) {
+    addBlock(box, "h4", `request body: ${req.body_bytes.series} JSON lines, ${(req.body_bytes.raw / 1e6).toFixed(1)} MB raw, ${(req.body_bytes.gzip / 1e6).toFixed(1)} MB gzip; first two shown, arrays cut to 3 points`);
+    addJson(box, req.body_preview);
+  }
+  addBlock(box, "h4", `response${x.latency_ms != null ? ` · ${x.latency_ms} ms` : ""}`);
+  const res = x.response || {};
+  if (res.note) addBlock(box, "p", res.note, "sh-dim");
+  if (x.kind === "llm" && res.body?.choices) {
+    addJson(box, {status: res.status, id: res.body.id, model: res.body.model, usage: res.body.usage});
+    addBlock(box, "h4", "message content");
+    const content = res.body.choices[0]?.message?.content || "";
+    try { addJson(box, JSON.parse(content)); } catch (e) { addJson(box, content); }
+  } else addJson(box, res.body ?? res);
+}
+
+/* Panes and view switching */
+function selectPane(i) {
+  lab.pane = i;
+  [0, 1, 2].forEach((p) => $(`#pane-${p}`).classList.toggle("on", p === i));
+  $$("#tmux-windows button").forEach((b) => b.setAttribute("aria-selected", String(+b.dataset.pane === i)));
+}
+
+function tick() {
+  const d = new Date();
+  $("#tmux-clock").textContent = `"${lab.status?.host || ""}" ${d.toTimeString().slice(0, 5)} ${String(d.getDate()).padStart(2, "0")}-${MON[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;
+  renderStages();
+}
+
+function startLab() {
+  if (lab.timers.length) return;
+  refreshLab().then(pollEvents);
+  lab.timers = [setInterval(pollEvents, 1000), setInterval(refreshLab, 5000), setInterval(tick, 1000)];
+  tick();
+}
+function stopLab() { lab.timers.forEach(clearInterval); lab.timers = []; }
+
+const viewFromHash = () => (location.hash === "#lab" ? "lab" : "dashboard");
+function showView(view) {
+  const isLab = view === "lab";
+  $("#main").hidden = isLab;
+  $("#lab").hidden = !isLab;
+  $$(".viewtab").forEach((t) => { const on = t.dataset.view === view; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
+  document.title = isLab ? "KubeSage · Architecture & CLI lab" : "KubeSage · AI Control Center";
+  if (isLab) startLab(); else stopLab();
+}
+
+function initLab() {
+  $("#xkeys").innerHTML = shortcuts().map((c) => `<button class="tbtn" data-cmd="${esc(c)}">${esc(c.length > 34 ? c.slice(0, 32) + "…" : c)}</button>`).join("")
+    + `<button class="tbtn" data-cmd="clear">clear</button>`;
+  $("#xkeys").onclick = (ev) => { const b = ev.target.closest("[data-cmd]"); if (b) shRun(b.dataset.cmd); };
+  $("#sh-form").onsubmit = (ev) => { ev.preventDefault(); shRun($("#sh-in").value); };
+  $("#sh-clear").onclick = () => $("#sh-out").replaceChildren();
+  $("#sh-in").addEventListener("keydown", (ev) => {
+    const input = ev.currentTarget;
+    if (ev.key === "ArrowUp" && lab.hpos > 0) { ev.preventDefault(); input.value = lab.history[--lab.hpos]; }
+    else if (ev.key === "ArrowDown") { ev.preventDefault(); lab.hpos = Math.min(lab.hpos + 1, lab.history.length); input.value = lab.history[lab.hpos] || ""; }
+    else if (ev.key === "Tab" && input.value) { ev.preventDefault(); shComplete(input); }
+    else if (ev.key === "l" && ev.ctrlKey) { ev.preventDefault(); $("#sh-out").replaceChildren(); }
+  });
+  $("#jr-filters").innerHTML = [0, 1, 2, 3, 4, 5].map((f) => `<button class="tbtn" data-f="${f}" aria-pressed="${f === 0}"
+    aria-label="${f ? `Stage ${f}` : "All stages"}">${f || "all"}</button>`).join(" ");
+  $("#jr-filters").onclick = (ev) => { const b = ev.target.closest("[data-f]"); if (b) setFilter(+b.dataset.f); };
+  $("#jr-pause").onclick = (ev) => {
+    lab.paused = !lab.paused;
+    ev.currentTarget.setAttribute("aria-pressed", String(lab.paused));
+    ev.currentTarget.textContent = lab.paused ? "resume" : "pause";
+    if (!lab.paused) $("#jr").scrollTop = $("#jr").scrollHeight;
+  };
+  $("#wire-run").onchange = (ev) => loadTrace(ev.currentTarget.value);
+  $("#wire-kinds").onclick = (ev) => { const b = ev.target.closest("[data-kind]"); if (b) { lab.kind = b.dataset.kind; lab.pick = 0; renderWire(); } };
+  $("#wire-list").onclick = (ev) => { const b = ev.target.closest("[data-i]"); if (b) { lab.pick = +b.dataset.i; renderWire(); } };
+  $("#wire-list").addEventListener("keydown", (ev) => {
+    if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
+    ev.preventDefault();
+    lab.pick = Math.max(0, Math.min(wireItems().length - 1, lab.pick + (ev.key === "ArrowDown" ? 1 : -1)));
+    renderWire();
+    $(`#wire-list [data-i="${lab.pick}"]`)?.focus();
+  });
+  $("#tmux-windows").innerHTML = ["shell", "journal", "wire"].map((name, i) =>
+    `<button role="tab" data-pane="${i}" aria-selected="${i === 0}" aria-controls="pane-${i}">${i}:${name}</button>`).join("");
+  $("#tmux-windows").onclick = (ev) => { const b = ev.target.closest("[data-pane]"); if (b) selectPane(+b.dataset.pane); };
+  $$(".viewtab").forEach((t) => {
+    t.onclick = () => (location.hash = t.dataset.view === "lab" ? "lab" : "dashboard");
+    t.onkeydown = (ev) => {
+      if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
+      const other = $$(".viewtab")[t.dataset.view === "lab" ? 0 : 1];
+      other.focus(); other.click();
+    };
+  });
+  window.addEventListener("hashchange", () => showView(viewFromHash()));
+  $("#lab-analyze").onclick = () => $("#btn-analyze").click();
+  $("#lab-apply").onclick = () => $("#btn-apply").click();
+  $("#lab-spike").onclick = () => $("#btn-spike").click();
+  $("#lab-reset").onclick = () => $("#btn-reset").click();
+  $("#lab-backfill").onclick = (ev) => {
+    if (!confirm("Backfill replaces ALL metric history for this namespace in VictoriaMetrics: the 30-day scenario history and "
+      + "everything recorded live since. The next analysis then reads only the regenerated history. Continue?")) return;
+    busy(ev.currentTarget, async () => {
+      const res = await api("/api/backfill", {days: 30});
+      log(`backfill: ${res.samples.toLocaleString()} samples, ${res.series} series, ${res.days} days in ${res.seconds} s`, "ok");
+      lab.kind = "backfill";
+      await loadTrace(lab.traceRun || runId);
+    });
+  };
+  shPrint("KubeSage lab shell. Read-only: kubectl get/describe/top/logs/events, promql, kubesage route|ledger|plan|runs. Type help.", "sh-dim");
+  selectPane(0);
+  renderStages();
+  renderJournal();
+}
+
 let laidOutAt = $("main").clientWidth;
 new ResizeObserver(() => {
   const w = $("main").clientWidth;
@@ -1389,6 +1921,8 @@ new ResizeObserver(() => {
   setInterval(refreshCluster, 3000);
   setInterval(renderSteps, 1000);
 })();
+initLab();
+showView(viewFromHash());
 </script>
 </body>
 </html>

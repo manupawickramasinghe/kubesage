@@ -16,6 +16,11 @@ other websites can't trigger actions. There's no authentication beyond that.
 | POST | `/api/apply` | `{run?, dry_run: bool}` → `{run, dry_run, ok, error, steps: [{file, ok, skipped, output}]}`. Selected run is pinned for the whole operation. An omitted `run` means the newest run, and is refused if that run belongs to another namespace: writes never fall back to an older run. |
 | POST | `/api/spike` | `{rps 1–200, work_ms 1–500, seconds 10–900, target?}` → `{job, TARGET, RPS, WORK_MS, SECONDS}` |
 | POST | `/api/reset` | runs `scripts/demo-reset.sh` → `{ok, output: [last lines], error?}`; only available for namespace `demo` |
+| GET | `/api/lab` | Live status for the lab's dataflow: `{vm: {url, ok, series, last_sample_age_s}, host, pid, namespace, mode, provider: {base_url, api_key_env, profile}, tiers: {name: {label, model, input_per_mtok, output_per_mtok, extra}}}`. Never includes a key value. |
+| GET | `/api/events?after=<id>` | The journal: `{events: [{id, at, unit, stage, level, msg}], last}`, up to 500 newer than `after`. Also reads the namespace's Kubernetes events, at most every 3 s, each journalled once (only the last 10 minutes on first read). |
+| GET | `/api/trace?run=<id>` | What a run sent: `{run, mode, exchanges: [...trace.json], kubectl: [{file, cmd, manifest}], backfill: [...] \| null}`. `exchanges` is empty for runs from before tracing. |
+| POST | `/api/shell` | `{cmd}` → `{cmd, exit, out, ms}`. Read-only allow-list (see the UI guide); refused commands exit 2 without running anything. |
+| POST | `/api/backfill` | `{days: 1–60}` → `{samples, series, days, seconds}`. Regenerates the demo history in VictoriaMetrics, replacing the namespace's series. Holds the operation lock; demo namespace only. |
 | POST | `/api/gitops` | `{run?, open_pr: bool}` → `{branch, commit, pushed, pr_url}`; 400 unless started with `--gitops-repo`/`--gitops-base` |
 
 Mutations share a lock: overlapping analyze, apply, spike, reset or GitOps requests return 409. Request bodies
@@ -81,6 +86,15 @@ cluster endpoint verifies. Cluster samples are shared across tabs for two second
 
 Reports and writes are restricted to the configured namespace. Invalid or mismatched pinned runs return
 400 before any writes. Known credential values are redacted from outgoing JSON, including error output.
+
+## `trace.json`
+
+Written next to `report.json` by each analysis: a list of exchanges in the order they happened.
+
+- `{kind: "promql", stage: 1, request: {method, url, params}, response: {status, series, first_series}, latency_ms}`
+- `{kind: "llm", stage: 2|3, llm_stage, workload, tier, label, model, attempt, sent, request: {method, url, headers, body},
+  response: {status, body} | {note, body}, latency_ms}`. The `Authorization` header is recorded as
+  `Bearer $<API_KEY_ENV>`, never the key. In mock mode `sent` is false and the body is the deterministic answer.
 
 ## `report.json`
 
