@@ -136,9 +136,9 @@ verification results](docs/ui-review.md).
 The header has **Reset demo**, a light/dark toggle, and **GitOps PR** when a GitOps repo is configured. Selecting a
 workload anywhere highlights it in every diagram.
 
-Stdlib HTTP server and one self-contained HTML file. The fonts (Inter and Instrument Serif, SIL OFL) are vendored
-in `kubesage/web/static/fonts` and served by `kubesage serve`, so there is no CDN and it still works on bad venue
-Wi-Fi. It binds to 127.0.0.1 by default. POSTs require an `X-KubeSage` header, so another website open in the same
+Stdlib HTTP server and the `dashboard/` folder: plain HTML, CSS and JavaScript with no build step. The fonts (Inter
+and Instrument Serif, SIL OFL) are vendored in `dashboard/fonts` and served by `kubesage serve`, so there is no CDN
+and it still works on bad venue Wi-Fi. It binds to 127.0.0.1 by default. POSTs require an `X-KubeSage` header, so another website open in the same
 browser can't trigger actions. With `--host 0.0.0.0`, anyone who can reach the port can apply changes. Keep that
 to Tailscale or a network you trust.
 

@@ -31,7 +31,7 @@ flowchart TB
     cost["recommend/costing.py<br/>allocation + billing views"]
     apply["apply.py<br/>kubectl apply"]
     gitops["gitops.py<br/>overlay → branch → PR"]
-    web["web/server.py + static/index.html<br/>AI Control Center"]
+    web["web/server.py + dashboard/<br/>AI Control Center"]
     collect --> stats --> pipe
     pipe <--> llm
     pipe --> guard --> render
@@ -105,7 +105,7 @@ sequenceDiagram
 | `kubesage/gitops.py`, `summary.py` | kustomize overlay + PR, and its markdown report |
 | `kubesage/service.py` | collect + analyze + persist, shared by the CLI and the web server |
 | `kubesage/web/server.py` | HTTP API (see [api.md](api.md)) |
-| `kubesage/web/static/index.html` | the whole UI: HTML, CSS, JS, SVG diagrams |
+| `dashboard/` | the web UI: `index.html`, `css/` and `js/` split by view, vendored fonts; no build step (see [dashboard/README.md](../dashboard/README.md)) |
 | `deploy/k8s/demo/` | the five demo Deployments and their tiny Python app |
 | `deploy/k8s/monitoring/` | kube-state-metrics + vmagent |
 | `deploy/grafana/` | Grafana provisioning and the "requested vs used" dashboard |

@@ -2,13 +2,14 @@
 /* ---------- Agent team (Lab) ---------- */
 .team-card { margin-top: 8px; padding: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
   box-shadow: var(--shadow); scroll-margin-top: 72px; }
-.team-head { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between; }
 .team-run-ctl { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
 .tc-box { display: grid; gap: 8px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.team-card > .tc-box:first-child { margin-top: 0; }
 .tc-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tc-label { margin-right: 2px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .tc-bar select { flex: 0 1 230px; height: 32px; min-width: 0; }
-.tc-live { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.tc-live { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; max-width: 100%; margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.tc-live .badge { height: auto; min-height: 22px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .tc-live .badge.firing { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)); }
 .tc-live .badge.crit { border-color: var(--crit); }
 .tc-desc { margin: 0; max-width: 100ch; font-size: 13px; color: var(--fg-2); }

@@ -360,15 +360,6 @@ function initLab() {
   $("#tmux-windows").innerHTML = ["shell", "journal", "wire"].map((name, i) =>
     `<button role="tab" data-pane="${i}" aria-selected="${i === 0}" aria-controls="pane-${i}">${i}:${name}</button>`).join("");
   $("#tmux-windows").onclick = (ev) => { const b = ev.target.closest("[data-pane]"); if (b) selectPane(+b.dataset.pane); };
-  $$(".viewtab").forEach((t) => {
-    t.onclick = () => (location.hash = t.dataset.view);
-    t.onkeydown = (ev) => {
-      if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
-      const tabs = [...$$(".viewtab")], next = tabs[(tabs.indexOf(t) + (ev.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-      next.focus(); next.click();
-    };
-  });
-  window.addEventListener("hashchange", () => showView(viewFromHash()));
   $("#lab-analyze").onclick = () => $("#btn-analyze").click();
   $("#lab-apply").onclick = () => $("#btn-apply").click();
   $("#lab-spike").onclick = () => $("#btn-spike").click();

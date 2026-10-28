@@ -9,17 +9,20 @@
 <link rel="stylesheet" href="css/lab.css">
 <link rel="stylesheet" href="css/agents.css">
 <link rel="stylesheet" href="css/tmux.css">
+<link rel="stylesheet" href="css/demo.css">
 </head>
 <body>
-<a class="skip btn btn-primary" href="#main">Skip to dashboard</a>
+<a class="skip btn btn-primary" href="#demo">Skip to content</a>
 <header class="top">
   <div class="top-inner">
     <div class="brand"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
       <path d="M12 2.5 20.5 7.4v9.2L12 21.5l-8.5-4.9V7.4z"/><path d="M12 12 20.5 7.4M12 12v9.5M12 12 3.5 7.4"/></svg>
       KubeSage <span>AI Control Center</span></div>
     <nav class="viewtabs" role="tablist" aria-label="Views">
-      <button class="viewtab" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="main" aria-selected="true"><span class="vt-long">FinOps dashboard</span><span class="vt-short">Dashboard</span></button>
-      <button class="viewtab" role="tab" id="tab-lab" data-view="lab" aria-controls="lab" aria-selected="false" tabindex="-1"><span class="vt-long">Architecture &amp; CLI lab</span><span class="vt-short">Lab</span></button>
+      <button class="viewtab" role="tab" id="tab-demo" data-view="demo" aria-controls="demo" aria-selected="true">Demo</button>
+      <button class="viewtab" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="main" aria-selected="false" tabindex="-1">FinOps</button>
+      <button class="viewtab" role="tab" id="tab-agents" data-view="agents" aria-controls="agents" aria-selected="false" tabindex="-1"><span class="vt-long">Agent team</span><span class="vt-short">Agents</span></button>
+      <button class="viewtab" role="tab" id="tab-lab" data-view="lab" aria-controls="lab" aria-selected="false" tabindex="-1"><span class="vt-long">Under the hood</span><span class="vt-short">Lab</span></button>
       <button class="viewtab" role="tab" id="tab-tmux" data-view="tmux" aria-controls="tmuxview" aria-selected="false" tabindex="-1">tmux</button>
     </nav>
     <span id="mode" class="badge">…</span>
@@ -33,7 +36,38 @@
   <div class="progress"></div>
 </header>
 
-<main id="main" tabindex="-1">
+<div id="demo" class="demo" role="tabpanel" aria-labelledby="tab-demo" data-panel="demo" tabindex="-1">
+  <section class="demo-hero">
+    <p class="kicker">Live demo on a real Kubernetes cluster: a desktop and a laptop</p>
+    <h1>Pay for what you use. <em>Fix what breaks.</em></h1>
+    <p class="lede">KubeSage is an AI SRE team for Kubernetes. It finds capacity you pay for and don't use, diagnoses live
+      incidents and writes each fix as a git commit. Every finding must cite real data, guardrails check every change, and a
+      person decides what reaches the cluster.</p>
+    <div class="demo-cta">
+      <button id="demo-start" class="btn btn-primary btn-lg">Start the demo</button>
+      <span class="muted">Nine steps: two acts and a wrap-up, about six minutes. A caption bar at the bottom of each screen explains what it shows.</span>
+    </div>
+    <div class="preflight" id="demo-preflight" role="status" aria-label="Ready to present"></div>
+  </section>
+  <div class="figures demo-figs" id="demo-figs"></div>
+  <section class="demo-acts" id="demo-acts" aria-label="Run of show"></section>
+  <section class="demo-why" id="demo-why" aria-labelledby="why-title">
+    <h2 id="why-title">Why it's different</h2>
+    <div class="why-grid">
+      <div class="why"><b>Evidence, or it's dropped.</b>
+        <p>Every finding cites a signal an agent collected. Guardrails reject actions with no evidence, unknown targets,
+          machine types outside the catalog and requests bigger than a real node, and the model gets one retry with the reasons.</p></div>
+      <div class="why"><b>Small models do the legwork.</b>
+        <p>Four sub-agents gather evidence on a small, fast model; only the Thinker uses the large one. An incident run costs a
+          few cents, and a full right-sizing analysis about one cent.</p></div>
+      <div class="why"><b>People stay in charge.</b>
+        <p>Every change is a git commit on its own branch, ready as a pull request. The web shell is read-only, the tmux view
+          is a mirror, and nothing reaches the cluster until someone presses Apply.</p></div>
+    </div>
+  </section>
+</div>
+
+<main id="main" tabindex="-1" data-panel="dashboard" hidden>
   <section class="hero">
     <p class="eyebrow" id="runinfo">No analysis yet</p>
     <h1><span id="headline">Less waste. <em>Room to grow.</em></span></h1>
@@ -128,29 +162,19 @@
   </section>
 </main>
 
-<div id="lab" class="lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
+<div id="agents" class="lab" role="tabpanel" aria-labelledby="tab-agents" data-panel="agents" tabindex="-1" hidden>
   <section class="lab-hero">
-    <div><h1>Under <em>the hood.</em></h1>
-      <p>The same system, as an engineer sees it: the agent team working a live problem, the right-sizing pipeline with live
-        numbers, a read-only shell against the real cluster and the journal of everything KubeSage and Kubernetes just did.</p></div>
-    <nav class="lab-jump" aria-label="On this page">
-      <button class="btn btn-ghost btn-sm" data-jump="team">Agent team</button>
-      <button class="btn btn-ghost btn-sm" data-jump="pipeline">Pipeline</button>
-      <button class="btn btn-ghost btn-sm" data-jump="terminal">Terminal</button>
-    </nav>
+    <div><h1>Find the cause. <em>Ship the fix.</em></h1>
+      <p>Start a test case to cause a real problem on the laptop. Four sub-agents on a small model gather evidence, the
+        Thinker on a large model works out the cause, and the Executor writes the fix as a commit under <code>gitops/</code>.
+        Agents, models and rules live in the repo's <code>agents/</code> folder.</p></div>
+    <div class="team-run-ctl">
+      <label class="switch"><input type="checkbox" id="team-auto"> Auto-run on alerts</label>
+      <button id="team-run" class="btn btn-primary btn-sm">Run agent team</button>
+    </div>
   </section>
 
-  <section class="team-card" id="team" aria-labelledby="team-title">
-    <div class="team-head">
-      <div><p class="kicker">Live incidents</p><h2 id="team-title">Agent team</h2>
-        <p>Start a test case to cause a real problem on the lab node. The sub-agents read the cluster, the Thinker works out
-          the cause, and the Executor writes the fix as a branch under <code>gitops/</code>. Agents, models and rules live in
-          the repo's <code>agents/</code> folder.</p></div>
-      <div class="team-run-ctl">
-        <label class="switch"><input type="checkbox" id="team-auto"> Auto-run on alerts</label>
-        <button id="team-run" class="btn btn-primary btn-sm">Run agent team</button>
-      </div>
-    </div>
+  <section class="team-card" id="team" aria-label="Agent team">
     <div class="tc-box">
       <div class="tc-bar">
         <label class="tc-label" for="tc-select">Test case</label>
@@ -168,6 +192,18 @@
     <div class="team-detail" id="team-detail"></div>
     <details class="rules"><summary>Custom rules the Thinker and Executor follow (<code>agents/rules/</code>, read-only here)</summary>
       <div id="team-rules"></div></details>
+  </section>
+</div>
+
+<div id="lab" class="lab" role="tabpanel" aria-labelledby="tab-lab" data-panel="lab" tabindex="-1" hidden>
+  <section class="lab-hero">
+    <div><h1>Under <em>the hood.</em></h1>
+      <p>The same system as an engineer sees it: the right-sizing pipeline with live numbers, a read-only shell against the
+        real cluster, the journal of everything KubeSage and Kubernetes just did, and exactly what each stage sent to a model.</p></div>
+    <nav class="lab-jump" aria-label="On this page">
+      <button class="btn btn-ghost btn-sm" data-jump="pipeline">Pipeline</button>
+      <button class="btn btn-ghost btn-sm" data-jump="terminal">Terminal</button>
+    </nav>
   </section>
 
   <section class="lab-sec" id="pipeline" aria-labelledby="flow-title">
@@ -216,7 +252,7 @@
   </section>
 </div>
 
-<div id="tmuxview" class="tmuxview" role="tabpanel" aria-labelledby="tab-tmux" hidden>
+<div id="tmuxview" class="tmuxview" role="tabpanel" aria-labelledby="tab-tmux" data-panel="tmux" tabindex="-1" hidden>
   <section class="tmux" aria-label="tmux mirror">
     <div class="tx-top">
       <div class="tx-id"><b>tmux · kubesage</b>
@@ -240,6 +276,22 @@
       <span id="tx-clock"></span></div>
   </section>
 </div>
+<aside class="dock" id="dock" aria-label="Demo guide" hidden>
+  <div class="dk-top">
+    <span class="dk-count" id="dk-count"></span><span class="dk-act" id="dk-act"></span>
+    <ol class="dk-dots" id="dk-dots" aria-label="Demo steps"></ol>
+    <span class="sp"></span>
+    <button class="btn btn-ghost btn-icon btn-sm" id="dk-min" aria-expanded="true" aria-label="Collapse the demo guide"></button>
+    <button class="btn btn-ghost btn-icon btn-sm" id="dk-end" aria-label="End the demo"></button>
+  </div>
+  <div class="dk-body"><h2 id="dk-title"></h2><p id="dk-say"></p></div>
+  <div class="dk-bar">
+    <span class="dk-actions" id="dk-actions"></span>
+    <span class="dk-status" id="dk-status" role="status"></span>
+    <span class="dk-nav"><button class="btn btn-outline btn-sm" id="dk-prev">Back</button>
+      <button class="btn btn-primary btn-sm" id="dk-next"></button></span>
+  </div>
+</aside>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 
 <script src="js/core.js"></script>
@@ -247,6 +299,7 @@
 <script src="js/lab.js"></script>
 <script src="js/agents.js"></script>
 <script src="js/tmux.js"></script>
+<script src="js/demo.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

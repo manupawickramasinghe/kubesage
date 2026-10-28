@@ -1,0 +1,112 @@
+/* Demo: the pitch, the run of show and the caption bar that follows the presenter across views. */
+.demo { max-width: 1200px; margin: 0 auto; padding: 0 16px 72px; }
+.demo-hero { padding: 52px 0 8px; }
+.demo-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 26px; }
+.demo-cta .muted { max-width: 440px; font-size: 13px; }
+.btn-lg { height: 42px; padding: 0 20px; border-radius: 10px; font-size: 14.5px; }
+.btn-lg .ic { width: 14px; height: 14px; }
+
+/* Before you present: live checks, each with its fix */
+.preflight { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 22px; font-size: 12.5px; color: var(--fg-2); }
+.preflight > b { margin-right: 4px; font-weight: 600; color: var(--fg); }
+.pf { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: 99px; background: var(--card); white-space: nowrap; }
+.pf .ic { width: 14px; height: 14px; color: var(--muted); }
+.pf[data-state="ok"] .ic { color: var(--good); }
+.pf[data-state="bad"] { border-color: color-mix(in srgb, var(--warn) 70%, var(--border)); background: color-mix(in srgb, var(--warn) 8%, var(--card)); }
+.pf[data-state="bad"] .ic { color: color-mix(in srgb, var(--warn) 75%, var(--fg)); }
+.pf .linkish { margin-left: 2px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+
+.figures.demo-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .figures.demo-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .demo-figs .fig { grid-column: auto; border-left: 0; border-top: 1px solid var(--border); }
+  .demo-figs .fig:nth-child(-n+2) { border-top: 0; }
+  .demo-figs .fig:nth-child(even) { border-left: 1px solid var(--border); }
+}
+
+/* Run of show: act 1 on the left, acts 2 and 3 on the right */
+.demo-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; align-items: start; margin-top: 36px; }
+.act-col { padding: 20px 20px 6px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+.act-col:first-child { grid-row: span 2; }
+@media (max-width: 900px) { .demo-acts { grid-template-columns: 1fr; } .act-col:first-child { grid-row: auto; } }
+.act-col h2 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.act-col h2 span { font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.act-col h2 small { margin-left: auto; font: 12.5px var(--sans); color: var(--muted); }
+.ds-list { margin: 12px 0 0; padding: 0; list-style: none; }
+.ds { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 14px 0; border-top: 1px solid var(--border); }
+.ds-n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--secondary); font-size: 12.5px; font-weight: 600; }
+.ds[data-state="done"] .ds-n { background: var(--primary); color: var(--primary-fg); }
+.ds.now .ds-n { box-shadow: 0 0 0 3px color-mix(in srgb, var(--rec) 45%, transparent); }
+.ds-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.ds-h b { font-size: 14.5px; letter-spacing: -.01em; }
+.ds-where { font: 500 11px var(--mono); color: var(--muted); }
+.ds-say { margin: 4px 0 0; color: var(--fg-2); font-size: 13px; }
+.ds-st { display: flex; align-items: flex-start; gap: 7px; margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.ds-st .dot, .ds-st .pulse-dot, .dk-status .dot, .dk-status .pulse-dot { flex: none; margin-top: 6px; }
+.ds[data-state="done"] .ds-st, .ds[data-state="live"] .ds-st { color: var(--fg-2); }
+.ds > .btn { margin-top: -4px; }
+@media (max-width: 600px) {
+  .act-col { padding: 16px 14px 4px; }
+  .ds { grid-template-columns: 26px minmax(0, 1fr); }
+  .ds > .btn { grid-column: 2; justify-self: start; margin: 0 0 0 -12px; }
+}
+
+.demo-why { margin-top: 36px; }
+.why-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+@media (max-width: 900px) { .why-grid { grid-template-columns: 1fr; } }
+.why { padding: 18px 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.why b { font-size: 15px; letter-spacing: -.01em; }
+.why p { margin: 6px 0 0; color: var(--fg-2); font-size: 13.5px; }
+
+/* Caption bar: what the audience is looking at, the step's one button, and back / next */
+.dock { position: fixed; z-index: 30; left: 50%; bottom: 16px; width: min(980px, calc(100% - 24px)); transform: translateX(-50%);
+  padding: 12px 16px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(16, 16, 14, .16), 0 2px 6px rgba(16, 16, 14, .06); }
+body.presenting main, body.presenting .lab, body.presenting .tmuxview { padding-bottom: 280px; }
+.dk-top { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.dk-count { font: 600 12px var(--mono); white-space: nowrap; }
+.dk-act { min-width: 0; overflow: hidden; font-size: 12.5px; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; }
+.dk-dots { display: flex; gap: 4px; margin: 0 0 0 6px; padding: 0; list-style: none; }
+.dk-dots button { position: relative; display: block; width: 22px; height: 18px; padding: 0; border: 0; background: none; cursor: pointer; transition: width .2s; }
+.dk-dots button::before { content: ""; position: absolute; inset: 6px 0; border-radius: 99px; background: var(--c, var(--track)); }
+.dk-dots button[data-state="done"] { --c: var(--good); }
+.dk-dots button[data-state="live"] { --c: var(--rec); }
+.dk-dots button[data-state="warn"] { --c: var(--warn); }
+.dk-dots button[aria-current="step"] { width: 38px; }
+.dk-dots button[aria-current="step"]::before { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--fg); }
+.dk-dots button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; border-radius: 4px; }
+.dock .sp { flex: 1; }
+.dk-body h2 { margin-top: 4px; font-size: 24px; }
+.dk-body p { max-width: 880px; margin: 4px 0 0; color: var(--fg-2); font-size: 14px; }
+.dk-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; margin-top: 12px; }
+.dk-actions { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.dk-nav { display: inline-flex; gap: 8px; justify-self: end; }
+.dk-actions select { height: 32px; max-width: 240px; }
+.dk-status { display: inline-flex; align-items: flex-start; gap: 7px; min-width: 0; font-size: 12.5px; color: var(--fg-2); }
+.dock.min .dk-body { display: none; }
+.dock.min .dk-bar { margin-top: 8px; }
+@media (max-width: 600px) {
+  .dock { left: 0; bottom: 0; width: 100%; transform: none; padding: 10px 12px 12px; border-radius: 14px 14px 0 0; }
+  .dk-act { display: none; }
+  .dk-dots { margin: 0; gap: 3px; }
+  .dk-dots button { width: 14px; }
+  .dk-dots button[aria-current="step"] { width: 26px; }
+  .dk-body h2 { font-size: 20px; }
+  .dk-body p { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; }
+  .dk-next-t { display: none; }
+  .dk-bar { grid-template-columns: minmax(0, 1fr) auto; }
+  .dk-status { grid-column: 1 / -1; grid-row: 1; }
+  .dk-actions { grid-column: 1 / -1; }
+  .dk-actions:empty { display: none; }
+  body.presenting main, body.presenting .lab, body.presenting .tmuxview { padding-bottom: 300px; }
+}
+
+/* Where to look: a short violet ring around the step's target */
+.card, .figures, .tc-box, .team-flow, .team-detail, .demo-why, .act-col { scroll-margin-top: 84px; }
+.demo-focus { animation: demo-focus 2.6s ease-out; }
+@keyframes demo-focus {
+  0%, 55% { box-shadow: 0 0 0 2px var(--rec), 0 0 0 9px color-mix(in srgb, var(--rec) 20%, transparent); }
+  100% { box-shadow: 0 0 0 2px transparent, 0 0 0 9px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .demo-focus { animation: none; outline: 2px solid var(--rec); outline-offset: 4px; } }

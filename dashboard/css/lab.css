@@ -82,5 +82,4 @@
 .lab-jump { display: flex; flex-wrap: wrap; gap: 4px; }
 .lab-sec { margin-top: 36px; scroll-margin-top: 72px; }
 .sec-head { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
-.sec-head p, .team-head p { margin: 6px 0 0; max-width: 640px; color: var(--fg-2); font-size: 13.5px; }
-.lab .kicker { margin: 0 0 6px; font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.sec-head p { margin: 6px 0 0; max-width: 640px; color: var(--fg-2); font-size: 13.5px; }

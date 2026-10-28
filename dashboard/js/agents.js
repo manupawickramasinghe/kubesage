@@ -12,7 +12,8 @@ function tcOptions() {
   const html = cat.map((t) => `<option value="${esc(t.name)}">${esc(t.title)}${active[t.name] ? " (running)" : ""}</option>`).join("");
   const running = Object.keys(active)[0];
   for (const sel of ["#tc-select", "#tx-tc"]) {
-    const el = $(sel), v = team.pick || running || el.value;
+    // The demo's default incident is cpu-code: its fix is a code change, which more CPU alone can't solve.
+    const el = $(sel), v = team.pick || running || (el.dataset.html ? el.value : "cpu-code");
     if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
     if (v && cat.some((t) => t.name === v)) el.value = v;
   }
@@ -48,9 +49,9 @@ function agentStats(a) {
 }
 
 function agentCard(name, a, big) {
-  const state = a.state || "idle", idle = state === "queued" || state === "idle";
+  const state = a.state || "idle", idle = ["queued", "idle", "skipped"].includes(state);
   const sum = a.error ? `<span class="agent-sum err">${esc(a.error)}</span>`
-    : idle || !a.summary ? `<span class="agent-sum idle">${esc(state === "queued" ? "Queued…" : a.description || "")}</span>`
+    : idle || !a.summary ? `<span class="agent-sum idle">${esc({queued: "Queued…", skipped: "Not run: an earlier step failed."}[state] || a.description || "")}</span>`
     : `<span class="agent-sum">${esc(a.summary)}</span>`;
   return `<button class="agent ${big ? "big" : ""}" data-agent="${esc(name)}" data-state="${esc(state)}" aria-pressed="${team.sel === name}"
     title="${esc(a.description || "")}">
@@ -80,7 +81,8 @@ function renderTeam() {
   if (!d) return;
   const run = d.run, agents = {};
   (d.team.agents || []).forEach((a) => (agents[a.name] = {...a, state: "idle"}));
-  if (run) Object.entries(run.agents || {}).forEach(([n, a]) => (agents[n] = {...agents[n], ...a}));
+  if (run) Object.entries(run.agents || {}).forEach(([n, a]) => (agents[n] = {...agents[n], ...a,
+    state: a.state === "queued" && run.state !== "running" ? "skipped" : a.state}));
   const by = (role) => Object.entries(agents).filter(([, a]) => a.role === role);
   const arrow = (role) => by(role).some(([, a]) => a.state === "running") ? "flowing" : by(role).some(([, a]) => a.state === "done") ? "passed" : "";
   const col = (cls, head, cards) => `<div class="team-col ${cls}"><span class="team-col-h">${head}</span>${cards}</div>`;

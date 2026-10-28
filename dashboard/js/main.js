@@ -1,18 +1,43 @@
 "use strict";
 // View switching and start-up. Loaded last: it calls into every other file.
 
-const VIEWS = ["dashboard", "lab", "tmux"];
-const viewFromHash = () => (VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "dashboard");
-function showView(view) {
-  $("#main").hidden = view !== "dashboard";
-  $("#lab").hidden = view !== "lab";
-  $("#tmuxview").hidden = view !== "tmux";
-  $$(".viewtab").forEach((t) => { const on = t.dataset.view === view; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
-  document.title = {dashboard: "KubeSage · AI Control Center", lab: "KubeSage · Architecture & CLI lab", tmux: "KubeSage · tmux"}[view];
-  if (view === "lab") startLab(); else stopLab();
-  if (view !== "dashboard") startTeam(); else stopTeam();
-  if (view === "tmux") startTx(); else stopTx();
-  if (view === "lab" && team.data) renderTeam();
+const VIEWS = ["demo", "dashboard", "agents", "lab", "tmux"];
+const PANELS = {demo: "#demo", dashboard: "#main", agents: "#agents", lab: "#lab", tmux: "#tmuxview"};
+const TITLES = {demo: "KubeSage · Demo", dashboard: "KubeSage · FinOps", agents: "KubeSage · Agent team",
+  lab: "KubeSage · Under the hood", tmux: "KubeSage · tmux"};
+let view = null;
+
+// A view name, or the id of anything inside a view (the FinOps section links), picks the view.
+function viewFromHash() {
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (VIEWS.includes(id)) return id;
+  return (id && document.getElementById(id)?.closest("[data-panel]")?.dataset.panel) || "demo";
+}
+
+function showView(next) {
+  view = next;
+  Object.entries(PANELS).forEach(([v, sel]) => ($(sel).hidden = v !== next));
+  $$(".viewtab").forEach((t) => { const on = t.dataset.view === next; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
+  document.title = TITLES[next];
+  $(".skip").href = PANELS[next];
+  if (next === "lab") startLab(); else stopLab();
+  if (next !== "dashboard" || demo.on) startTeam(); else stopTeam();  // the demo's caption bar shows the team's state
+  if (next === "tmux") startTx(); else stopTx();
+  if (next === "agents" && team.data) renderTeam();
+  renderDemo();
+  renderDock();
+}
+
+function initViews() {
+  $$(".viewtab").forEach((t) => {
+    t.onclick = () => (location.hash = t.dataset.view);
+    t.onkeydown = (ev) => {
+      if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
+      const tabs = [...$$(".viewtab")], next = tabs[(tabs.indexOf(t) + (ev.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+      next.focus(); next.click();
+    };
+  });
+  window.addEventListener("hashchange", () => { if (viewFromHash() !== view) showView(viewFromHash()); });
 }
 
 let laidOutAt = $("main").clientWidth;
@@ -43,4 +68,6 @@ new ResizeObserver(() => {
 })();
 initLab();
 initTeam();
+initDemo();
+initViews();
 showView(viewFromHash());
