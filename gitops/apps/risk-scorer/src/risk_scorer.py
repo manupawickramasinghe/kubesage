@@ -4,7 +4,7 @@ Scoring is pure-Python arithmetic, so it is CPU-bound.
 """
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 WORKERS = int(os.environ.get("WORKERS", "3"))
 BATCH = int(os.environ.get("BATCH", "20000"))
@@ -20,7 +20,7 @@ def score(batch: int) -> float:
 
 if __name__ == "__main__":
     print(f"risk-scorer: {WORKERS} workers, {BATCH} transactions per batch", flush=True)
-    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+    with ProcessPoolExecutor(max_workers=WORKERS) as pool:
         batch, done, last = 0, 0, time.monotonic()
         while True:
             futures = [pool.submit(score, batch + i) for i in range(WORKERS * 4)]

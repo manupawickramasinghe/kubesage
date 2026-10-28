@@ -6,3 +6,4 @@ metadata:
   name: lab
   labels:
     kubesage.io/lab: "true"
+    pod-security.kubernetes.io/enforce: "baseline"
