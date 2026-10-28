@@ -44,7 +44,8 @@ REMOTE_SCRIPT
 docker exec "k3d-$CLUSTER_NAME-server-0" ethtool -K flannel.1 tx-checksum-ip-generic off >/dev/null
 for _ in $(seq 60); do kubectl get node "$NAME" >/dev/null 2>&1 && break; sleep 2; done
 kubectl wait --for=condition=Ready "node/$NAME" --timeout=180s
-kubectl label --overwrite "node/$NAME" "$NODE_LABEL=$POOL" >/dev/null
+# kubesage.io/pool=lab: the live test cases (gitops/apps) run on joined machines only.
+kubectl label --overwrite "node/$NAME" "$NODE_LABEL=$POOL" kubesage.io/pool=lab >/dev/null
 kubectl annotate --overwrite "node/$NAME" "kubesage.io/host=$NAME" "kubesage.io/cpu=$CPU" \
   "kubesage.io/os=$(ssh "$REMOTE" '. /etc/os-release && echo "$PRETTY_NAME"')" >/dev/null
 # Remembered so scripts/cleanup.sh can find and uninstall it later.

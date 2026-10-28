@@ -20,6 +20,7 @@ class Journal(logging.Handler):
         self._events: deque[dict] = deque(maxlen=size)
         self._next = 1
         self._guard = threading.Lock()
+        self.sink = None  # called with each event outside the lock; `kubesage serve` mirrors them into the RAM ring
 
     def emit(self, record: logging.LogRecord) -> None:
         self.add(record.getMessage(), unit=getattr(record, "unit", record.name.rsplit(".", 1)[-1]),
@@ -29,10 +30,14 @@ class Journal(logging.Handler):
             at: float | str | None = None) -> None:
         if isinstance(at, (int, float)):
             at = datetime.fromtimestamp(at, timezone.utc).isoformat(timespec="milliseconds")
+        event = {"at": at or datetime.now(timezone.utc).isoformat(timespec="milliseconds"), "unit": unit, "stage": stage,
+                 "level": level, "msg": msg}
         with self._guard:
-            self._events.append({"id": self._next, "at": at or datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-                                 "unit": unit, "stage": stage, "level": level, "msg": msg})
+            event["id"] = self._next
+            self._events.append(event)
             self._next += 1
+        if self.sink:
+            self.sink(event)
 
     def since(self, after: int = 0, limit: int = 500) -> tuple[list[dict], int]:
         with self._guard:

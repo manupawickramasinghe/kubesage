@@ -66,7 +66,7 @@ class LLMClient:
                                       headers={"Authorization": f"Bearer {key}"})
 
     def structured(self, tier: str, system: str, user: str, schema: type[T], mock: Callable[[], T], *,
-                   stage: str, workload: str) -> tuple[T, LedgerEntry]:
+                   stage: str, workload: str, unit: str = "router", flow_stage: int | None = None) -> tuple[T, LedgerEntry]:
         cfg = self.models.tiers[tier]
         started = time.perf_counter()
         if self.mode == "live":
@@ -83,14 +83,15 @@ class LLMClient:
         entry = LedgerEntry(stage=stage, workload=workload, tier=tier, model=cfg.model, input_tokens=inp,
                             cached_tokens=cached, output_tokens=out, cost_usd=cfg.cost(inp, cached, out),
                             latency_ms=int((time.perf_counter() - started) * 1000), mock=self.mode != "live")
+        flow_stage = flow_stage or (2 if stage == "triage" else 3)
         with self._lock:
             for attempt, exchange in enumerate(exchanges, 1):
-                self.trace.append({"kind": "llm", "stage": 2 if stage == "triage" else 3, "llm_stage": stage,
+                self.trace.append({"kind": "llm", "stage": flow_stage, "llm_stage": stage,
                                    "workload": workload, "tier": tier, "label": cfg.label or tier, "model": cfg.model,
                                    "attempt": attempt, **exchange})
-        log("router", f"{stage} {workload} on {cfg.label or tier} ({cfg.model}{', mock' if entry.mock else ''}): "
-                      f"{inp} in{f' ({cached} cached)' if cached else ''} / {out} out tokens, ${entry.cost_usd:.4f}, "
-                      f"{entry.latency_ms} ms", stage=2 if stage == "triage" else 3)
+        log(unit, f"{stage} {workload} on {cfg.label or tier} ({cfg.model}{', mock' if entry.mock else ''}): "
+                  f"{inp} in{f' ({cached} cached)' if cached else ''} / {out} out tokens, ${entry.cost_usd:.4f}, "
+                  f"{entry.latency_ms} ms", stage=flow_stage)
         return result, entry
 
     def _body(self, tier: str, messages: list[dict]) -> dict:

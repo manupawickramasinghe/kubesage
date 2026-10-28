@@ -43,6 +43,8 @@ class Sku(BaseModel):
     vcpu: int
     memory_gib: float
     hourly_usd: float
+    local_nvme_gib: float | None = None
+    planner: bool = True  # False: offered to the agent team, but not to the right-sizing node-pool planner
 
     @property
     def burstable(self) -> bool:

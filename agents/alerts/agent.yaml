@@ -1,0 +1,9 @@
+name: alerts
+title: Alertmanager
+role: subagent
+order: 30
+model: small
+description: What is firing in Alertmanager right now (vmalert rules in deploy/alerts/rules.yml).
+max_findings: 6
+settings:
+  namespaces: [lab]

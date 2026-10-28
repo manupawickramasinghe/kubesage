@@ -71,6 +71,7 @@ class MockApi:
         self.requests = []
         self.failures = {}
         self.sequence = 0
+        self.team, self.active = team_fixture(), {}
 
     def route(self, route):
         request = route.request
@@ -111,9 +112,66 @@ class MockApi:
             status, value = 200, {"ok": True, "output": []}
         elif url.path == "/api/gitops":
             status, value = 200, {"branch": "kubesage/test", "commit": "abcdef1234567890", "pr_url": "https://example.test/pr/1"}
+        elif url.path == "/api/agents":
+            status, value = 200, self.team
+        elif url.path == "/api/testcases":
+            status, value = 200, {"catalog": [{"name": "memory", "title": "High memory", "summary": "OOM", "expect": "more memory"},
+                                              {"name": "cpu-code", "title": "High CPU: single-threaded code", "summary": "GIL", "expect": "processes"}],
+                                  "active": self.active, "alerts": [{"name": "ContainerCPUBusy", "severity": "warning", "pod": "risk-scorer-1"}],
+                                  "cluster": True}
+        elif url.path in ("/api/testcase", "/api/agents/run"):
+            if body.get("action") == "start":
+                self.active[body["name"]] = {"pods": 1, "phases": {"Running": 1}, "restarts": 0, "since": "x", "stopping": False}
+            status, value = (200, {"ok": True, "steps": [{"cmd": "kubectl apply -k gitops/apps/x", "ok": True, "output": ""}]}
+                             if url.path == "/api/testcase" else {"id": "20261028-120000"})
+        elif url.path == "/api/ring":
+            status, value = 200, {"records": [] if parse_qs(url.query).get("after") else ring_fixture(), "last": 9}
+        elif url.path == "/api/ring/stat":
+            status, value = 200, {"used_bytes": 2 ** 20, "capacity_bytes": 500 * 2 ** 20, "records": 9, "wrapped": False, "oldest_ts": 1.79e9}
         else:
             status, value = 500, {"error": f"Unexpected mocked API route: {url.path}"}
         route.fulfill(status=status, content_type="application/json", body=json.dumps(value))
+
+
+UNSAFE = '<img src=x onerror="window.__untrusted_html_executed=1">'
+
+
+def team_fixture():
+    agent = lambda title, role, size, model, **kw: {"title": title, "role": role, "size": size, "label": model, "model": model,
+                                                     "state": "done", "ms": 1500, "signals": 5, "findings": 1, "cost_usd": 0.003, **kw}
+    agents = {"promql": agent("PromQL", "subagent", "small", "qwen-3.8-27b", summary=UNSAFE),
+              "resources": agent("System resources", "subagent", "small", "qwen-3.8-27b"),
+              "alerts": agent("Alertmanager", "subagent", "small", "qwen-3.8-27b"),
+              "security": agent("Security", "subagent", "small", "qwen-3.8-27b"),
+              "thinker": agent("Thinker", "thinker", "large", "gpt-oss-120b"),
+              "executor": agent("Executor", "executor", "medium", "gpt-oss-120b")}
+    run = {"id": "20261028-115709", "trigger": "alert:ContainerCPUBusy", "mode": "live", "profile": "cerebras", "state": "done",
+           "cost_usd": 0.018, "agents": agents, "rejected": [], "signals": {"promql": [{"id": "promql:risk-scorer.cpu_flat",
+           "kind": "cpu_flat", "value": 0.96, "unit": "cores", "detail": "flat", "severity": "warning"}]},
+           "reports": {"promql": {"summary": UNSAFE, "findings": [{"title": "near one core", "severity": "warning", "category": "cpu",
+                                                                     "target": "deployment/lab/risk-scorer", "summary": UNSAFE,
+                                                                     "signal_ids": ["promql:risk-scorer.cpu_flat"]}]}},
+           "diagnosis": {"summary": "GIL-bound", "issues": [{"id": "I1", "title": "risk-scorer can only use one core", "category": "cpu",
+                                                            "severity": "warning", "confidence": 0.9, "root_cause": UNSAFE,
+                                                            "evidence": ["promql:risk-scorer.cpu_flat"], "targets": ["deployment/lab/risk-scorer"]}],
+                         "actions": [{"id": "A1", "issue": "I1", "type": "code_change", "target": "deployment/lab/risk-scorer",
+                                      "summary": "Use a process pool", "params": {}, "rationale": "GIL", "risk": "", "needs_human": False}]},
+           "executor": {"base": "main", "branch": "agents/20261028-115709-risk-scorer-cpu", "commit": "7024c5b1aaaa", "title": "Use processes",
+                        "edits": [{"path": "gitops/apps/risk-scorer/src/risk_scorer.py", "action": "A1", "by": "model"}],
+                        "diff": "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-from concurrent.futures import ThreadPoolExecutor\n"
+                                "+from concurrent.futures import ProcessPoolExecutor\n", "skipped": [], "rejected": [], "pr_url": None}}
+    return {"team": {"profile": "cerebras", "error": None, "agents": [{"name": n, **{k: a[k] for k in ("title", "role", "size", "label", "model")}}
+                                                                       for n, a in agents.items()],
+                     "rules": [{"file": "agents/rules/platform.txt", "text": "- risk-scorer needs all 3 cores"}]},
+            "run": run, "runs": [], "auto": True, "prs": True, "pending": None}
+
+
+def ring_fixture():
+    rec = lambda seq, stream, text: {"seq": seq, "ts": 1.79e9 + seq, "stream": stream, "text": text}
+    return [rec(1, "agent/promql", "▶ PromQL: collecting"), rec(2, "agent/thinker", "● I1 [warning] GIL"),
+            rec(3, "agent/executor", "  +from concurrent.futures import ProcessPoolExecutor"), rec(4, "agent/executor", UNSAFE),
+            rec(5, "testcase/cpu-code", "risk-scorer/abc transactions/s=6,400,000"), rec(6, "watch/pods", "risk-scorer-1 Running"),
+            rec(7, "journal", "agents: team run started"), rec(8, "access", "10.0.0.5 GET /.env -> 404"), rec(9, "tmux/ops", "$ kubectl top pods")]
 
 
 def traffic_fixture(status="completed", errors=0, *, logs=True):
@@ -336,6 +394,44 @@ def run(args):
                 expect(page.locator("#btn-theme")).to_have_attribute("aria-label", "Switch to light theme")
 
             scenario("theme-persistence-and-untrusted-text", theme_and_untrusted_text)
+
+            def agent_team(page, mock):
+                page.goto(url + "#lab")
+                expect(page.locator("#team-flow .agent")).to_have_count(6)
+                expect(page.locator("#team-detail .diff .add")).to_contain_text("ProcessPoolExecutor")
+                page.locator('[data-agent="promql"]').click()
+                expect(page.locator("#team-detail")).to_contain_text(UNSAFE)  # model text is shown as text
+                page.locator("#tc-select").select_option("cpu-code")
+                page.locator("#tc-start").click()
+                expect(page.locator("#tc-live")).to_contain_text("cpu-code")
+                assert [b for path, b in mock.requests if path == "/api/testcase"][-1] == {"action": "start", "name": "cpu-code"}
+                expect(page.locator("#tc-start")).to_be_disabled()
+                assert page.locator("img").count() == 0 and not page.evaluate("window.__untrusted_html_executed")
+
+            scenario("agent-team-panel", agent_team)
+
+            def tmux_mirror(page, mock):
+                page.goto(url + "#tmux")
+                expect(page.locator("#tx-win .pane")).to_have_count(6)
+                expect(page.locator("#tx-win")).to_contain_text("ProcessPoolExecutor")
+                assert page.locator("#tmuxview input, #tmuxview textarea, #tmuxview [contenteditable]").count() == 0
+                page.locator('#tx-windows [data-win="3"]').click()
+                expect(page.locator("#tx-win .pane")).to_have_count(1)
+                expect(page.locator("#tx-win")).to_contain_text("$ kubectl top pods")
+                page.locator("#tx-range").select_option("30")
+                assert page.locator("#tx-save").get_attribute("href") == "/api/ring/dump?minutes=30"
+                assert not any(path.startswith("/api/ring") and b for path, b in mock.requests), "the mirror must never POST"
+                assert page.locator("img").count() == 0
+
+            scenario("tmux-read-only-mirror", tmux_mirror)
+
+            def tmux_phone(page, mock):
+                page.goto(url + "#tmux")
+                expect(page.locator("#tx-win .pane")).to_have_count(6)
+                assert all(page.locator("#tx-win .pane").nth(i).bounding_box()["height"] > 200 for i in range(6))
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+            scenario("tmux-phone-width", tmux_phone, width=390)
 
             def responsive(page, mock):
                 mock.cluster["traffic"] = traffic_fixture(errors=20)

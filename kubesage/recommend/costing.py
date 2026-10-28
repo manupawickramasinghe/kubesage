@@ -65,7 +65,7 @@ class SkuCandidate(BaseModel):
 def node_candidates(demand: Demand, catalog: SkuCatalog) -> list[SkuCandidate]:
     """Every SKU that can host the demand, with the node count it needs, cheapest first."""
     out = []
-    for sku in catalog.skus:
+    for sku in (s for s in catalog.skus if s.planner):
         cpu_alloc, mem_alloc = sku.vcpu * catalog.allocatable_cpu, sku.memory_gib * 1024 * catalog.allocatable_mem
         if demand.largest_pod_cpu > cpu_alloc or demand.largest_pod_mem_mib > mem_alloc:
             continue

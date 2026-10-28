@@ -1,0 +1,9 @@
+name: resources
+title: System resources
+role: subagent
+order: 20
+model: small
+description: Nodes, pod scheduling, disk and volume usage and warning events, from the Kubernetes API and kubelet.
+max_findings: 8
+settings:
+  namespaces: [lab]

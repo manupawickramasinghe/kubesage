@@ -9,6 +9,9 @@
 | `config/skus.yaml` | the cost model: SKU catalog with Azure-like list prices, reference SKU for unit prices, allocatable fractions, `min_nodes`, the "before" pool, and the node label used for pools |
 | `scripts/versions.sh` | pinned k3d, kubectl, k3s image and KEDA versions, and the cluster name |
 | `deploy/k8s/demo/` | the demo workloads and their "before" requests (kustomize) |
+| `agents/` | The agent team: `models.yaml` (sizes per profile), `rules/*.txt` (custom rules), one folder per agent. See [agents.md](agents.md). |
+| `gitops/` | Desired state the test cases deploy and the Executor edits: `apps/<app>/` and `infra/nodepools.tf` |
+| `deploy/alerts/` | vmalert rules and the Alertmanager config for the lab namespace |
 | `.env` | API keys. **Gitignored; never commit it.** |
 
 ### A model tier
@@ -60,6 +63,10 @@ threads and 14 GiB.
 | `TWO_NODE`, `CHEAP_SKU` | `cluster-up.sh` | single-host alternative: a second k3d container labelled `CHEAP_SKU` |
 | `SUDO_PASSWORD` | `join-node.sh`, `leave-node.sh` | remote sudo password. Prompted for when unset; sent over SSH stdin only. |
 | `VM_CONTAINER` | `live-up.sh` | VictoriaMetrics container name, default `kubesage-victoriametrics-1` |
+| `KUBESAGE_AGENTS_DIR` | serve, agents | alternative `agents/` folder |
+| `KUBESAGE_AGENTS_BASE` | serve, agents | the branch Executor branches start from (default the executor's `settings.base_branch`, `main`) |
+| `KUBESAGE_ALERTMANAGER_URL` | serve, agents | default `http://localhost:9193` |
+| `KUBESAGE_RING`, `KUBESAGE_RING_MB` | serve, ring, tmux | the RAM ring's path (default `/dev/shm/kubesage-ring`) and size in MiB (default 500) |
 
 ## CLI flags shared by `stats`, `analyze`, `serve`, `simulate`
 

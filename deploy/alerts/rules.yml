@@ -1,0 +1,74 @@
+# Alert rules for the lab namespace, evaluated by vmalert against VictoriaMetrics and sent to Alertmanager.
+# The KubeSage alerts agent reads what is firing from Alertmanager's API. The rules are generic symptoms; none
+# of them names a test case or its fix, so the agents have to work out the cause themselves.
+groups:
+  - name: kubesage-lab
+    interval: 15s
+    rules:
+      - alert: ContainerMemoryNearLimit
+        expr: |
+          max by (namespace, pod, container) (container_memory_working_set_bytes{namespace="lab", container!=""})
+            / max by (namespace, pod, container) (kube_pod_container_resource_limits{namespace="lab", resource="memory"}) > 0.85
+        for: 15s
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.pod }} uses {{ $value | humanizePercentage }} of its memory limit"
+      - alert: ContainerOOMKilled
+        expr: |
+          increase(container_oom_events_total{namespace="lab", container!=""}[10m]) > 0
+            or (increase(kube_pod_container_status_restarts_total{namespace="lab"}[10m]) > 0
+                and on (namespace, pod, container) kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1)
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.pod }} ({{ $labels.container }}) was OOM-killed in the last 10 minutes"
+      - alert: CPUThrottlingHigh
+        expr: |
+          sum by (namespace, pod, container) (rate(container_cpu_cfs_throttled_periods_total{namespace="lab", container!=""}[2m]))
+            / sum by (namespace, pod, container) (rate(container_cpu_cfs_periods_total{namespace="lab", container!=""}[2m])) > 0.5
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.pod }} is CPU-throttled in {{ $value | humanizePercentage }} of scheduling periods"
+      - alert: ContainerCPUBusy
+        expr: sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total{namespace="lab", container!=""}[2m])) > 0.9
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.pod }} has used {{ $value | printf \"%.2f\" }} cores for over a minute"
+      - alert: DiskWriteHeavy
+        expr: sum by (namespace, pod) (rate(container_fs_writes_bytes_total{namespace="lab", container!=""}[1m])) > 15e6
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.pod }} writes {{ $value | humanize1024 }}B/s to disk"
+      - alert: VolumeAlmostFull
+        expr: kubesage_pod_volume_used_bytes{namespace="lab"} / kubesage_pod_volume_limit_bytes{namespace="lab"} > 0.85
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.pod }} volume {{ $labels.volume }} is {{ $value | humanizePercentage }} full"
+      - alert: LatencyP95High
+        # What callers wait (the in-cluster probe), or what the app measures itself, whichever is over.
+        expr: |
+          label_replace(histogram_quantile(0.95, sum by (le, namespace, target) (rate(probe_http_duration_seconds_bucket{namespace="lab"}[1m]))),
+                        "app", "$1", "target", "(.*)") > 0.5
+            or histogram_quantile(0.95, sum by (le, namespace, app) (rate(http_request_duration_seconds_bucket{namespace="lab"}[1m]))) > 0.5
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.app }} p95 latency is {{ $value | printf \"%.2f\" }} s"
+      - alert: PodsPending
+        expr: sum by (namespace) (kube_pod_status_phase{namespace="lab", phase="Pending"}) > 0
+        for: 45s
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value }} pods in {{ $labels.namespace }} are Pending"
+      - alert: NodePodDensityHigh
+        expr: count by (node) (kube_pod_info{node!=""}) / on (node) max by (node) (kube_node_status_capacity{resource="pods"}) > 0.6
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.node }} runs {{ $value | humanizePercentage }} of its pod capacity"
+      - alert: UnmanagedPod
+        expr: kube_pod_owner{namespace="lab", owner_kind=""} == 1  # kube-state-metrics omits owner_kind for bare pods
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.pod }} has no controller: it was created by hand"

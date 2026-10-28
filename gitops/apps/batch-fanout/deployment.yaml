@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: batch-fanout
+  labels: {app: batch-fanout}
+spec:
+  replicas: 12
+  selector:
+    matchLabels: {app: batch-fanout}
+  template:
+    metadata:
+      labels: {app: batch-fanout}
+    spec:
+      nodeSelector: {kubesage.io/pool: lab}
+      terminationGracePeriodSeconds: 2
+      containers:
+        - name: batch-fanout
+          image: docker.io/rancher/mirrored-pause:3.10.2
+          resources:
+            requests: {cpu: "1", memory: 16Mi}
+            limits: {memory: 16Mi}

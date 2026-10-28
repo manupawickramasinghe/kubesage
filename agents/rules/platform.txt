@@ -1,0 +1,22 @@
+# Platform rules for the KubeSage demo cluster. One rule per line or paragraph, plain English.
+
+- The lab pool (node label kubesage.io/pool=lab) is the 3500U laptop, standing in for one Azure F8s_v2 node.
+  The system pool is the 8600G desktop, standing in for one D8s_v5. Never schedule lab workloads on the system pool.
+- The laptop also runs Pi-hole and GitHub runners outside Kubernetes. Keep at least 2 cores and 4 GiB of it free:
+  don't recommend requests that would push the lab pool's total requests above 6 cores or 10 GiB.
+- ledger-cache holds the month's ledger in RAM by design, so lookups never touch disk. Never "fix" it by shrinking
+  or evicting the cache. Its working set grows with the month: about 700 MiB on the 1st and about 20 GiB at month
+  end. Give it a limit of at least twice today's working set now, and make sure its node pool can hold the
+  month-end size.
+- risk-scorer is sized for month-end volume: it needs all 3 of its cores to keep up. Never cut its CPU. If it can't
+  use the cores it has, fix that.
+- report-worker (demo namespace) does heavy memory reads and writes at month end. Never cut its memory below 2 GiB.
+- payment-service and auth-api (demo namespace) must keep at least 2 replicas' worth of headroom; don't move them
+  onto the lab pool.
+- log-shipper's fsync-per-block is a compliance requirement for the audit trail: every block must be on disk
+  before the next one is accepted. Don't propose removing or batching the fsyncs; fix its disk problem with storage.
+- Anything in the lab namespace that is not in gitops/ was not deployed by the platform team.
+- The lab images still run as root. Enforce Pod Security level baseline on the lab namespace (with warn and audit
+  at restricted) until they are rebuilt; restricted would block them.
+- Prefer the cheapest change that fixes the problem: code and request changes before bigger SKUs, and bigger SKUs
+  before more nodes.

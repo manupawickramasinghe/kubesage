@@ -48,10 +48,10 @@ if [ "$TWO_NODE" = 1 ] && [ -z "$(agents)" ]; then
   kubectl wait --for=condition=Ready nodes --all --timeout=120s
 fi
 server=$(kubectl get nodes -l node-role.kubernetes.io/control-plane -o name)
-kubectl label --overwrite $server "$NODE_LABEL=$CURRENT_SKU"
+kubectl label --overwrite $server "$NODE_LABEL=$CURRENT_SKU" kubesage.io/pool=system
 for node in $(agents); do
   [ -n "$(kubectl get "$node" -o jsonpath='{.metadata.annotations.kubesage\.io/host}')" ] && continue  # a joined machine
-  kubectl label --overwrite "$node" "$NODE_LABEL=$CHEAP_SKU"
+  kubectl label --overwrite "$node" "$NODE_LABEL=$CHEAP_SKU" kubesage.io/pool=lab
 done
 # What the UI shows for each node: the real machine behind it, not just the pool label.
 for node in $server $( [ "$TWO_NODE" = 1 ] && agents || true ); do

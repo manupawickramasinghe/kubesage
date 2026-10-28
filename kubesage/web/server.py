@@ -25,10 +25,11 @@ from urllib.parse import parse_qs, urlsplit
 
 import yaml
 
-from kubesage import apply, gitops, journal, live
+from kubesage import apply, gitops, journal, kubestats, live, ring
 from kubesage.config import CONFIG_DIR, load_models, load_skus
 from kubesage.service import AnalysisError, analyze_now, resolve_mode
 from kubesage.web import shell
+from kubesage.web.team_api import TeamApi
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -44,6 +45,9 @@ class Settings:
     gitops_repo: Path | None = None
     gitops_base: str | None = None
     gitops_path: str = "kubesage/demo"
+    alertmanager: str = "http://localhost:9193"
+    agent_prs: bool = False   # let the Executor push branches and open pull requests
+    auto_agents: bool = True  # run the agent team when a lab alert fires
 
 
 def _kubectl_json(*args: str) -> dict | None:
@@ -191,6 +195,10 @@ class Api:
         self._cluster_gen = 0
         self._desired_cached = None
         self.journal = journal.attach()
+        self.team = TeamApi(vm=settings.vm, alertmanager=settings.alertmanager, out_dir=settings.out_dir,
+                            mode=settings.mode, prs=settings.agent_prs, auto=settings.auto_agents)
+        if self.team.ring is not None:
+            self.journal.sink = lambda e: ring.emit("journal", f"{e['unit']}: {e['msg']}")
         self._events_lock = threading.Lock()
         self._events_read = 0.0
         self._events_seen: dict[str, str] = {}
@@ -742,6 +750,8 @@ def make_handler(api: Api):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, payload: dict | bytes, content_type: str = "application/json",
                   cache: str = "no-store") -> None:
+            api.team.record_access(self.client_address[0], self.command, self.path, status,
+                                   self.headers.get("User-Agent", ""), getattr(self, "refused", None))
             secrets = [value for name in key_names if len(value := os.environ.get(name, "")) >= 8]
             body = payload if isinstance(payload, bytes) else json.dumps(_redact(payload, secrets)).encode()
             self.send_response(status)
@@ -757,8 +767,14 @@ def make_handler(api: Api):
             routes = {"/api/config": api.config, "/api/report": lambda: api.report(query.get("run", [None])[0]),
                       "/api/reports": api.reports, "/api/cluster": api.cluster, "/api/lab": api.lab,
                       "/api/events": lambda: api.events(query.get("after", [None])[0]),
-                      "/api/trace": lambda: api.trace(query.get("run", [None])[0])}
-            if path.path in ("/", "/index.html"):
+                      "/api/trace": lambda: api.trace(query.get("run", [None])[0]),
+                      "/api/testcases": api.team.testcases, "/api/agents": api.team.overview,
+                      "/api/agents/run": lambda: api.team.get_run(query.get("id", [None])[0]),
+                      "/api/ring": lambda: api.team.ring_read(*(query.get(k, [None])[0] for k in ("after", "streams", "limit", "tail"))),
+                      "/api/ring/stat": api.team.ring_stat}
+            if path.path == "/api/ring/dump":
+                self._dump(query)
+            elif path.path in ("/", "/index.html"):
                 self._send(200, page, "text/html; charset=utf-8")
             elif path.path in fonts:
                 self._send(200, fonts[path.path], "font/woff2", cache="public, max-age=86400")
@@ -770,7 +786,32 @@ def make_handler(api: Api):
             else:
                 self._send(404, {"error": "not found"})
 
+        def _dump(self, query: dict) -> None:
+            """Stream part of the RAM ring as a text download, without building it in memory."""
+            try:
+                lines = api.team.ring_dump(query.get("minutes", [None])[0], query.get("streams", [None])[0])
+            except ValueError as exc:
+                self._send(400, {"error": str(exc)})
+                return
+            api.team.record_access(self.client_address[0], self.command, self.path, 200, self.headers.get("User-Agent", ""))
+            secrets = [value for name in key_names if len(value := os.environ.get(name, "")) >= 8]
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="kubesage-ring-{time.strftime("%Y%m%d-%H%M%S")}.log"')
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            buf = []
+            for line in lines:
+                buf.append(_redact(line, secrets))
+                if len(buf) >= 2000:
+                    self.wfile.write("".join(buf).encode())
+                    buf = []
+            self.wfile.write("".join(buf).encode())
+
         def do_POST(self):
+            self.refused = None
             if self.headers.get("X-KubeSage") != "1":
                 self._send(403, {"error": "missing X-KubeSage header"})
                 return
@@ -795,12 +836,18 @@ def make_handler(api: Api):
             routes = {"/api/analyze": lambda: api.analyze(), "/api/apply": lambda: api.apply(body),
                       "/api/spike": lambda: api.spike(body), "/api/reset": lambda: api.reset(),
                       "/api/gitops": lambda: api.gitops(body), "/api/shell": lambda: api.shell(body),
-                      "/api/backfill": lambda: api.backfill(body)}
+                      "/api/backfill": lambda: api.backfill(body),
+                      "/api/testcase": lambda: api.team.testcase(body), "/api/agents/run": lambda: api.team.run(body),
+                      "/api/agents/pr": lambda: api.team.pr(body), "/api/agents/apply": lambda: api.team.apply(body),
+                      "/api/agents/auto": lambda: api.team.set_auto(body)}
             if self.path not in routes:
                 self._send(404, {"error": "not found"})
                 return
             try:
-                self._send(*routes[self.path]())
+                status, payload = routes[self.path]()
+                if self.path == "/api/shell" and isinstance(payload, dict) and payload.get("exit") == 2:
+                    self.refused = str(body.get("cmd", ""))[:200]  # the security agent reads refused commands
+                self._send(status, payload)
             except Exception as exc:  # surface failures in the UI's activity log instead of a dropped connection
                 self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
 
@@ -810,5 +857,10 @@ def make_handler(api: Api):
     return Handler
 
 
-def serve(settings: Settings, host: str, port: int) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer((host, port), make_handler(Api(settings)))
+def serve(settings: Settings, host: str, port: int, *, background: bool = False) -> ThreadingHTTPServer:
+    """background: also start the kubelet-stats exporter, the alert watcher and the lab log followers."""
+    api = Api(settings)
+    if background:
+        kubestats.start(settings.vm)
+        api.team.start_background()
+    return ThreadingHTTPServer((host, port), make_handler(api))

@@ -186,16 +186,22 @@ the browser's last validation result are session information.
 
 ## Architecture & CLI lab
 
-The header's **FinOps dashboard | Architecture & CLI lab** switch opens the engineering view of the same system
-(`#lab` in the URL, so a reload or a shared link keeps it). Everything on it is read from the server: live numbers,
-real log lines, requests exactly as sent. Nothing is simulated.
+The header's **FinOps dashboard | Architecture & CLI lab | tmux** switch opens the engineering view of the same
+system (`#lab` in the URL, so a reload or a shared link keeps it). Everything on it is read from the server: live
+numbers, real log lines, requests exactly as sent. Nothing is simulated.
 
-![The Architecture & CLI lab](images/ui-lab.png)
+The page has three parts, in this order; the **Agent team · Pipeline · Terminal** buttons under the title jump to
+each:
+1. the [agent team](#agent-team-top-of-the-lab), for live incidents;
+2. the **right-sizing pipeline**, the five stages behind the dashboard;
+3. the **terminal**: shell, journal and wire panes.
 
-- **Actions**: Backfill 30 days, Run analysis, Apply fixes, Send traffic and Reset demo. They are the dashboard's
-  actions, with the same operation lock. Backfill is the lab's own. It regenerates the 30-day scenario history
-  in VictoriaMetrics, which **replaces** everything stored for the namespace, including the live tail, so it asks
-  first.
+![The right-sizing pipeline and the terminal](images/ui-lab.png)
+
+- **Pipeline actions**, beside the pipeline's title: Backfill 30 days, Run analysis, Apply fixes and Send traffic.
+  They are the dashboard's actions, with the same operation lock (**Reset demo** stays in the header). Backfill is
+  the lab's own. It regenerates the 30-day scenario history in VictoriaMetrics, which **replaces** everything stored
+  for the namespace, including the live tail, so it asks first.
 - **Dataflow, five stages**:
   1. **Metrics**: VictoriaMetrics, its live series and how old the newest sample is, plus the PromQL queries the
      selected run made.
@@ -235,6 +241,50 @@ real log lines, requests exactly as sent. Nothing is simulated.
   never stored or sent to the browser. Runs from before request tracing show no exchanges.
 
 On a phone the stages stack, and the terminal shows one pane at a time; switch panes from the green status bar.
+Below 380 px the header tabs shorten to **Dashboard · Lab · tmux**.
+
+### Agent team (top of the lab)
+
+![The agent team](images/ui-agents.png)
+
+- **Run agent team** (top right) runs it now. With **Auto-run on alerts** on, the team runs 45 s after a new lab
+  alert fires.
+- The **test case** box: the dropdown, **Start test** and **Stop** deploy or remove one of the nine live test cases
+  in the `lab` namespace (high memory, CPU throttled, single-threaded code, disk I/O, disk storage, latency,
+  Pending pods, pod density, a hand-made insecure pod). Under them: what the test case does and the fix to expect.
+  On the right, badges show running test cases with their pod phases and restarts, and the lab alerts firing in
+  Alertmanager.
+- The **run bar**: the last run's state, id, how and when it started, how long it took, what it cost, and
+  **Follow in tmux**.
+- The **team diagram**, left to right: *1 · Sub-agents collect* (four cards, small model) → *2 · Thinker decides*
+  (large) → *3 · Executor changes* (medium). Each card shows its model, signals or findings, time and cost, and a
+  light: violet while it works, green when done, red on error. An arrow's dashes move while the next agent works.
+- Under it, **Diagnosis**: the Thinker's summary, then each issue with its severity, confidence and root cause, and
+  its actions (type, target, what to do and why; SKU changes add their monthly cost). Then **Change**: the
+  Executor's commit title, branch and commit, the changed files and a diff split by file. Select a sub-agent card
+  for its own findings and over-threshold signals instead; select it again to go back.
+- Change buttons: **Dry-run apply** (`kubectl apply --dry-run=server`), **Apply to cluster** (asks first; lab
+  namespace only; Terraform changes are never applied), **Open pull request** (only with `--agent-prs`).
+- **Custom rules**: the `agents/rules/` files the Thinker and Executor follow, read-only here.
+
+## tmux
+
+The header's third tab is a read-only mirror of the server's RAM ring, laid out like tmux:
+- window **0:agents**: one pane per agent, with its signals, findings, model calls and their reasoning, edits
+  and the diff, as they happen;
+- **1:testcases**: test-case starts and stops, the test pods' own logs, alerts, and
+  `kubectl get pods,events -n lab -w`;
+- **2:journal**: the lab journal, and requests that got a 403 or 404 or a refused shell command;
+- **3:ops**: whatever the presenter types in the `ops` window of `kubesage tmux` on the server, piped in as text.
+
+Each agent pane's title shows the agent, its model and its state in the last run. The model's own reasoning is
+grey italic, so the findings (yellow), results (green) and edits stand out.
+
+Nothing typed in the browser reaches a terminal: there is no input box, and the ring has no write endpoint (the
+**read-only mirror** badge). The top bar has the ring's size in RAM, the test-case controls and **run agents**,
+then **save** (the last 5 or 30 minutes, or everything held, as a text file) and **pause**.
+
+![The tmux view](images/ui-tmux.png)
 
 ## Interactions
 

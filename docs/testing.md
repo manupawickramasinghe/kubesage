@@ -15,6 +15,7 @@
 | `test_demo_manifests.py` | demo manifests match the simulated scenarios and start on the current pool |
 | `test_demo_app.py` | the demo app's `/work` endpoint burns CPU; the spike Job uses the demo app image |
 | `test_gitops.py` | the overlay is committed on a branch and pushed; it builds with kustomize |
+| `test_agents.py` | The RAM ring (wraparound, several writers, escape stripping); loading `agents/` (new and disabled agents, unknown sizes); edit validation (exact match, paths, duplicate YAML keys, Python, Terraform SKUs); deterministic edits; the Thinker's guardrails (evidence, targets, SKUs, today's node capacity); a full mock team run that commits to a throwaway git origin; the security collector; test-case manifests and status; the team, test-case and ring endpoints (validation, read-only ring, redacted dump, access log) |
 | `test_web.py` | Reports/history and selected runs, request validation, mutation locking, namespace isolation, fonts, quantity parsing, live plan/drift/readiness and traffic status, unavailable cluster data, and JavaScript parsing (`node --check`) |
 
 Mock mode makes the pipeline deterministic, so tests never call an LLM.
@@ -31,7 +32,8 @@ APIs, so it spends no LLM credit and makes no cluster changes:
 ```
 
 It checks selection, validation/apply/reload, traffic/reset, history-pinned actions, downloads, filters,
-failure states, measured traffic success/errors/latency, and responsive layouts in both themes at 390, 768 and 1400 px. Screenshots and `results.json`
+failure states, measured traffic success/errors/latency, the agent team panel (untrusted model text stays text),
+the tmux mirror (no input elements, never POSTs, panes visible at phone width), and responsive layouts in both themes at 390, 768 and 1400 px. Screenshots and `results.json`
 are written to the output directory. Normal pytest runs do not require a browser. Check Firefox/Zen manually
 as well when available.
 

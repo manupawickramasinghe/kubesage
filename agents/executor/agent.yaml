@@ -1,0 +1,8 @@
+name: executor
+title: Executor
+role: executor
+model: medium           # mid-size: it writes precise edits, the reasoning is already done
+description: Turns the Thinker's actions into exact edits under gitops/ and writes the pull request.
+settings:
+  base_branch: main     # executor branches start from origin/<base_branch>; KUBESAGE_AGENTS_BASE overrides it
+  branch_prefix: agents/
