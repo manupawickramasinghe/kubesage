@@ -9,6 +9,7 @@ cheap one says it needs it.
 
 **Docs:** [docs/](docs/README.md). Start with the [UI guide](docs/ui-guide.md). The demo runs on
 [two real machines](docs/cluster.md), and there's a [handover](docs/HANDOVER.md) for reviewers.
+The [29 October project review](docs/REVIEW_REPORT.md) records current validation and unresolved issues.
 
 ```
  Prometheus / VictoriaMetrics
@@ -23,11 +24,12 @@ cheap one says it needs it.
  Stage 3  remediation (Muse Spark / Wonder) ─ returns parameters, not YAML
             │
             ▼
- guardrails (never below observed usage) → YAML renderer → cost model → node-pool plan (Wonder)
+ guardrails (observed-usage floors) → YAML renderer → cost model → node-pool plan (Wonder)
 ```
 
-Models return structured parameters, never raw YAML. Deterministic guardrails clamp anything below observed
-usage, and every clamp is reported, so a bad model answer can't OOM-kill a pod.
+The FinOps models return structured parameters, which KubeSage renders into YAML. Deterministic guardrails
+apply resource floors from observed usage and report many adjustments. They do not guarantee future capacity
+or freedom from OOMs; review generated plans and the remaining guardrail gaps in the project review.
 
 ## Quickstart
 

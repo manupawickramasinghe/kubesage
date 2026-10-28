@@ -1,5 +1,10 @@
 # Testing
 
+Fresh verification on **29 October 2026**, revision `c2d9481`: **119 pytest tests and 20 browser scenarios
+passed**. Additional failure probes found issues outside that regression coverage; see
+[REVIEW_REPORT.md](REVIEW_REPORT.md). Earlier live demonstrations below are historical evidence, not runs
+repeated for the report update.
+
 ## Automated (`pytest`, no cluster or network needed)
 
 ```bash
@@ -9,13 +14,14 @@
 | file | covers |
 |---|---|
 | `tests/conftest.py` | session fixtures: the five demo scenarios reduced to Stage 1 stats, and a mock-mode analysis |
-| `test_pipeline.py` | Stage 1 signals, routing, recommendations, resource/replica guardrails, CPU scaling headroom, node sizing at CPU maximum replicas, invalid and overnight cron windows, overlapping schedule costs |
+| `test_pipeline.py` | Stage 1 signals, routing, recommendations, resource/replica guardrails, scheduled-peak sizing with separate CPU-ceiling burst checks, invalid and overnight cron windows, overlapping schedule costs |
 | `test_apply.py` | Patch ordering, Ready/schedulable target node capacity, migration skips, apply timeouts and stopping after failures, ignoring incomplete runs |
 | `test_service.py` | Atomic report publication, failed writes preserve the previous report, existing runs cannot be overwritten |
 | `test_demo_manifests.py` | demo manifests match the simulated scenarios and start on the current pool |
 | `test_demo_app.py` | the demo app's `/work` endpoint burns CPU; the spike Job uses the demo app image |
 | `test_gitops.py` | the overlay is committed on a branch and pushed; it builds with kustomize |
 | `test_agents.py` | The RAM ring (wraparound, several writers, escape stripping); loading `agents/` (new and disabled agents, unknown sizes); edit validation (exact match, paths, duplicate YAML keys, Python, Terraform SKUs); deterministic edits; the Thinker's guardrails (evidence, targets, SKUs, today's node capacity); a full mock team run that commits to a throwaway git origin; the security collector; test-case manifests and status; the team, test-case and ring endpoints (validation, read-only ring, redacted dump, access log) |
+| `test_lab.py` | Inspection-shell command refusals/argument construction, safe trace Authorization placeholders, Lab status and journal behavior |
 | `test_web.py` | Reports/history and selected runs, request validation, mutation locking, namespace isolation, fonts, quantity parsing, live plan/drift/readiness and traffic status, unavailable cluster data, and JavaScript parsing (`node --check`) |
 
 Mock mode makes the pipeline deterministic, so tests never call an LLM.
@@ -33,7 +39,9 @@ APIs, so it spends no LLM credit and makes no cluster changes:
 
 It checks selection, validation/apply/reload, traffic/reset, history-pinned actions, downloads, filters,
 failure states, measured traffic success/errors/latency, the agent team panel (untrusted model text stays text),
-the tmux mirror (no input elements, never POSTs, panes visible at phone width), and responsive layouts in both themes at 390, 768 and 1400 px. Screenshots and `results.json`
+the tmux mirror (no terminal input, GET-based ring polling, panes visible at phone width), and responsive
+layouts in both themes at 390, 768 and 1400 px. Toolbar Start/Stop testcase and Run agents controls do POST;
+read-only describes the terminal mirror, not every control in the view. Screenshots and `results.json`
 are written to the output directory. Normal pytest runs do not require a browser. Check Firefox/Zen manually
 as well when available.
 
@@ -99,8 +107,9 @@ For a new run, verify the current plan rather than expecting the historical SKU 
 5. Reset at the end. Saved analysis reports should remain available, while live plan status reflects the
    reset cluster.
 
-Node sizing now includes maximum CPU autoscaler replicas. Some plans require additional capacity and can
-cost more than the baseline; reporting a negative saving is valid.
+Node sizing uses scheduled peaks. Maximum CPU autoscaler demand is checked separately as `demand_burst`;
+notes report modelled fit/shortfall. Some plans require additional capacity and can cost more than the
+baseline; reporting a negative saving is valid.
 
 ## Manual: cleanup
 

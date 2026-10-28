@@ -99,9 +99,11 @@ window appear above them; applying changes does not rewrite this evidence.
 Prices are a **cost model**: Azure list prices from `config/skus.yaml`. The 8600G stands in for a D8s_v5 node
 and the 3500U for an F8s_v2. The hardware itself isn't priced.
 
-The node pool must fit CPU autoscalers at their maximum replicas, so extra scaling headroom can require more
-machines. Workload costs use the scheduled average replica count, with overlapping cron windows taking the
-largest active target; unpredictable CPU scale-out is excluded from that average. A workload can also cost
+The node pool is sized for scheduled peaks. Maximum CPU autoscaler demand is calculated separately, and the
+plan notes explain whether that burst fits or exceeds the modelled pool. This does not guarantee scheduler
+placement or reserve every workload's maximum at once. Workload costs use the scheduled average replica
+count, with overlapping cron windows taking the largest active target; unpredictable CPU scale-out is
+excluded from that average. A workload can also cost
 more when safety guardrails require more CPU, memory or replicas. These estimates are potential changes,
 not a measured bill reduction.
 
@@ -187,8 +189,9 @@ the browser's last validation result are session information.
 ## Architecture & CLI lab
 
 The header's **FinOps dashboard | Architecture & CLI lab | tmux** switch opens the engineering view of the same
-system (`#lab` in the URL, so a reload or a shared link keeps it). Everything on it is read from the server: live
-numbers, real log lines, requests exactly as sent. Nothing is simulated.
+system (`#lab` in the URL, so a reload or a shared link keeps it). It exposes server readings, log lines and
+request traces. Mock LLM mode and synthetic metrics backfill are still supported; check the mode and source
+of each result. “Read from the server” does not mean every value is a live production measurement.
 
 The page has three parts, in this order; the **Agent team · Pipeline · Terminal** buttons under the title jump to
 each:

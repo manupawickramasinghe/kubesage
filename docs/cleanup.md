@@ -49,9 +49,12 @@ flowchart LR
 | Images `rancher/k3s`, `ghcr.io/k3d-io/k3d-*`, `victoriametrics/victoria-metrics`, `grafana/grafana:11.6.0` | kept | removed, unless another container still uses them, or another k3d cluster exists |
 | `.bin/` (k3d, kubectl, `joined-nodes`) and `out/` (analysis runs) | kept | removed |
 
-**Never touched:** `.env` (API keys), `.venv`, the repo and its git history, the GitHub repo, your Obsidian
-notes, `~/.kube/config`, and anything KubeSage didn't create. On the laptop, Docker and all its containers
-(Pi-hole, runners, …) are left alone: k3s' uninstaller only removes its own iptables chains.
+**Intended preservation:** `.env` (API keys), `.venv`, the repo and its git history, the GitHub repo, your
+Obsidian notes and `~/.kube/config`. The script does not stop or delete unrelated Docker containers, but its
+current network-detach loop can disconnect any container attached to the k3d network without checking
+KubeSage ownership. Remote uninstall also has incomplete failure handling. These are open findings F04/F20
+in the [29 October review](REVIEW_REPORT.md), so this is not a guarantee that unrelated services remain
+unaffected. No new teardown or laptop uninstall was performed for that review.
 
 ## Finding the joined machines
 
