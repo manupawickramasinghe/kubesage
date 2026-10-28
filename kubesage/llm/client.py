@@ -69,8 +69,13 @@ class LLMClient:
                    stage: str, workload: str, unit: str = "router", flow_stage: int | None = None) -> tuple[T, LedgerEntry]:
         cfg = self.models.tiers[tier]
         started = time.perf_counter()
+        flow_stage = flow_stage or (2 if stage == "triage" else 3)
         if self.mode == "live":
-            result, (inp, cached, out), exchanges = self._live(tier, system, user, schema)
+            try:
+                result, (inp, cached, out), exchanges = self._live(tier, system, user, schema)
+            except LLMError as exc:  # keep what the provider sent, so a failed run's trace shows why
+                self._record(getattr(exc, "exchanges", []), flow_stage, stage, workload, tier)
+                raise
         else:
             result = mock()
             inp = estimate_tokens(system) + estimate_tokens(user)
@@ -83,16 +88,19 @@ class LLMClient:
         entry = LedgerEntry(stage=stage, workload=workload, tier=tier, model=cfg.model, input_tokens=inp,
                             cached_tokens=cached, output_tokens=out, cost_usd=cfg.cost(inp, cached, out),
                             latency_ms=int((time.perf_counter() - started) * 1000), mock=self.mode != "live")
-        flow_stage = flow_stage or (2 if stage == "triage" else 3)
+        self._record(exchanges, flow_stage, stage, workload, tier)
+        log(unit, f"{stage} {workload} on {cfg.label or tier} ({cfg.model}{', mock' if entry.mock else ''}): "
+                  f"{inp} in{f' ({cached} cached)' if cached else ''} / {out} out tokens, ${entry.cost_usd:.4f}, "
+                  f"{entry.latency_ms} ms", stage=flow_stage)
+        return result, entry
+
+    def _record(self, exchanges: list[dict], flow_stage: int, stage: str, workload: str, tier: str) -> None:
+        cfg = self.models.tiers[tier]
         with self._lock:
             for attempt, exchange in enumerate(exchanges, 1):
                 self.trace.append({"kind": "llm", "stage": flow_stage, "llm_stage": stage,
                                    "workload": workload, "tier": tier, "label": cfg.label or tier, "model": cfg.model,
                                    "attempt": attempt, **exchange})
-        log(unit, f"{stage} {workload} on {cfg.label or tier} ({cfg.model}{', mock' if entry.mock else ''}): "
-                  f"{inp} in{f' ({cached} cached)' if cached else ''} / {out} out tokens, ${entry.cost_usd:.4f}, "
-                  f"{entry.latency_ms} ms", stage=flow_stage)
-        return result, entry
 
     def _body(self, tier: str, messages: list[dict]) -> dict:
         cfg = self.models.tiers[tier]
@@ -162,4 +170,6 @@ class LLMClient:
                 problem = "invalid JSON"
                 messages += [{"role": "assistant", "content": content},
                              {"role": "user", "content": f"That JSON failed validation:\n{exc}\nReply with corrected JSON only."}]
-        raise LLMError(f"{cfg.model} failed twice for {schema.__name__}: {problem}")
+        error = LLMError(f"{cfg.model} failed twice for {schema.__name__}: {problem}")
+        error.exchanges = exchanges
+        raise error

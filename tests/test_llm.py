@@ -45,6 +45,8 @@ def test_two_empty_replies_raise_an_llm_error_naming_the_cause(monkeypatch):
     llm, _ = client(monkeypatch, [reply(finish="length"), reply("")])
     with pytest.raises(LLMError, match=r"no answer \(finish_reason 'stop'"):
         call(llm)
+    # both replies stay in the trace, so the run's trace.json shows what the provider sent
+    assert [(x["attempt"], x["response"]["body"]["choices"][0]["finish_reason"]) for x in llm.trace] == [(1, "length"), (2, "stop")]
 
 
 def test_invalid_json_is_fed_back_once(monkeypatch):
