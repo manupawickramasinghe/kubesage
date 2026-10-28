@@ -369,6 +369,8 @@
     font: 500 13px var(--sans); cursor: pointer; white-space: nowrap; }
   .viewtab[aria-selected="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
   .viewtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .vt-short { display: none; }
+  @media (max-width: 380px) { .vt-long { display: none; } .vt-short { display: inline; } }
   .lab { max-width: 1320px; margin: 0 auto; padding: 0 16px 72px; }
   .lab-hero { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; padding: 40px 0 20px; }
   .lab-hero h1 { font-size: clamp(32px, 5vw, 46px); }
@@ -398,7 +400,6 @@
   @keyframes dash { to { background-position: 8px 0; } }
   @media (max-width: 1000px) { .stage::after { top: auto; bottom: -15px; right: auto; left: 24px; width: 2px; height: 16px; }
     .stage.flowing::after { background: linear-gradient(180deg, var(--rec) 40%, transparent 40%) 0 0 / 2px 8px repeat-y; } }
-  .flow-note { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
 
   .tmux { --t-bg: #0f0f0e; --t-bg2: #171715; --t-fg: #e6e6e1; --t-dim: #8a8a83; --t-line: #2a2a27; --t-green: #6fdc8c;
     --t-cyan: #6cd4ea; --t-yellow: #f2c94c; --t-red: #ff7b72; --t-violet: #b6a6ff;
@@ -420,11 +421,15 @@
   .tbtn:focus-visible, .tmux input:focus-visible, .tmux select:focus-visible { outline: 2px solid var(--t-violet); outline-offset: 1px; }
   .scroll { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px; }
   .sh-out div { white-space: pre; }  /* tables keep their columns; the pane scrolls sideways like a terminal */
+  .sh-out div.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
   .jr div { white-space: pre-wrap; overflow-wrap: anywhere; }
   .sh-prompt { color: var(--t-green); } .sh-err { color: var(--t-red); } .sh-dim { color: var(--t-dim); }
   .sh-line { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--t-line); }
   .sh-line input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--t-fg); font: inherit; }
-  .xkeys { display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px; background: var(--t-bg2); border-top: 1px solid var(--t-line); }
+  .xkeys { display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px; background: var(--t-bg2); border-top: 1px solid var(--t-line);
+    scrollbar-width: thin; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+  .xkeys::after { content: ""; flex: 0 0 24px; }
   .jr .t { color: var(--t-dim); } .jr .u { color: var(--t-cyan); } .jr .warn { color: var(--t-yellow); } .jr .error { color: var(--t-red); }
   .jr .st { color: var(--t-violet); }
   .wire { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); flex: 1; min-height: 0; }
@@ -444,56 +449,127 @@
   .tmux-status button[aria-selected="true"] { background: #e9ffef; color: #1f6f43; }
   .tmux-status .sp { flex: 1; }
 
+  /* ---------- Lab sections ---------- */
+  .lab, .tmuxview { scroll-margin-top: 80px; }
+  .lab-jump { display: flex; flex-wrap: wrap; gap: 4px; }
+  .lab-sec { margin-top: 36px; scroll-margin-top: 72px; }
+  .sec-head { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
+  .sec-head p, .team-head p { margin: 6px 0 0; max-width: 640px; color: var(--fg-2); font-size: 13.5px; }
+  .lab .kicker { margin: 0 0 6px; font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
   /* ---------- Agent team (Lab) ---------- */
-  .team-card { margin-top: 8px; padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
-  .team-head { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; }
-  .team-head p { margin: 6px 0 0; max-width: 620px; color: var(--fg-2); font-size: 13.5px; }
+  .team-card { margin-top: 8px; padding: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); scroll-margin-top: 72px; }
+  .team-head { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between; }
+  .team-run-ctl { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+  .tc-box { display: grid; gap: 8px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
   .tc-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .tc-bar select { height: 32px; min-width: 0; max-width: 260px; }
-  .tc-desc { margin: 14px 0 0; font-size: 13px; color: var(--fg-2); }
-  .tc-desc b { color: var(--fg); font-weight: 600; }
-  .tc-live { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; min-height: 22px; }
+  .tc-label { margin-right: 2px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+  .tc-bar select { flex: 0 1 230px; height: 32px; min-width: 0; }
+  .tc-live { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; font-size: 12.5px; color: var(--muted); }
   .tc-live .badge.firing { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)); }
   .tc-live .badge.crit { border-color: var(--crit); }
-  .team-msg { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); min-height: 18px; overflow-wrap: anywhere; }
+  .tc-desc { margin: 0; max-width: 100ch; font-size: 13px; color: var(--fg-2); }
+  .tc-desc b { color: var(--fg); font-weight: 600; }
+  .tc-desc span { display: block; margin-top: 2px; color: var(--muted); }
+  .team-msg { margin: 12px 0 0; font-size: 12.5px; color: var(--fg-2); overflow-wrap: anywhere; }
+  .team-msg:empty { display: none; }
   .team-msg[data-kind="err"] { color: var(--crit); }
-  .team-flow { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); gap: 0 28px; margin-top: 18px; align-items: center; }
-  @media (max-width: 980px) { .team-flow { grid-template-columns: 1fr; gap: 24px; } }
-  .team-col { display: flex; flex-direction: column; gap: 8px; position: relative; }
-  .team-col.subs::after, .team-col.mid::after { content: ""; position: absolute; top: 50%; right: -24px; width: 20px; height: 2px; background: var(--border); }
-  @media (max-width: 980px) { .team-col.subs::after, .team-col.mid::after { top: auto; bottom: -18px; right: auto; left: 24px; width: 2px; height: 14px; } }
-  .team-col.flowing::after { background: var(--rec); }
-  .agent { position: relative; display: grid; gap: 2px; width: 100%; min-width: 0; padding: 10px 12px 10px 30px; text-align: left;
+  .run-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 20px; font-size: 12.5px; color: var(--muted); }
+  .run-bar b { color: var(--fg); font-weight: 600; }
+  .run-bar code { font: 12px var(--mono); color: var(--fg-2); }
+  .run-bar .sp { flex: 1; }
+  .run-bar .num-v { color: var(--fg-2); font-variant-numeric: tabular-nums; }
+
+  .team-flow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 0 40px; margin-top: 12px; }
+  .team-col { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .team-col-h { font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .team-col .agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: 1; }
+  .team-col .agent.big { flex: 1; }
+  /* Arrow to the next column: a line plus a head; dashes move while the next agent runs. */
+  .team-col:not(.last)::after { content: ""; position: absolute; top: calc(50% + 10px); right: -33px; width: 24px; height: 2px; background: var(--input); }
+  .team-col:not(.last)::before { content: ""; position: absolute; top: calc(50% + 6px); right: -38px; border: 5px solid transparent;
+    border-left: 6px solid var(--input); border-right: 0; }
+  .team-col.passed::after { background: var(--ring); } .team-col.passed::before { border-left-color: var(--ring); }
+  .team-col.flowing::after { background: linear-gradient(90deg, var(--rec) 50%, transparent 50%) 0 0 / 8px 2px repeat-x; animation: dash .6s linear infinite; }
+  .team-col.flowing::before { border-left-color: var(--rec); }
+  @media (max-width: 980px) {
+    .team-flow { grid-template-columns: 1fr; gap: 34px; }
+    .team-col:not(.last)::after { top: auto; bottom: -26px; right: auto; left: 50%; width: 2px; height: 16px; }
+    .team-col:not(.last)::before { top: auto; bottom: -32px; right: auto; left: calc(50% - 4px); border: 5px solid transparent;
+      border-top: 6px solid var(--input); border-bottom: 0; }
+    .team-col.passed::before { border-top-color: var(--ring); border-left-color: transparent; }
+    .team-col.flowing::after { background: linear-gradient(180deg, var(--rec) 50%, transparent 50%) 0 0 / 2px 8px repeat-y; }
+    .team-col.flowing::before { border-top-color: var(--rec); border-left-color: transparent; }
+  }
+  @media (max-width: 600px) { .team-card { padding: 16px; } .team-col .agents { grid-template-columns: 1fr; } .tc-live { margin-left: 0; } }
+
+  .agent { display: flex; flex-direction: column; gap: 5px; width: 100%; min-width: 0; padding: 11px 13px; text-align: left;
     border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--fg); font: 12.5px/1.4 var(--sans);
-    cursor: pointer; box-shadow: var(--shadow); }
+    cursor: pointer; box-shadow: var(--shadow); transition: border-color .15s, box-shadow .15s; }
   .agent:hover { border-color: var(--ring); }
   .agent:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .agent[data-state="running"] { border-color: color-mix(in srgb, var(--rec) 60%, var(--border)); }
+  .agent[data-state="failed"] { border-color: color-mix(in srgb, var(--crit) 60%, var(--border)); }
   .agent[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
-  .agent.big { padding: 14px 14px 14px 32px; }
-  .agent-led { position: absolute; left: 12px; top: 14px; width: 8px; height: 8px; border-radius: 50%; background: var(--track); }
+  .agent.big { padding: 14px 15px; }
+  .agent-top { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .agent-top b { overflow: hidden; font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+  .agent-led { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--track); }
   .agent[data-state="running"] .agent-led { background: var(--rec); box-shadow: 0 0 0 4px color-mix(in srgb, var(--rec) 25%, transparent); animation: pulse 1s ease-in-out infinite; }
   .agent[data-state="done"] .agent-led { background: var(--good); }
   .agent[data-state="failed"] .agent-led { background: var(--crit); }
   @keyframes pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--rec) 8%, transparent); } }
-  .agent-top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-  .agent-top b { font-size: 13.5px; font-weight: 600; }
-  .agent-size { font: 600 10.5px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-  .agent-model, .agent-stats { font: 11.5px var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
-  .agent-sum { color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .team-detail { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; display: grid; gap: 14px; }
-  .team-detail h3 { margin: 0; font: 600 13px var(--sans); }
-  .team-detail .sub { color: var(--muted); font-size: 12.5px; }
-  .issue { padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); }
-  .issue-top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-weight: 600; font-size: 13px; }
-  .issue p { margin: 4px 0 0; font-size: 12.5px; color: var(--fg-2); }
-  .issue ul { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; }
-  .issue li { margin: 2px 0; overflow-wrap: anywhere; }
-  .issue code, .team-detail code { font: 11.5px var(--mono); background: var(--secondary); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+  .agent-size { flex: none; margin-left: auto; padding: 1px 6px; border: 1px solid var(--border); border-radius: 5px;
+    font: 600 10px/1.4 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .agent-model { overflow: hidden; font-size: 12px; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+  .agent-stats { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font: 11.5px var(--mono); color: var(--fg-2);
+    font-variant-numeric: tabular-nums; }
+  .agent-stats span { white-space: nowrap; }
+  .agent-stats b { color: var(--fg); font-weight: 600; }
+  .agent-sum { overflow: hidden; color: var(--fg-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .agent.big .agent-sum { -webkit-line-clamp: 6; }
+  .agent-sum.idle { color: var(--muted); }
+  .agent-sum.err { color: var(--crit); }
+  .team-hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+
+  .team-detail { display: grid; gap: 12px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+  .det-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+  .det-h:not(:first-child) { margin-top: 14px; }
+  .det-h h3 { margin: 0; font: 600 15px var(--sans); }
+  .det-h span { font-size: 12.5px; color: var(--muted); }
+  .det-sum { margin: 0; max-width: 100ch; color: var(--fg-2); font-size: 13.5px; }
+  .team-detail .sub { margin: 0; color: var(--muted); font-size: 12.5px; }
+  .team-detail details .sub { margin-top: 6px; }
+  .issue { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+  .issue-top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-weight: 600; font-size: 13.5px; }
+  .issue-top .conf { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .issue > p { margin: 6px 0 0; max-width: 110ch; font-size: 13px; color: var(--fg-2); }
+  .acts { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+  .act { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 3px 8px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 13px; }
+  .act-id { padding-top: 2px; font: 600 11.5px var(--mono); color: var(--muted); }
+  .act-main { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; min-width: 0; }
+  .act-why { grid-column: 2; color: var(--muted); font-size: 12.5px; }
+  .tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 99px; white-space: nowrap;
+    background: color-mix(in srgb, var(--rec) 13%, transparent); color: var(--fg); font-size: 11.5px; font-weight: 500; }
+  .issue .sub { margin-top: 6px; }
+  .issue code, .team-detail code { padding: 1px 5px; border-radius: 4px; background: var(--secondary); font: 11.5px var(--mono); overflow-wrap: anywhere; }
+  .ex-title { margin: 0; font-size: 14px; font-weight: 600; }
+  .ex-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font-size: 12.5px; color: var(--muted); }
   .exec-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .diff { margin: 0; max-height: 420px; overflow: auto; padding: 10px 12px; border-radius: 9px; background: #0f0f0e; color: #e6e6e1;
-    font: 12px/1.5 var(--mono); white-space: pre; }
-  .diff .add { color: #6fdc8c; } .diff .del { color: #ff7b72; } .diff .hunk { color: #6cd4ea; } .diff .meta { color: #8a8a83; }
-  .rules { margin-top: 16px; }
+  .files { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .files li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 7px;
+    font-size: 12px; color: var(--muted); }
+  .team-detail .files code { padding: 0; background: none; color: var(--fg); }
+  .diff { margin: 0; max-height: 440px; overflow: auto; padding: 8px 0; border-radius: 10px; background: #0f0f0e; color: #e6e6e1;
+    font: 12px/1.55 var(--mono); }
+  .diff .ln { display: block; min-height: 1.55em; padding: 0 14px; white-space: pre; }
+  .diff .add { color: #6fdc8c; background: rgba(111, 220, 140, .07); } .diff .del { color: #ff7b72; background: rgba(255, 123, 114, .08); }
+  .diff .hunk { color: #6cd4ea; } .diff .meta { color: #8a8a83; }
+  .diff .file { margin: 10px 0 4px; padding: 5px 14px; border-block: 1px solid #2a2a27; background: #1b1b19; font-weight: 600; }
+  .diff .file:first-child { margin-top: -8px; border-top: 0; }
+  .diff .file em { margin-left: 8px; color: #8a8a83; font-style: normal; font-weight: 400; }
+  .rules { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }
   .rules summary { cursor: pointer; font-size: 13px; color: var(--fg-2); }
   .rules pre { margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg);
     font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg-2); }
@@ -501,24 +577,33 @@
   /* ---------- tmux view: a read-only mirror of the RAM ring ---------- */
   .tmuxview { max-width: 1600px; margin: 0 auto; padding: 20px 16px 48px; }
   .tmuxview .tmux { margin-top: 0; }
-  .tx-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; background: var(--t-bg2);
+  .tx-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 6px 10px; background: var(--t-bg2);
     color: var(--t-dim); border-bottom: 1px solid var(--t-line); }
   .tx-top b { color: var(--t-fg); }
-  .tx-top .sp { flex: 1; }
-  .tx-ro { color: var(--t-yellow); }
-  .tx-win { display: grid; gap: 1px; background: var(--t-line); height: calc(100vh - 220px); min-height: 460px; }
+  .tx-id { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; }
+  .tx-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-left: auto; }
+  .tx-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .tx-ro { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border: 1px solid #4a4026; border-radius: 5px;
+    color: var(--t-yellow); font-size: 11.5px; }
+  .tx-ro .ic { width: 12px; height: 12px; }
+  .tx-win { display: grid; gap: 1px; background: var(--t-line); height: calc(100vh - 200px); min-height: 460px; }
   .tx-win[data-n="1"] { grid-template-columns: 1fr; }
   .tx-win[data-n="2"] { grid-template-columns: 1fr 1fr; }
   .tx-win[data-n="3"], .tx-win[data-n="4"] { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; }
   .tx-win[data-n="5"], .tx-win[data-n="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; }
-  @media (max-width: 900px) { .tx-win { grid-template-columns: 1fr !important; height: auto; } .tx-win .pane { height: 360px; } }
-  .tx-win .pane-h { padding: 3px 10px; }
-  .tx-win .pane-h b { color: var(--t-green); }
+  @media (max-width: 900px) { .tx-win { grid-template-columns: 1fr !important; height: auto; } .tx-win .pane { height: 360px; }
+    .tx-ctl { margin-left: 0; } }
+  .tx-win .pane-h { flex-wrap: nowrap; padding: 3px 10px; }
+  .tx-win .pane-h > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-win .pane-h b { flex: none; color: var(--t-green); }
+  .tx-win .pane-h .st { flex: none; }
+  .tx-win .pane-h .st.running { color: var(--t-violet); } .tx-win .pane-h .st.done { color: var(--t-green); } .tx-win .pane-h .st.failed { color: var(--t-red); }
   .tx-lines { flex: 1; min-height: 0; overflow: auto; padding: 6px 10px; }
   .tx-lines div { white-space: pre-wrap; overflow-wrap: anywhere; }
-  .tx-lines .t { color: var(--t-dim); }
+  .tx-lines .t { color: #5f5f59; }
   .tx-ok { color: var(--t-green); } .tx-err { color: var(--t-red); } .tx-hi { color: var(--t-yellow); } .tx-head { color: var(--t-violet); }
   .tx-dim { color: var(--t-dim); } .tx-cy { color: var(--t-cyan); }
+  .tx-think { color: #77776f; font-style: italic; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -530,8 +615,8 @@
       <path d="M12 2.5 20.5 7.4v9.2L12 21.5l-8.5-4.9V7.4z"/><path d="M12 12 20.5 7.4M12 12v9.5M12 12 3.5 7.4"/></svg>
       KubeSage <span>AI Control Center</span></div>
     <nav class="viewtabs" role="tablist" aria-label="Views">
-      <button class="viewtab" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="main" aria-selected="true">FinOps dashboard</button>
-      <button class="viewtab" role="tab" id="tab-lab" data-view="lab" aria-controls="lab" aria-selected="false" tabindex="-1">Architecture &amp; CLI lab</button>
+      <button class="viewtab" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="main" aria-selected="true"><span class="vt-long">FinOps dashboard</span><span class="vt-short">Dashboard</span></button>
+      <button class="viewtab" role="tab" id="tab-lab" data-view="lab" aria-controls="lab" aria-selected="false" tabindex="-1"><span class="vt-long">Architecture &amp; CLI lab</span><span class="vt-short">Lab</span></button>
       <button class="viewtab" role="tab" id="tab-tmux" data-view="tmux" aria-controls="tmuxview" aria-selected="false" tabindex="-1">tmux</button>
     </nav>
     <span id="mode" class="badge">…</span>
@@ -643,50 +728,61 @@
 <div id="lab" class="lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
   <section class="lab-hero">
     <div><h1>Under <em>the hood.</em></h1>
-      <p>The same system, as an engineer sees it: the dataflow with live numbers, a read-only shell against the real
-        cluster, the journal of everything KubeSage and Kubernetes just did, and the exact requests each stage sent.</p></div>
-    <div class="lab-actions">
-      <button id="lab-backfill" class="btn btn-outline btn-sm" data-act title="Regenerate the 30-day history in VictoriaMetrics">Backfill 30 days</button>
-      <button id="lab-analyze" class="btn btn-primary btn-sm" data-act>Run analysis</button>
-      <button id="lab-apply" class="btn btn-outline btn-sm" data-act>Apply fixes</button>
-      <button id="lab-spike" class="btn btn-outline btn-sm" data-act>Send traffic</button>
-      <button id="lab-reset" class="btn btn-ghost btn-sm" data-act>Reset demo</button>
-    </div>
+      <p>The same system, as an engineer sees it: the agent team working a live problem, the right-sizing pipeline with live
+        numbers, a read-only shell against the real cluster and the journal of everything KubeSage and Kubernetes just did.</p></div>
+    <nav class="lab-jump" aria-label="On this page">
+      <button class="btn btn-ghost btn-sm" data-jump="team">Agent team</button>
+      <button class="btn btn-ghost btn-sm" data-jump="pipeline">Pipeline</button>
+      <button class="btn btn-ghost btn-sm" data-jump="terminal">Terminal</button>
+    </nav>
   </section>
-
 
   <section class="team-card" id="team" aria-labelledby="team-title">
     <div class="team-head">
-      <div><h2 id="team-title">Agent team</h2>
+      <div><p class="kicker">Live incidents</p><h2 id="team-title">Agent team</h2>
         <p>Start a test case to cause a real problem on the lab node. The sub-agents read the cluster, the Thinker works out
           the cause, and the Executor writes the fix as a branch under <code>gitops/</code>. Agents, models and rules live in
           the repo's <code>agents/</code> folder.</p></div>
-      <div class="tc-bar">
-        <label class="sr-only" for="tc-select">Test case</label>
-        <select id="tc-select"></select>
-        <button id="tc-start" class="btn btn-outline btn-sm">Start test</button>
-        <button id="tc-stop" class="btn btn-ghost btn-sm">Stop</button>
-        <button id="team-run" class="btn btn-primary btn-sm">Run agent team</button>
+      <div class="team-run-ctl">
         <label class="switch"><input type="checkbox" id="team-auto"> Auto-run on alerts</label>
+        <button id="team-run" class="btn btn-primary btn-sm">Run agent team</button>
       </div>
     </div>
-    <p class="tc-desc" id="tc-desc"></p>
-    <div class="tc-live" id="tc-live" aria-live="polite"></div>
+    <div class="tc-box">
+      <div class="tc-bar">
+        <label class="tc-label" for="tc-select">Test case</label>
+        <select id="tc-select"></select>
+        <button id="tc-start" class="btn btn-outline btn-sm">Start test</button>
+        <button id="tc-stop" class="btn btn-outline btn-sm">Stop</button>
+        <div class="tc-live" id="tc-live" aria-live="polite"></div>
+      </div>
+      <p class="tc-desc" id="tc-desc"></p>
+    </div>
     <p class="team-msg" id="team-msg" role="status"></p>
+    <div class="run-bar" id="team-runbar"></div>
     <div class="team-flow" id="team-flow"></div>
+    <p class="team-hint">Select an agent to see its own report; select it again to return to the diagnosis and the change.</p>
     <div class="team-detail" id="team-detail"></div>
     <details class="rules"><summary>Custom rules the Thinker and Executor follow (<code>agents/rules/</code>, read-only here)</summary>
       <div id="team-rules"></div></details>
   </section>
 
-  <section aria-labelledby="flow-title" style="margin-top: 28px">
-    <h2 id="flow-title" class="sr-only">Dataflow</h2>
+  <section class="lab-sec" id="pipeline" aria-labelledby="flow-title">
+    <div class="sec-head">
+      <div><p class="kicker">FinOps dashboard, step by step</p><h2 id="flow-title">Right-sizing pipeline</h2>
+        <p>The five stages behind the dashboard, with live numbers. Click a stage to filter the journal to it; a violet light
+          and a moving connector mean that stage logged something in the last few seconds.</p></div>
+      <div class="lab-actions">
+        <button id="lab-backfill" class="btn btn-outline btn-sm" data-act title="Regenerate the 30-day history in VictoriaMetrics">Backfill 30 days</button>
+        <button id="lab-analyze" class="btn btn-primary btn-sm" data-act>Run analysis</button>
+        <button id="lab-apply" class="btn btn-outline btn-sm" data-act>Apply fixes</button>
+        <button id="lab-spike" class="btn btn-outline btn-sm" data-act>Send traffic</button>
+      </div>
+    </div>
     <div class="flow-stages" id="flow-stages"></div>
-    <p class="flow-note">Click a stage to filter the journal to it. A violet light and a moving connector mean that stage
-      logged something in the last few seconds. Numbers come from the live cluster, VictoriaMetrics and the selected run.</p>
   </section>
 
-  <section class="tmux" aria-label="Terminal">
+  <section class="tmux lab-sec" id="terminal" aria-label="Terminal">
     <div class="tmux-panes">
       <div class="pane pane-shell on" id="pane-0">
         <div class="pane-h"><b>0: shell</b><span>read-only · kubectl, promql, kubesage</span><span class="sp"></span>
@@ -720,15 +816,20 @@
 <div id="tmuxview" class="tmuxview" role="tabpanel" aria-labelledby="tab-tmux" hidden>
   <section class="tmux" aria-label="tmux mirror">
     <div class="tx-top">
-      <b>tmux · kubesage</b><span class="tx-ro">read-only: text piped from the server's RAM ring, no input reaches it</span>
-      <span id="tx-ring"></span><span class="sp"></span>
-      <label class="sr-only" for="tx-tc">Test case</label><select id="tx-tc"></select>
-      <button class="tbtn" id="tx-start">start test</button><button class="tbtn" id="tx-stop">stop</button>
-      <button class="tbtn" id="tx-run">run agents</button>
-      <label class="sr-only" for="tx-range">Save range</label>
-      <select id="tx-range"><option value="5">last 5 min</option><option value="30">last 30 min</option><option value="0">all held</option></select>
-      <a class="tbtn" id="tx-save" href="/api/ring/dump?minutes=5" download style="display:inline-flex;align-items:center;text-decoration:none">save</a>
-      <button class="tbtn" id="tx-pause" aria-pressed="false">pause</button>
+      <div class="tx-id"><b>tmux · kubesage</b>
+        <span class="tx-ro" title="Text piped from the server's RAM ring. Nothing typed here reaches a terminal."><svg class="ic" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11"
+          width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>read-only mirror</span>
+        <span id="tx-ring"></span></div>
+      <div class="tx-ctl">
+        <span class="tx-group"><label class="sr-only" for="tx-tc">Test case</label><select id="tx-tc"></select>
+          <button class="tbtn" id="tx-start">start test</button><button class="tbtn" id="tx-stop">stop</button>
+          <button class="tbtn" id="tx-run">run agents</button></span>
+        <span class="tx-group"><label class="sr-only" for="tx-range">Save range</label>
+          <select id="tx-range"><option value="5">last 5 min</option><option value="30">last 30 min</option><option value="0">all held</option></select>
+          <a class="tbtn" id="tx-save" href="/api/ring/dump?minutes=5" download style="display:inline-flex;align-items:center;text-decoration:none">save</a>
+          <button class="tbtn" id="tx-pause" aria-pressed="false">pause</button></span>
+      </div>
     </div>
     <div class="tx-win" id="tx-win"></div>
     <div class="tmux-status"><span>[kubesage]</span>
@@ -832,7 +933,7 @@ function updateControls() {
   $("#report-select").disabled = isBusy || !reports.length;
   $("#dryrun").disabled = isBusy;
   ["#btn-export", "#btn-manifests"].forEach((s) => ($(s).disabled = !report));
-  ["analyze", "apply", "spike", "reset"].forEach((k) => ($(`#lab-${k}`).disabled = $(`#btn-${k}`).disabled));
+  ["analyze", "apply", "spike"].forEach((k) => ($(`#lab-${k}`).disabled = $(`#btn-${k}`).disabled));
   $("#lab-backfill").disabled = blocked || config.namespace !== "demo";
 }
 
@@ -1759,6 +1860,7 @@ async function refreshLab() {
   $("#sh-prompt").textContent = `kubesage@${lab.status?.host || "server"}:~$`;
   const run = $("#wire-run").value || runId;
   if (run && run !== lab.traceRun) await loadTrace(run);
+  else if (!run && !$("#wire-detail").childElementCount) renderWire();
   renderStages();
 }
 
@@ -1826,6 +1928,7 @@ function renderWire() {
   const t = lab.trace || {exchanges: [], kubectl: []}, sel = $("#wire-run");
   const runs = reports.length ? reports : runId ? [{run: runId, mode: report?.mode}] : [];
   sel.replaceChildren(...runs.map((r) => Object.assign(document.createElement("option"), {value: r.run, textContent: `${r.run} · ${r.mode}`})));
+  sel.closest("label").hidden = !runs.length;
   if (lab.traceRun) sel.value = lab.traceRun;
   const count = {promql: t.exchanges.filter((x) => x.kind === "promql").length, llm: t.exchanges.filter((x) => x.kind === "llm").length,
     kubectl: t.kubectl.length, backfill: (t.backfill || []).length};
@@ -1890,6 +1993,7 @@ function renderWireDetail(item) {
   if (!item) {
     addBlock(box, "p", lab.trace?.error ? lab.trace.error
       : lab.kind === "backfill" ? "No backfill in this server session yet. Backfill 30 days records its four VictoriaMetrics requests here."
+      : !lab.trace ? "No analysis has run yet. Run analysis records every request each stage sends and what came back."
       : (lab.trace?.exchanges || []).length ? "Nothing of this kind in this run."
       : "This run predates request tracing. Run an analysis to record what each stage sends.", "sh-dim");
     return;
@@ -1944,14 +2048,14 @@ function tcOptions() {
 function renderTestcases() {
   tcOptions();
   const name = $("#tc-select").value, tc = (team.tcs?.catalog || []).find((t) => t.name === name);
-  $("#tc-desc").innerHTML = tc ? `<b>${esc(tc.title)}.</b> ${esc(tc.summary)} <span class="muted">Expected fix: ${esc(tc.expect)}</span>` : "";
+  $("#tc-desc").innerHTML = tc ? `<b>${esc(tc.title)}.</b> ${esc(tc.summary)}<span>Expected fix: ${esc(tc.expect)}</span>` : "";
   const active = team.tcs?.active || {}, alerts = team.tcs?.alerts || [];
   const chips = Object.entries(active).map(([n, a]) => `<span class="badge"><span class="pulse-dot" style="--c:var(--rec)"></span>${esc(n)}:
     ${esc(Object.entries(a.phases).map(([k, v]) => `${v} ${k}`).join(", "))}${a.restarts ? ` · ${a.restarts} restarts` : ""}${a.stopping ? " · stopping" : ""}</span>`);
   chips.push(...alerts.map((a) => `<span class="badge firing ${a.severity === "critical" ? "crit" : ""}" title="${esc(a.summary || "")}">
     ${icon("zap")}${esc(a.name)}${a.pod ? ` · ${esc(a.pod)}` : a.node ? ` · ${esc(a.node)}` : ""}</span>`));
   if (team.data?.pending) chips.push(`<span class="badge">team runs in ${team.data.pending.in_s} s (alert ${esc(team.data.pending.alert)})</span>`);
-  replaceHTML($("#tc-live"), chips.join("") || `<span class="muted" style="font-size:12.5px">${team.tcs?.cluster === false ? "Cluster unreachable." : "No test case running, no lab alerts firing."}</span>`);
+  replaceHTML($("#tc-live"), chips.join("") || `<span>${team.tcs?.cluster === false ? "Cluster unreachable." : "Nothing running · no lab alerts firing"}</span>`);
   const running = !!active[name];
   for (const [start, stop] of [["#tc-start", "#tc-stop"], ["#tx-start", "#tx-stop"]]) {
     $(start).disabled = team.busy || running || !tc;
@@ -1962,20 +2066,40 @@ function renderTestcases() {
   $("#team-auto").checked = !!team.data?.auto;
 }
 
-const AGENT_FIELD = (a) => a.role === "thinker" ? `${a.findings ?? "–"} issues` : a.role === "executor" ? `${a.findings ?? "–"} edits`
-  : `${a.signals ?? "–"} signals · ${a.findings ?? "–"} findings`;
+function agentStats(a) {
+  const n = (v, one, many) => `${v ?? "–"} ${v === 1 ? one : many}`;
+  const counts = a.role === "thinker" ? [n(a.findings, "issue", "issues")] : a.role === "executor" ? [n(a.findings, "edit", "edits")]
+    : [n(a.signals, "signal", "signals"), n(a.findings, "finding", "findings")];
+  const hot = (c, i) => i === counts.length - 1 && a.findings ? `<b>${esc(c)}</b>` : esc(c);
+  return `<span>${counts.map(hot).join(" · ")}</span><span>${a.ms != null ? `${(a.ms / 1000).toFixed(1)} s · ` : ""}${usd(a.cost_usd || 0)}</span>`;
+}
 
 function agentCard(name, a, big) {
-  const state = a.state || "idle", stats = state === "queued" || state === "idle" ? (a.description || "") :
-    `${AGENT_FIELD(a)} · ${usd(a.cost_usd || 0)}${a.ms != null ? ` · ${(a.ms / 1000).toFixed(1)} s` : ""}`;
-  return `<button class="agent ${big ? "big" : ""}" data-agent="${esc(name)}" data-state="${esc(state)}" aria-pressed="${team.sel === name}">
-    <span class="agent-led" aria-hidden="true"></span>
-    <span class="agent-top"><b>${esc(a.title || name)}</b><span class="agent-size">${esc(a.size || "")}</span>
-      <span class="sr-only">state ${esc(state)}</span></span>
-    <span class="agent-model">${esc(a.label || "")}${a.model && a.model !== a.label ? ` · ${esc(a.model)}` : ""}</span>
-    <span class="agent-stats">${esc(stats)}</span>
-    ${a.error ? `<span class="agent-sum" style="color:var(--crit)">${esc(a.error)}</span>` : a.summary ? `<span class="agent-sum">${esc(a.summary)}</span>` : ""}
+  const state = a.state || "idle", idle = state === "queued" || state === "idle";
+  const sum = a.error ? `<span class="agent-sum err">${esc(a.error)}</span>`
+    : idle || !a.summary ? `<span class="agent-sum idle">${esc(state === "queued" ? "Queued…" : a.description || "")}</span>`
+    : `<span class="agent-sum">${esc(a.summary)}</span>`;
+  return `<button class="agent ${big ? "big" : ""}" data-agent="${esc(name)}" data-state="${esc(state)}" aria-pressed="${team.sel === name}"
+    title="${esc(a.description || "")}">
+    <span class="agent-top"><span class="agent-led" aria-hidden="true"></span><b>${esc(a.title || name)}</b>
+      <span class="sr-only">state ${esc(state)}</span><span class="agent-size">${esc(a.size || "")}</span></span>
+    <span class="agent-model" title="${esc(a.model || "")}">${esc(a.label || a.model || "")}</span>
+    ${idle ? "" : `<span class="agent-stats">${state === "running" ? "<span>running…</span>" : agentStats(a)}</span>`}
+    ${sum}
   </button>`;
+}
+
+function runBar(run) {
+  if (!run) return `<span>No team run yet. Start a test case and wait for its alert, or press <b>Run agent team</b>.</span>`;
+  const st = run.state === "done" ? (run.error ? "crit" : "good") : run.state === "running" ? "rec" : "crit";
+  const t0 = Date.parse(run.started_at), t1 = Date.parse(run.finished_at);  // ISO 8601 from run.json
+  const secs = t0 && t1 ? `${((t1 - t0) / 1000).toFixed(0)} s` : "";
+  const when = t0 ? new Date(t0).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "";
+  return `<span class="badge"><span class="${run.state === "running" ? "pulse-dot" : "dot"}" style="--c:var(--${st})"></span>${esc(run.state)}</span>
+    <span>Run <code>${esc(run.id)}</code></span><span>${esc(run.trigger === "manual" ? "started by hand" : run.trigger)}${when ? ` at ${when}` : ""}</span>
+    <span>${esc(run.mode)} · ${esc(run.profile)}</span>${secs ? `<span class="num-v">${secs}</span>` : ""}
+    <span class="num-v">${usd(run.cost_usd || 0)}</span>${run.error ? `<span style="color:var(--crit)">${esc(run.error)}</span>` : ""}
+    <span class="sp"></span><button class="btn btn-ghost btn-sm" data-goto="tmux">Follow in tmux</button>`;
 }
 
 function renderTeam() {
@@ -1985,13 +2109,13 @@ function renderTeam() {
   (d.team.agents || []).forEach((a) => (agents[a.name] = {...a, state: "idle"}));
   if (run) Object.entries(run.agents || {}).forEach(([n, a]) => (agents[n] = {...agents[n], ...a}));
   const by = (role) => Object.entries(agents).filter(([, a]) => a.role === role);
-  const running = (role) => by(role).some(([, a]) => a.state === "running" || a.state === "done");
-  replaceHTML($("#team-flow"), d.team.error ? `<p class="team-msg" data-kind="err">agents/: ${esc(d.team.error)}</p>` : `
-    <div class="team-col subs ${running("thinker") ? "flowing" : ""}">${by("subagent").map(([n, a]) => agentCard(n, a)).join("")}</div>
-    <div class="team-col mid ${running("executor") ? "flowing" : ""}">${by("thinker").map(([n, a]) => agentCard(n, a, true)).join("")}</div>
-    <div class="team-col last">${by("executor").map(([n, a]) => agentCard(n, a, true)).join("")}</div>`);
-  const runLine = run ? `Run ${run.id} · ${run.trigger} · ${run.mode} · profile ${run.profile} · ${run.state}${run.cost_usd ? ` · ${usd(run.cost_usd)}` : ""}` : "No team run yet.";
-  if (!team.busy && !$("#team-msg").dataset.kind) $("#team-msg").textContent = runLine + (run?.error ? ` · ${run.error}` : "");
+  const arrow = (role) => by(role).some(([, a]) => a.state === "running") ? "flowing" : by(role).some(([, a]) => a.state === "done") ? "passed" : "";
+  const col = (cls, head, cards) => `<div class="team-col ${cls}"><span class="team-col-h">${head}</span>${cards}</div>`;
+  replaceHTML($("#team-flow"), d.team.error ? `<p class="team-msg" data-kind="err">agents/: ${esc(d.team.error)}</p>` :
+    col(`subs ${arrow("thinker")}`, "1 · Sub-agents collect", `<div class="agents">${by("subagent").map(([n, a]) => agentCard(n, a)).join("")}</div>`)
+    + col(`mid ${arrow("executor")}`, "2 · Thinker decides", by("thinker").map(([n, a]) => agentCard(n, a, true)).join(""))
+    + col("last", "3 · Executor changes", by("executor").map(([n, a]) => agentCard(n, a, true)).join("")));
+  replaceHTML($("#team-runbar"), runBar(run));
   renderTeamDetail(run, agents);
   const rules = d.team.rules || [];
   const html = rules.length ? rules.map((r) => `<pre><b>${esc(r.file)}</b>\n${esc(r.text)}</pre>`).join("") : `<p class="sub">No rule files.</p>`;
@@ -2004,53 +2128,72 @@ function sevBadge(sev) {
 }
 
 function diffHTML(text) {
-  return text.split("\n").map((l) => {
-    const cls = l.startsWith("+++") || l.startsWith("---") || l.startsWith("diff ") || l.startsWith("index ") ? "meta"
-      : l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : l.startsWith("@@") ? "hunk" : "";
-    return cls ? `<span class="${cls}">${esc(l)}</span>` : esc(l);
-  }).join("\n");
+  const out = [];
+  for (const l of text.replace(/\n+$/, "").split("\n")) {
+    const file = l.match(/^diff --git a\/\S+ b\/(\S+)/);
+    if (file) { out.push(`<span class="ln file">${esc(file[1])}</span>`); continue; }
+    if (/^(index [0-9a-f]|--- (a\/|\/dev\/null)|\+\+\+ (b\/|\/dev\/null))/.test(l)) continue;
+    if (/^(new|deleted) file mode/.test(l) && out.length) { out[out.length - 1] = out.at(-1).replace("</span>", `<em>${l.split(" ")[0]} file</em></span>`); continue; }
+    const cls = l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : l.startsWith("@@") ? "hunk" : l.startsWith("\\") ? "meta" : "";
+    out.push(`<span class="ln ${cls}">${esc(l) || " "}</span>`);
+  }
+  return out.join("");
 }
+
+const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
+const actionRow = (a) => `<li class="act"><span class="act-id">${esc(a.id)}</span><span class="act-main">
+  <span class="tag">${esc(a.type.replace(/_/g, " "))}</span><code>${esc(a.target)}</code><span>${esc(a.summary)}</span>
+  ${a.params?.monthly_delta_usd != null ? `<b>${a.params.monthly_delta_usd >= 0 ? "+" : ""}${usd(a.params.monthly_delta_usd)}/mo</b>` : ""}
+  ${a.needs_human ? `<span class="badge">needs a human</span>` : ""}</span>${a.rationale ? `<span class="act-why">${esc(a.rationale)}</span>` : ""}</li>`;
 
 function renderTeamDetail(run, agents) {
   const box = $("#team-detail");
-  if (!run) { replaceHTML(box, `<p class="sub">Pick a test case, press Start test, wait for an alert (or press Run agent team).</p>`); return; }
+  if (!run) { replaceHTML(box, `<p class="sub">The diagnosis and the change appear here after a run.</p>`); return; }
   const sel = team.sel && agents[team.sel];
+  const head = (title, meta) => `<div class="det-h"><h3>${esc(title)}</h3>${meta ? `<span>${esc(meta)}</span>` : ""}</div>`;
   let html = "";
   if (sel && sel.role === "subagent") {
     const rep = run.reports?.[team.sel], sigs = (run.signals?.[team.sel] || []).filter((x) => x.severity);
-    html = `<h3>${esc(sel.title)} · ${esc(sel.label)}</h3><p class="sub">${esc(rep?.summary || sel.error || "no report")}</p>
-      ${(rep?.findings || []).map((f) => `<div class="issue"><div class="issue-top">${sevBadge(f.severity)}${esc(f.title)}<code>${esc(f.target)}</code></div>
+    html = head(sel.title, `${sel.label} · ${plural(sel.signals ?? 0, "signal")} · ${plural(rep?.findings?.length ?? 0, "finding")}`)
+      + `<p class="det-sum">${esc(rep?.summary || sel.error || "No report.")}</p>
+      ${(rep?.findings || []).map((f) => `<div class="issue"><div class="issue-top">${sevBadge(f.severity)}<span>${esc(f.title)}</span><code>${esc(f.target)}</code></div>
         <p>${esc(f.summary)}</p><p class="sub">cites ${f.signal_ids.map((i) => `<code>${esc(i)}</code>`).join(" ")}</p></div>`).join("") || `<p class="sub">No findings.</p>`}
-      ${sigs.length ? `<h3>Signals over threshold</h3><ul class="sub">${sigs.map((x) => `<li><code>${esc(x.id)}</code> ${esc(x.kind)} = ${esc(x.value)} ${esc(x.unit)} · ${esc(x.detail)}</li>`).join("")}</ul>` : ""}`;
+      ${sigs.length ? head("Signals over threshold", plural(sigs.length, "signal"))
+        + `<ul class="sub">${sigs.map((x) => `<li><code>${esc(x.id)}</code> ${esc(x.kind)} = ${esc(x.value)} ${esc(x.unit)} · ${esc(x.detail)}</li>`).join("")}</ul>` : ""}`;
   } else {
-    const dg = run.diagnosis;
+    const dg = run.diagnosis, th = agents.thinker || {};
     if (!sel || sel.role === "thinker") {
-      html += dg ? `<h3>Thinker · ${esc(agents.thinker?.label || "")}</h3><p class="sub">${esc(dg.summary)}</p>
-        ${dg.issues.map((i) => `<div class="issue"><div class="issue-top">${sevBadge(i.severity)}${esc(i.id)} · ${esc(i.title)}
-          <span class="sub">${Math.round(i.confidence * 100)}% sure</span></div><p>${esc(i.root_cause)}</p>
-          <ul>${dg.actions.filter((a) => a.issue === i.id).map((a) => `<li><b>${esc(a.id)}</b> <code>${esc(a.type)}</code> <code>${esc(a.target)}</code> ${esc(a.summary)}
-            ${a.params?.monthly_delta_usd != null ? ` <b>${a.params.monthly_delta_usd >= 0 ? "+" : ""}${usd(a.params.monthly_delta_usd)}/mo</b>` : ""}
-            ${a.needs_human ? ` <span class="badge">needs a human</span>` : ""}<br><span class="sub">${esc(a.rationale)}</span></li>`).join("")}</ul></div>`).join("")}`
-        : `<p class="sub">${run.state === "running" ? "The Thinker is waiting for the sub-agents…" : esc(run.error || "No diagnosis.")}</p>`;
-      if ((run.rejected || []).length) html += `<details><summary class="sub">${run.rejected.length} item(s) rejected by validation</summary>
+      html += dg ? head("Diagnosis", `Thinker · ${th.label || ""} · ${plural(dg.issues.length, "issue")}, ${plural(dg.actions.length, "action")}`)
+        + `<p class="det-sum">${esc(dg.summary)}</p>`
+        + dg.issues.map((i) => `<div class="issue"><div class="issue-top">${sevBadge(i.severity)}<span>${esc(i.id)} · ${esc(i.title)}</span>
+          <span class="conf">${Math.round(i.confidence * 100)}% sure</span></div><p>${esc(i.root_cause)}</p>
+          <ul class="acts">${dg.actions.filter((a) => a.issue === i.id).map(actionRow).join("")}</ul></div>`).join("")
+        : head("Diagnosis", `Thinker · ${th.label || ""}`)
+          + `<p class="sub">${run.state === "running" ? "The Thinker is waiting for the sub-agents…" : esc(run.error || "No diagnosis.")}</p>`;
+      if ((run.rejected || []).length) html += `<details><summary class="sub">${plural(run.rejected.length, "item")} rejected by validation</summary>
         <ul class="sub">${run.rejected.map((r) => `<li>${esc(r.agent)}: ${esc(r.what)}: ${esc(r.reason)}</li>`).join("")}</ul></details>`;
     }
     if (!sel || sel.role === "executor") {
-      const ex = run.executor;
+      const ex = run.executor, xa = agents.executor || {};
       if (ex) {
         const prBtn = ex.pr_url ? `<a class="btn btn-outline btn-sm" href="${esc(ex.pr_url)}" target="_blank" rel="noopener">${icon("pr")}View PR</a>`
-          : team.data.prs ? `<button class="btn btn-primary btn-sm" data-exec="pr" ${ex.commit ? "" : "disabled"}>Open pull request</button>`
+          : team.data.prs ? `<button class="btn btn-primary btn-sm" data-exec="pr" ${ex.commit ? "" : "disabled"}>${icon("pr")}Open pull request</button>`
           : `<span class="sub">PRs are off: start the server with <code>--agent-prs</code></span>`;
-        html += `<h3>Executor · ${esc(agents.executor?.label || "")}</h3>
-          ${ex.error ? `<p class="team-msg" data-kind="err">${esc(ex.error)}</p>` : ""}
-          ${ex.commit ? `<p class="sub"><b>${esc(ex.title)}</b> · branch <code>${esc(ex.branch)}</code> from <code>origin/${esc(ex.base)}</code> · commit <code>${esc(ex.commit.slice(0, 8))}</code>
-            ${ex.applied ? ` · applied ${ex.applied.ok ? "" : "with errors "}${new Date(ex.applied.at * 1000).toLocaleTimeString()}` : ""}</p>
-          <div class="exec-bar"><button class="btn btn-outline btn-sm" data-exec="dry">Dry-run apply</button>
-            <button class="btn btn-outline btn-sm" data-exec="apply">Apply to cluster</button>${prBtn}</div>
-          <ul class="sub">${ex.edits.map((e) => `<li><code>${esc(e.path)}</code> · ${esc(e.action)} · ${esc(e.by)}</li>`).join("")}</ul>
-          <pre class="diff">${diffHTML(ex.diff || "")}</pre>` : `<p class="sub">${run.state === "running" ? "Waiting for the Thinker…" : "No commit: nothing valid to change."}</p>`}
-          ${ex.skipped?.length ? `<p class="sub">Not changed: ${ex.skipped.map((x) => `${esc(x.action)}: ${esc(x.reason)}`).join("; ")}</p>` : ""}
-          ${ex.rejected?.length ? `<p class="sub">Rejected edits: ${ex.rejected.map((x) => `<code>${esc(x.path)}</code> ${esc(x.reason)}`).join("; ")}</p>` : ""}`;
+        const at = ex.applied ? new Date(ex.applied.at * 1000).toLocaleTimeString() : "";
+        html += head("Change", `Executor · ${xa.label || ""}${ex.edits?.length ? ` · ${plural(ex.edits.length, "file")}` : ""}`)
+          + (ex.error ? `<p class="team-msg" data-kind="err">${esc(ex.error)}</p>` : "")
+          + (ex.commit ? `<p class="ex-title">${esc(ex.title)}</p>
+            <p class="ex-meta"><span>branch <code>${esc(ex.branch)}</code></span><span>from <code>origin/${esc(ex.base)}</code></span>
+              <span>commit <code>${esc(ex.commit.slice(0, 8))}</code></span>${ex.applied ? `<span>${ex.applied.ok ? "applied" : "applied with errors"} at ${at}</span>` : ""}</p>
+            <div class="exec-bar"><button class="btn btn-outline btn-sm" data-exec="dry">Dry-run apply</button>
+              <button class="btn btn-outline btn-sm" data-exec="apply">Apply to cluster</button>${prBtn}</div>
+            <ul class="files">${ex.edits.map((e) => `<li title="${esc(e.path)}"><code>${esc(e.path.replace(/^gitops\//, ""))}</code>${esc(e.action)} · ${esc(e.by)}</li>`).join("")}</ul>
+            <pre class="diff">${diffHTML(ex.diff || "")}</pre>`
+            : `<p class="sub">${run.state === "running" ? "Waiting for the Thinker…" : "No commit: nothing valid to change."}</p>`)
+          + (ex.skipped?.length ? `<p class="sub">Not changed: ${ex.skipped.map((x) => `${esc(x.action)}: ${esc(x.reason)}`).join("; ")}</p>` : "")
+          + (ex.rejected?.length ? `<p class="sub">Rejected edits: ${ex.rejected.map((x) => `<code>${esc(x.path)}</code> ${esc(x.reason)}`).join("; ")}</p>` : "");
+      } else if (run.state === "running" && !dg) {
+        html += head("Change", `Executor · ${xa.label || ""}`) + `<p class="sub">Waiting for the Thinker…</p>`;
       }
     }
   }
@@ -2062,6 +2205,7 @@ async function pollTeam() {
   if (!$("#team").hidden) renderTeam();
   renderTestcases();
   if (tx.loaded && JSON.stringify(txWindows().map((w) => w.panes.length)) !== tx.shape) renderTx();
+  else if (tx.loaded) txStates();
 }
 async function pollTestcases() {
   try { team.tcs = await api("/api/testcases"); } catch (e) { team.tcs = {catalog: team.tcs?.catalog || [], active: {}, alerts: [], cluster: false}; }
@@ -2071,7 +2215,11 @@ async function pollTestcases() {
 async function teamDo(label, fn) {
   if (team.busy) return;
   team.busy = true; renderTestcases(); $("#team-msg").dataset.kind = "busy"; $("#team-msg").textContent = label + "…";
-  try { const msg = await fn(); teamMsg(msg || "", ""); }
+  try {
+    const msg = await fn();
+    teamMsg(msg || "", "");
+    setTimeout(() => { if ($("#team-msg").textContent === msg) teamMsg(""); }, 20000);
+  }
   catch (e) { teamMsg(e.message, "err"); }
   finally { team.busy = false; await Promise.all([pollTestcases(), pollTeam()]); }
 }
@@ -2103,7 +2251,7 @@ async function execAction(kind) {
 function txWindows() {
   const agents = (team.data?.team?.agents || []).map((a) => a.name);
   return [
-    {name: "agents", panes: (agents.length ? agents : ["team"]).map((n) => ({title: n, streams: [`agent/${n}`]}))},
+    {name: "agents", panes: (agents.length ? agents : ["team"]).map((n) => ({title: n, agent: n, streams: [`agent/${n}`]}))},
     {name: "testcases", panes: [{title: "test cases · alerts · team", streams: ["testcase/", "alerts", "agent/team"]},
       {title: "kubectl get pods,events -n lab -w", streams: ["watch/"]}]},
     {name: "journal", panes: [{title: "journal", streams: ["journal"]}, {title: "access log (4xx, refused)", streams: ["access"]}]},
@@ -2118,7 +2266,7 @@ function txClass(t) {
   if (t.startsWith("✗") || /\bFAILED\b|\[critical\]|OOMKilled|BackOff/.test(t)) return "tx-err";
   if (t.startsWith("✓") || /-> ok$/.test(t)) return "tx-ok";
   if (t.startsWith("━━")) return "tx-head";
-  if (t.includes("⋯")) return "tx-dim";
+  if (t.includes("⋯")) return "tx-think";
   if (/^\s*[◆●]|\[warning\]|^FIRING/.test(t)) return "tx-hi";
   if (/^\s*[→✎▶↳↺]/.test(t)) return "tx-cy";
   return "";
@@ -2129,7 +2277,9 @@ function txLine(r) {
   t.textContent = new Date(r.ts * 1000).toTimeString().slice(0, 8) + " ";
   const body = document.createElement("span");
   body.className = txClass(r.text);
-  body.textContent = r.stream.startsWith("agent/") || r.stream.startsWith("tmux/") ? r.text : `${r.stream.replace(/^(testcase|watch)\//, "")}  ${r.text}`;
+  // kubectl -w pads its columns for a full terminal; two spaces keep an event on one line in a pane.
+  const text = r.stream.startsWith("watch/") ? r.text.replace(/ {3,}/g, "  ") : r.text;
+  body.textContent = r.stream.startsWith("agent/") || r.stream.startsWith("tmux/") ? text : `${r.stream.replace(/^(testcase|watch)\//, "")}  ${text}`;
   d.append(t, body);
   return d;
 }
@@ -2143,15 +2293,29 @@ function renderTx() {
   box.replaceChildren(...w.panes.map((p, i) => {
     const pane = document.createElement("div");
     pane.className = "pane on";  // "on": the lab's single-pane phone layout hides the others
-    pane.innerHTML = `<div class="pane-h"><b>${tx.win}.${i}</b><span>${esc(p.title)}</span><span class="sp"></span><span>${esc(p.streams.join(" "))}</span></div>
+    pane.innerHTML = `<div class="pane-h"><b>${tx.win}.${i}</b><span>${esc(p.title)}</span><span class="sp"></span>${p.agent ? `<span class="st"></span>` : ""}</div>
       <div class="tx-lines" role="log" aria-label="${esc(p.title)}"></div>`;
     const lines = pane.querySelector(".tx-lines"), mine = tx.recs.filter((r) => txMatch(r.stream, p.streams)).slice(-800);
     lines.append(...mine.map(txLine));
     if (!mine.length) lines.append(Object.assign(document.createElement("div"), {className: "tx-dim", textContent: "(nothing in the ring for this pane yet)"}));
     pane._streams = p.streams;
+    pane._agent = p.agent;
     return pane;
   }));
   box.querySelectorAll(".tx-lines").forEach((l) => (l.scrollTop = l.scrollHeight));
+  txStates();
+}
+// Agent panes show "title · model" and the agent's state in the last run, like a tmux pane title.
+function txStates() {
+  const info = Object.fromEntries((team.data?.team?.agents || []).map((a) => [a.name, a])), run = team.data?.run?.agents || {};
+  $$("#tx-win .pane").forEach((pane) => {
+    const a = info[pane._agent];
+    if (!a) return;
+    pane.querySelector(".pane-h > span").textContent = `${a.title} · ${a.label || a.model}`;
+    const st = pane.querySelector(".st"), state = run[pane._agent]?.state || "idle";
+    st.className = `st ${state}`;
+    st.textContent = state;
+  });
 }
 function txAppend(recs) {
   $$("#tx-win .pane").forEach((pane) => {
@@ -2184,6 +2348,7 @@ async function pollRingStat() {
     $("#tx-ring").textContent = `ring ${(st.used_bytes / 2 ** 20).toFixed(1)} / ${(st.capacity_bytes / 2 ** 20).toFixed(0)} MiB in RAM · `
       + `${st.records.toLocaleString()} lines${st.wrapped ? " · wrapped" : ""}${st.oldest_ts ? ` · since ${new Date(st.oldest_ts * 1000).toLocaleTimeString()}` : ""}`;
   } catch (e) { $("#tx-ring").textContent = `ring: ${e.message}`; }
+  if (!lab.status) lab.status = await api("/api/lab").catch(() => null);  // the host name, when the lab view hasn't loaded it
   $("#tx-clock").textContent = `"${lab.status?.host || "kubesage"}" ${new Date().toTimeString().slice(0, 5)}`;
 }
 
@@ -2220,6 +2385,7 @@ function initTeam() {
     renderTeam();
   };
   $("#team-detail").onclick = (ev) => { const b = ev.target.closest("[data-exec]"); if (b) execAction(b.dataset.exec); };
+  $("#team-runbar").onclick = (ev) => { const b = ev.target.closest("[data-goto]"); if (b) location.hash = b.dataset.goto; };
   $("#tx-windows").onclick = (ev) => { const b = ev.target.closest("[data-win]"); if (b) { tx.win = +b.dataset.win; renderTx(); } };
   $("#tx-range").onchange = (ev) => ($("#tx-save").href = `/api/ring/dump?minutes=${ev.currentTarget.value}`);
   $("#tx-pause").onclick = (ev) => {
@@ -2311,7 +2477,10 @@ function initLab() {
   $("#lab-analyze").onclick = () => $("#btn-analyze").click();
   $("#lab-apply").onclick = () => $("#btn-apply").click();
   $("#lab-spike").onclick = () => $("#btn-spike").click();
-  $("#lab-reset").onclick = () => $("#btn-reset").click();
+  $(".lab-jump").onclick = (ev) => {
+    const b = ev.target.closest("[data-jump]");
+    if (b) $("#" + b.dataset.jump).scrollIntoView({behavior: reduceMotion.matches ? "auto" : "smooth", block: "start"});
+  };
   $("#lab-backfill").onclick = (ev) => {
     if (!confirm("Backfill replaces ALL metric history for this namespace in VictoriaMetrics: the 30-day scenario history and "
       + "everything recorded live since. The next analysis then reads only the regenerated history. Continue?")) return;
@@ -2322,7 +2491,7 @@ function initLab() {
       await loadTrace(lab.traceRun || runId);
     });
   };
-  shPrint("KubeSage lab shell. Read-only: kubectl get/describe/top/logs/events, promql, kubesage route|ledger|plan|runs. Type help.", "sh-dim");
+  shPrint("KubeSage lab shell. Read-only: kubectl get/describe/top/logs/events, promql, kubesage route|ledger|plan|runs. Type help.", "sh-dim wrap");
   selectPane(0);
   renderStages();
   renderJournal();
