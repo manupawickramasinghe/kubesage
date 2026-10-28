@@ -137,8 +137,11 @@ class LLMClient:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         inp = cached = out = 0
         exchanges = []
-        for _ in range(2):  # one retry with the validation error fed back
+        problem = ""
+        for _ in range(2):  # one retry: with the validation error fed back, or with less reasoning
             body = self._body(tier, list(messages))
+            if problem.startswith("no answer") and body.get("reasoning_effort") == "high":
+                body["reasoning_effort"] = "medium"  # it spent the whole budget reasoning; leave room for the answer
             started = time.perf_counter()
             data = self._post(body)
             exchanges.append({"request": self._request(body), "response": {"status": 200, "body": data},
@@ -147,10 +150,16 @@ class LLMClient:
             inp += usage.get("prompt_tokens", 0)
             out += usage.get("completion_tokens", 0)
             cached += (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0
-            content = data["choices"][0]["message"]["content"] or ""
+            choice = (data.get("choices") or [{}])[0]
+            content = (choice.get("message") or {}).get("content") or ""
+            if not content.strip():  # gpt-oss can reason until max_tokens and send no content key at all
+                problem = (f"no answer (finish_reason {choice.get('finish_reason')!r} after "
+                           f"{usage.get('completion_tokens', 0)} output tokens)")
+                continue
             try:
                 return schema.model_validate_json(_strip_fences(content)), (inp, cached, out), exchanges
             except ValidationError as exc:
+                problem = "invalid JSON"
                 messages += [{"role": "assistant", "content": content},
                              {"role": "user", "content": f"That JSON failed validation:\n{exc}\nReply with corrected JSON only."}]
-        raise LLMError(f"{cfg.model} returned invalid JSON twice for {schema.__name__}")
+        raise LLMError(f"{cfg.model} failed twice for {schema.__name__}: {problem}")

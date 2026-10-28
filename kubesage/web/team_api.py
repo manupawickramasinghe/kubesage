@@ -204,7 +204,11 @@ class TeamApi:
             try:
                 team.run(t, settings, trigger=trigger, prepared=tr)
             except Exception as exc:  # surface it in the run instead of a dead thread
-                tr.set(state="failed", error=f"{type(exc).__name__}: {exc}")
+                error = f"{type(exc).__name__}: {exc}"
+                for name, a in tr.snapshot()["agents"].items():
+                    if a["state"] == "running":
+                        tr.agent(name, state="failed", error=error[:300])
+                tr.set(state="failed", error=error, finished_at=team._now())
                 ring.emit("agent/team", f"✗ team run failed: {exc}")
             finally:
                 self._run_lock.release()
