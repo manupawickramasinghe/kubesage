@@ -90,6 +90,25 @@ files the Executor edits. Start and stop them from the Lab's dropdown, the tmux 
 | `pod-density` | sidecar-swarm | 80 tiny pods on one node (max 110) | Raise max_pods, or spread and consolidate |
 | `security` | debug-tools | A bare Pod created outside GitOps: busybox:latest, root, no limits | Flag the drift; enforce Pod Security on the namespace; a human removes the pod |
 
+### Verified live (28 Oct 2026, Cerebras profile)
+
+Every test case was run on the real cluster, and every alert above fired. The agent team's answers:
+- **cpu-code** (auto-run by the `ContainerCPUBusy` alert): the Thinker read the source and blamed the GIL; the
+  Executor swapped the thread pool for a process pool. Applied with **Apply to cluster**, risk-scorer went from
+  ~1.0 to **2.99 cores** and from 2.4M to **6.4M transactions/s**. The PR it opened (#12) was then closed
+  unmerged so the test case still works.
+- **memory**: raised the limit and, because of the month-end rule, moved the lab pool from F8s_v2 to E4s_v5
+  in Terraform.
+- **cpu-throttle, disk-io, disk-full, latency, security** at the same time: 4 issues, 5 actions, every edit
+  written by the model and valid, in 15 s for $0.035. The hand-made pod went to a human (`investigate`).
+- **latency**: callers saw a 29 s p95 while the app's own histogram said under 0.5 s. The load generator
+  measures client-side latency for exactly this reason.
+- **pod-count**: cut each replica's request to 500m so all 12 fit, rather than adding a node.
+- **pod-density**: added a KEDA ScaledObject for sidecar-swarm (a new file, plus the kustomization entry).
+
+Model output varies from run to run. These are single runs, not guarantees; the guardrails and validation are
+what make every run safe to apply.
+
 Every test case is bounded: memory stays under its container limit, CPU under its limit, disk writes under
 1 GiB of space, and the pause-image pods use a few MiB each. Run one at a time; the laptop also runs Pi-hole
 and GitHub runners. **Merging an Executor PR fixes a test case for good**, because test cases deploy from

@@ -15,14 +15,16 @@ CACHE = os.environ.get("CACHE", "/cache")
 
 def fill() -> None:
     chunk = os.urandom(FILE_MB << 20)
-    n = 0
+    n, last = 0, 0.0
     while True:
         held = sum(e.stat().st_size for e in os.scandir(CACHE) if e.is_file()) >> 20
         if held + FILE_MB <= FILL_MB:
             with open(os.path.join(CACHE, f"thumb-{n:05d}.bin"), "wb") as f:
                 f.write(chunk)
             n += 1
-        print(f"cache holds {held} MiB in {n} files (never evicted)", flush=True)
+        if time.monotonic() - last >= 10:
+            print(f"cache holds {held} MiB in {n} files (never evicted)", flush=True)
+            last = time.monotonic()
         time.sleep(FILE_MB / FILL_MBPS)
 
 

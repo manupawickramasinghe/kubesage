@@ -112,7 +112,12 @@ def cmd_gitops(args: argparse.Namespace) -> None:
 
 
 def cmd_serve(args: argparse.Namespace) -> None:
+    import faulthandler
+    import signal
+
     from kubesage.web.server import Settings, serve
+
+    faulthandler.register(signal.SIGUSR1)  # `kill -USR1 <pid>` prints every thread's stack, for a stuck run
 
     settings = Settings(vm=args.vm, namespace=args.namespace, days=args.days, tz=args.tz, mode=args.mode,
                         out_dir=Path(args.out_dir), gitops_repo=Path(args.gitops_repo) if args.gitops_repo else None,

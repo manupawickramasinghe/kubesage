@@ -42,9 +42,32 @@ def apply_edit(text: str | None, edit: Edit) -> str:
     if text is None:
         raise EditError(f"{edit.path}: no such file")
     count = text.count(edit.find)
-    if count != 1:
-        raise EditError(f"{edit.path}: find text occurs {count} times, must occur exactly once")
-    return text.replace(edit.find, edit.replace, 1)
+    if count == 1:
+        return text.replace(edit.find, edit.replace, 1)
+    if count == 0 and (fixed := _reindented(text, edit)) is not None:
+        return fixed
+    raise EditError(f"{edit.path}: find text occurs {count} times, must occur exactly once")
+
+
+def _reindented(text: str, edit: Edit) -> str | None:
+    """Models often get indentation wrong. Accept a find whose lines match one unique block of the file once leading
+    and trailing whitespace is ignored, and shift the replacement by the same indentation difference."""
+    want = [line.strip() for line in edit.find.strip("\n").splitlines()]
+    if not want or not any(want):
+        return None
+    lines = text.splitlines(keepends=True)
+    hits = [i for i in range(len(lines) - len(want) + 1)
+            if [line.strip() for line in lines[i:i + len(want)]] == want]
+    if len(hits) != 1:
+        return None
+    i = hits[0]
+    first_find = edit.find.strip("\n").splitlines()[0]
+    shift = (len(lines[i]) - len(lines[i].lstrip())) - (len(first_find) - len(first_find.lstrip()))
+    new = []
+    for line in edit.replace.strip("\n").splitlines():
+        new.append(" " * shift + line if shift >= 0 else line[min(-shift, len(line) - len(line.lstrip())):])
+    end = "\n" if lines[i + len(want) - 1].endswith("\n") else ""
+    return "".join(lines[:i]) + "\n".join(new) + end + "".join(lines[i + len(want):])
 
 
 def validate_file(path: str, text: str, skus: set[str]) -> None:
@@ -135,12 +158,14 @@ def deterministic(action: Action, files: dict[str, str]) -> list[Edit]:
             if p.get(key):
                 new = re.sub(rf"({key}\s*= )\d+", lambda m: f"{m.group(1)}{int(p[key])}", new)
         return [Edit(path=tf, find=block, replace=new, action=action.id)] if new != block else []
-    if action.type == "storage" and dep in files and p.get("size_limit"):
+    size = p.get("size_limit") or p.get("sizeLimit") or p.get("size")
+    if action.type == "storage" and dep in files and size:
         vol = p.get("volume")
-        m = re.search(rf"- \{{name: {re.escape(vol)}, emptyDir: \{{sizeLimit: [^}}]+\}}\}}" if vol else
-                      r"- \{name: [\w-]+, emptyDir: \{sizeLimit: [^}]+\}\}", files[dep])
-        if m:
-            return [Edit(path=dep, find=m.group(0), replace=re.sub(r"sizeLimit: [^}]+", f"sizeLimit: {p['size_limit']}", m.group(0)),
+        found = re.findall(r"- \{name: [\w-]+, emptyDir: \{sizeLimit: [^}]+\}\}", files[dep])
+        named = [f for f in found if vol and f.startswith(f"- {{name: {vol},")]
+        target_line = named[0] if named else found[0] if len(found) == 1 else None  # one emptyDir: no doubt which
+        if target_line:
+            return [Edit(path=dep, find=target_line, replace=re.sub(r"sizeLimit: [^}]+", f"sizeLimit: {size}", target_line),
                          action=action.id)]
     if action.type == "autoscale" and dep in files:
         kust = f"gitops/apps/{name}/kustomization.yaml"

@@ -64,10 +64,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class Server(ThreadingHTTPServer):
-    # Accept connections promptly, so time spent waiting for CPU shows up in the histogram rather than as
-    # connections stuck in the kernel's listen backlog, which no server-side metric can see.
-    request_queue_size = 512
+    request_queue_size = 512  # accept callers promptly instead of leaving them in a 5-deep kernel backlog
     daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        pass  # a caller that gave up (broken pipe, reset) is not news; the probe already counts the timeout
 
 
 if __name__ == "__main__":

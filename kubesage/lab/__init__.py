@@ -88,11 +88,13 @@ def load_job(tc: TestCase) -> dict:
         "metadata": {"name": f"{tc.app}-load", "namespace": NAMESPACE,
                      "labels": {"app": f"{tc.app}-load", "kubesage.io/testcase": tc.name}},
         "spec": {"backoffLimit": 0, "ttlSecondsAfterFinished": 300, "template": {
-            "metadata": {"labels": {"app": f"{tc.app}-load", "kubesage.io/testcase": tc.name}},
+            "metadata": {"labels": {"app": f"{tc.app}-load", "kubesage.io/testcase": tc.name},
+                         "annotations": {"prometheus.io/scrape": "true", "prometheus.io/port": "9102"}},
             "spec": {"restartPolicy": "Never", "nodeSelector": {"kubesage.io/pool": "lab"},
                      "terminationGracePeriodSeconds": 1, "containers": [{
                          "name": "loadgen", "image": APP_IMAGE, "command": ["python", "-u", "/load/loadgen.py"],
                          "env": [{"name": "TARGET", "value": f"http://{tc.app}:8080/api"},
+                                 {"name": "TARGET_APP", "value": tc.app},
                                  {"name": "RPS", "value": str(tc.load_rps)}, {"name": "SECONDS", "value": "900"}],
                          "volumeMounts": [{"name": "load", "mountPath": "/load"}],
                          "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}],

@@ -8,7 +8,7 @@ from kubesage.agents.schemas import Action, ChangeSet, Diagnosis, Finding, Issue
 
 CATEGORY = {"memory_working_set": "memory", "oom_kills_10m": "memory", "cpu_cores": "cpu", "cpu_throttled_ratio": "cpu",
             "cpu_flat": "cpu", "disk_write_rate": "disk_io", "pressure_io_stall": "disk_io", "volume_used_ratio": "disk_space",
-            "latency_p95": "latency", "pending_reason": "pod_count", "workload_pods": "pod_count", "pods_on_node": "pod_density",
+            "latency_p95_server": "latency", "latency_p95_client": "latency", "probe_failures": "latency", "pending_reason": "pod_count", "workload_pods": "pod_count", "pods_on_node": "pod_density",
             "pod_posture": "security", "not_in_gitops": "security", "namespace_no_pod_security": "security",
             "web_unknown_paths": "security", "web_csrf_rejected": "security", "web_shell_refused": "security",
             "restarts_total": "memory", "restarts_10m": "memory"}

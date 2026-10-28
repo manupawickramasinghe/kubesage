@@ -105,6 +105,16 @@ def test_edits_must_match_once_and_stay_under_gitops(tmp_path):
             E.check_path(tmp_path, bad)
 
 
+def test_a_misindented_find_still_applies_once_reindented():
+    e = Edit(path="gitops/x.yaml", action="A1", find="requests: {cpu: 50m, memory: 256Mi}\nlimits: {cpu: 500m, memory: 512Mi}",
+             replace="requests: {cpu: 50m, memory: 1Gi}\nlimits: {cpu: 500m, memory: 1Gi}")
+    out = E.apply_edit(DEPLOY, e)
+    assert "            requests: {cpu: 50m, memory: 1Gi}\n            limits: {cpu: 500m, memory: 1Gi}\n" in out
+    assert len(out.splitlines()) == len(DEPLOY.splitlines())
+    with pytest.raises(E.EditError):  # ambiguous or absent blocks are still refused
+        E.apply_edit(DEPLOY, e.model_copy(update={"find": "nothing like this"}))
+
+
 def test_validation_catches_duplicate_keys_bad_python_and_unknown_skus():
     skus = {s.name for s in load_skus().skus}
     with pytest.raises(E.EditError, match="duplicate"):

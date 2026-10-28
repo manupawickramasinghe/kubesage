@@ -89,8 +89,19 @@ def collect(ctx):
     for labels, p95 in ctx.query(f'histogram_quantile(0.95, sum by (le, namespace, app) '
                                  f'(rate(http_request_duration_seconds_bucket{{namespace=~"{ns}"}}[1m])))'):
         if p95 == p95:  # NaN when there was no traffic
-            ctx.signal(f"{labels.get('app')}.p95", "latency_p95", f"deployment/{labels.get('namespace')}/{labels.get('app')}",
-                       round(p95 * 1000), unit="ms", severity="warning" if p95 > 0.5 else None)
+            ctx.signal(f"{labels.get('app')}.p95_server", "latency_p95_server", f"deployment/{labels.get('namespace')}/{labels.get('app')}",
+                       round(p95 * 1000), unit="ms", detail="measured inside the app, from when a thread picks the request up",
+                       severity="warning" if p95 > 0.5 else None)
+    for labels, p95 in ctx.query(f'histogram_quantile(0.95, sum by (le, namespace, target) '
+                                 f'(rate(probe_http_duration_seconds_bucket{{namespace=~"{ns}"}}[1m])))'):
+        if p95 == p95:
+            ctx.signal(f"{labels.get('target')}.p95_client", "latency_p95_client", f"deployment/{labels.get('namespace')}/{labels.get('target')}",
+                       round(p95 * 1000), unit="ms", detail="what callers wait, queueing included (in-cluster probe)",
+                       severity="warning" if p95 > 0.5 else None)
+    for labels, rate in ctx.query(f'sum by (namespace, target) (rate(probe_http_failures_total{{namespace=~"{ns}"}}[1m]))'):
+        if rate > 0:
+            ctx.signal(f"{labels.get('target')}.probe_failures", "probe_failures", f"deployment/{labels.get('namespace')}/{labels.get('target')}",
+                       round(rate, 2), unit="req/s", detail="probe requests that failed or timed out (30 s)", severity="warning")
     for labels, rps in ctx.query(f'sum by (namespace, app) (rate(http_request_duration_seconds_count{{namespace=~"{ns}"}}[1m]))'):
         ctx.signal(f"{labels.get('app')}.rps", "request_rate", f"deployment/{labels.get('namespace')}/{labels.get('app')}",
                    rps, unit="req/s")
