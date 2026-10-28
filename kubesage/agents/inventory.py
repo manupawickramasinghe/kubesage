@@ -43,10 +43,13 @@ def build(ctx: Context, gitops: Path, catalog: SkuCatalog, namespaces: list[str]
         try:
             sku = catalog.get(pool["sku"])
             pool.update(family=sku.family, vcpu=sku.vcpu, memory_gib=sku.memory_gib,
+                        allocatable_cores=round(sku.vcpu * catalog.allocatable_cpu * pool["node_count"], 2),
+                        allocatable_memory_gib=round(sku.memory_gib * catalog.allocatable_mem * pool["node_count"], 2),
                         monthly_usd=round(sku.hourly_usd * hours * pool["node_count"], 2))
         except KeyError:
             pass
     return {"workloads": workloads, "nodes": nodes, "node_pools": pools,
+            "allocatable_share": {"cpu": catalog.allocatable_cpu, "memory": catalog.allocatable_mem},
             "skus": [{"name": s.name, "family": s.family, "vcpu": s.vcpu, "memory_gib": s.memory_gib,
                       "monthly_usd": round(s.hourly_usd * hours, 2), **({"local_nvme_gib": s.local_nvme_gib} if s.local_nvme_gib else {})}
                      for s in catalog.skus]}
@@ -62,4 +65,7 @@ def _workload(name: str, ns: str, spec: dict, replicas, kind: str, gitops: Path)
                             "env": {e["name"]: e.get("value") for e in c.get("env", []) if "value" in e}}
                            for c in spec.get("containers", [])],
             "gitops": f"gitops/apps/{name}/deployment.yaml" if path.exists() else None,
-            "sources": sorted(f"gitops/apps/{name}/src/{p.name}" for p in (app_dir / "src").glob("*.py")) if app_dir.exists() else []}
+            "sources": sorted(f"gitops/apps/{name}/src/{p.name}" for p in (app_dir / "src").glob("*.py")) if app_dir.exists() else [],
+            # The code itself, so the Thinker can tell "needs more cores" from "can't use the cores it has".
+            "source_code": {f"gitops/apps/{name}/src/{p.name}": p.read_text()[:8000]
+                            for p in sorted((app_dir / "src").glob("*.py"))} if app_dir.exists() else {}}

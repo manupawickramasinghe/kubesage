@@ -22,6 +22,21 @@ other websites can't trigger actions. There's no authentication beyond that.
 | POST | `/api/shell` | `{cmd}` → `{cmd, exit, out, ms}`. Read-only allow-list (see the UI guide); refused commands exit 2 without running anything. |
 | POST | `/api/backfill` | `{days: 1–60}` → `{samples, series, days, seconds}`. Regenerates the demo history in VictoriaMetrics, replacing the namespace's series. Holds the operation lock; demo namespace only. |
 | POST | `/api/gitops` | `{run?, open_pr: bool}` → `{branch, commit, pushed, pr_url}`; 400 unless started with `--gitops-repo`/`--gitops-base` |
+| GET | `/api/testcases` | `{catalog: [{name, title, category, app, summary, expect, gitops, load_rps}], active: {name: {pods, phases, restarts, since, stopping}}, alerts: [{name, severity, summary, since, pod, node}], cluster: bool}` |
+| POST | `/api/testcase` | `{action: "start"\|"stop"\|"stop-all", name}` → `{ok, steps: [{cmd, ok, output}], error}`. Names come from the catalog only. 409 while another start/stop runs. |
+| GET | `/api/agents` | The agent team: `{team: {profile, provider: {base_url, api_key_env}, agents: [{name, title, role, size, label, model, description, folder}], rules: [{file, text}], error}, run: <latest run>, runs: [...], auto, prs, pending: {alert, in_s} \| null}` |
+| POST | `/api/agents/run` | `{trigger?: "manual"}` → 202 `{id}`; the run continues in the background. 409 if one is running. |
+| GET | `/api/agents/run?id=<id>` | One run: per-agent state, tokens, cost; every sub-agent's signals and report; the diagnosis; what validation rejected; the executor's branch, commit, edits, diff, PR body and `pr_url`. |
+| POST | `/api/agents/apply` | `{id, dry_run: bool}` → `{ok, dry_run, steps: [{cmd, ok, output}], skipped: [{path, reason}]}`: `kubectl apply -k` of each changed `gitops/apps/<app>` from the run's commit. Terraform files are listed as skipped. |
+| POST | `/api/agents/pr` | `{id}` → `{pr_url}`: push the run's branch and open a PR with `gh`. 403 unless started with `--agent-prs`. |
+| POST | `/api/agents/auto` | `{on: bool}` → `{auto}`: run the team when a lab alert fires |
+| GET | `/api/ring?after=<seq>&streams=a,b/&limit=` | `{records: [{seq, ts, stream, text}], last}` from the RAM ring; `tail=<n>` instead of `after` returns the newest n. A trailing `/` or `*` matches a stream prefix. |
+| GET | `/api/ring/stat` | `{path, capacity_bytes, used_bytes, segments, segments_used, wrapped, records, last_seq, oldest_ts, newest_ts}` |
+| GET | `/api/ring/dump?minutes=<n>&streams=` | The ring as a `text/plain` download (0 minutes: everything held), API key values redacted |
+
+The ring has no write endpoint, and none of these endpoints gives the browser a terminal. Every response is
+recorded in an in-memory request log that the security agent reads; 403s, 404s and refused shell commands also
+go to the ring's `access` stream.
 
 Mutations share a lock: overlapping analyze, apply, spike, reset or GitOps requests return 409. Request bodies
 must be JSON objects of at most 64 KiB. Invalid parameter types or ranges return 400.

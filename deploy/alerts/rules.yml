@@ -36,7 +36,7 @@ groups:
         annotations:
           summary: "{{ $labels.pod }} has used {{ $value | printf \"%.2f\" }} cores for over a minute"
       - alert: DiskWriteHeavy
-        expr: sum by (namespace, pod) (rate(container_fs_writes_bytes_total{namespace="lab"}[1m])) > 10e6
+        expr: sum by (namespace, pod) (rate(container_fs_writes_bytes_total{namespace="lab", container!=""}[1m])) > 15e6
         for: 30s
         labels: {severity: warning}
         annotations:

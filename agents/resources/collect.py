@@ -122,7 +122,8 @@ def collect(ctx):
                        detail=f"last terminations / waiting: {reasons}",
                        severity="critical" if "OOMKilled" in reasons else "warning" if restarts else None)
 
-    cutoff = datetime.now(timezone.utc).timestamp() - 900
+    cutoff = datetime.now(timezone.utc).timestamp() - 600
+    live = {name for (_, name) in groups}  # events about workloads that are gone are history, not a problem
     counts = {}
     for namespace in ctx.namespaces:
         for e in (ctx.kube("-n", namespace, "get", "events") or {}).get("items", []):
@@ -136,6 +137,8 @@ def collect(ctx):
                 continue
             obj = e.get("involvedObject", {})
             key = (namespace, e.get("reason"), _REPLICA.sub("", obj.get("name", "")))
+            if key[2] not in live:
+                continue
             entry = counts.setdefault(key, [0, e.get("message", "")])
             entry[0] += e.get("count") or 1
     for (namespace, reason, name), (count, message) in sorted(counts.items()):

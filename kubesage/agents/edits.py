@@ -16,6 +16,17 @@ class EditError(ValueError):
     pass
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """safe_load silently keeps the last of two equal keys; a duplicated label or field is a bad edit."""
+
+    def construct_mapping(self, node, deep=False):
+        keys = [self.construct_object(k, deep=deep) for k, _ in node.value]
+        dupes = sorted({str(k) for k in keys if keys.count(k) > 1})
+        if dupes:
+            raise yaml.constructor.ConstructorError(None, None, f"duplicate key(s) {', '.join(dupes)}", node.start_mark)
+        return super().construct_mapping(node, deep)
+
+
 def check_path(repo: Path, path: str) -> Path:
     if not re.fullmatch(r"gitops/[A-Za-z0-9._/-]+", path) or ".." in path.split("/"):
         raise EditError(f"{path}: edits must stay under gitops/")
@@ -39,7 +50,7 @@ def apply_edit(text: str | None, edit: Edit) -> str:
 def validate_file(path: str, text: str, skus: set[str]) -> None:
     if path.endswith((".yaml", ".yml")):
         try:
-            docs = [d for d in yaml.safe_load_all(text) if d is not None]
+            docs = [d for d in yaml.load_all(text, Loader=_UniqueKeyLoader) if d is not None]
         except yaml.YAMLError as exc:
             raise EditError(f"{path}: YAML does not parse: {str(exc).splitlines()[0]}") from exc
         for doc in docs:
@@ -146,6 +157,8 @@ def deterministic(action: Action, files: dict[str, str]) -> list[Edit]:
         path = "gitops/apps/namespace.yaml"
         level = p.get("pod_security", "baseline")
         m = re.search(r"^  labels:\n(    .+\n)+", files.get(path, ""), re.M)
+        if not re.search(rf"^  name: {re.escape(name)}$", files.get(path, ""), re.M):
+            return []  # only the lab namespace is in gitops/
         if m and "pod-security.kubernetes.io/enforce" not in m.group(0):
             add = (f"    pod-security.kubernetes.io/enforce: {level}\n    pod-security.kubernetes.io/warn: restricted\n"
                    f"    pod-security.kubernetes.io/audit: restricted\n")

@@ -31,7 +31,7 @@ def collect(ctx):
             if "pod-security.kubernetes.io/enforce" not in labels:
                 ctx.signal(f"{namespace}.psa", "namespace_no_pod_security", f"namespace/{namespace}", "unset",
                            detail="no pod-security.kubernetes.io/enforce label: any pod spec is admitted",
-                           severity="warning" if namespace == "lab" else "info")
+                           severity="info")
         seen = set()
         for pod in (ctx.kube("-n", namespace, "get", "pods") or {}).get("items", []):
             meta, spec = pod["metadata"], pod["spec"]
@@ -99,7 +99,7 @@ def collect(ctx):
         c["requests"] += 1
         c["agents"].add(r.get("agent", "")[:60])
         path = r["path"].split("?", 1)[0]
-        if r["status"] == 404 and not any(path == k or (k.endswith("/") and path.startswith(k)) for k in known):
+        if r["status"] == 404 and not any(path == k or (k != "/" and k.endswith("/") and path.startswith(k)) for k in known):
             c["unknown"].add(path[:80])
         if r["status"] == 403 and r["method"] == "POST":
             c["csrf"] += 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download pinned k3d and kubectl into ./.bin (no sudo, nothing installed system-wide).
+# Download pinned k3d and kubectl (and tmux, if missing) into ./.bin (no sudo, nothing installed system-wide).
 set -euo pipefail
 source "$(dirname "$0")/versions.sh"
 mkdir -p "$BIN_DIR"
@@ -23,6 +23,14 @@ if ! ./kubectl version --client 2>/dev/null | grep -q "$KUBECTL_VERSION"; then
   curl -fsSLo kubectl "$base/kubectl"
   echo "$(curl -fsSL "$base/kubectl.sha256")  kubectl" | sha256sum -c -
   chmod +x kubectl
+fi
+
+# tmux for `kubesage tmux`: unpacked from the distro's package when the machine has none, so no sudo either.
+if ! command -v tmux >/dev/null && [ ! -x ./tmux ] && command -v apt-get >/dev/null; then
+  echo "fetching tmux (apt-get download, unpacked into $BIN_DIR)"
+  tmp=$(mktemp -d)
+  (cd "$tmp" && apt-get download tmux >/dev/null && dpkg -x tmux_*.deb pkg) && cp "$tmp/pkg/usr/bin/tmux" ./tmux
+  rm -rf "$tmp"
 fi
 
 ./k3d version | head -1

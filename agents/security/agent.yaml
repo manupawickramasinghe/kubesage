@@ -6,7 +6,7 @@ model: small
 description: Pod security posture, workloads created outside GitOps, RBAC, and probes against the Control Center.
 max_findings: 6
 settings:
-  namespaces: [lab, demo]
+  namespaces: [lab]     # the demo namespace belongs to the right-sizing story
   # Images from anywhere else are flagged. Tags must be pinned (no :latest, no missing tag).
   allowed_registries: [docker.io/library/python, docker.io/rancher/mirrored-pause, python, registry.k8s.io]
   # Control Center paths that exist; requests for anything else are probes.

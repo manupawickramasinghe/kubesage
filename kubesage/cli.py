@@ -152,7 +152,7 @@ def _clean(text: str) -> str:
     import re
     global ANSI
     ANSI = ANSI or re.compile(r"\x1b(\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|[()][0-9A-Za-z]|[=>78DEHMc])")
-    text = ANSI.sub("", text)
+    text = ANSI.sub("", text.rstrip("\r\n"))
     return "".join(ch for ch in text.rsplit("\r", 1)[-1] if ch == "\t" or ch >= " ")
 
 
@@ -196,6 +196,7 @@ def cmd_ring(args: argparse.Namespace) -> None:
 def cmd_tmux(args: argparse.Namespace) -> None:
     """A tmux session that shows the ring: one pane per agent, test cases, journal, and an operator shell whose
     output is piped into the ring (so the web tmux view mirrors it, read-only)."""
+    import shlex
     import shutil
     import subprocess
 
@@ -204,7 +205,7 @@ def cmd_tmux(args: argparse.Namespace) -> None:
     tmux = shutil.which("tmux") or str(Path(__file__).resolve().parent.parent / ".bin" / "tmux")
     if not Path(tmux).exists():
         sys.exit("tmux not found: run scripts/install-tools.sh (it fetches one into .bin without sudo)")
-    exe = shutil.which("kubesage") or f"{sys.executable} -m kubesage.cli"
+    exe = f"{shlex.quote(sys.executable)} -m kubesage.cli"  # the same interpreter and code as this command
     tail = lambda streams: f"{exe} ring tail -f -n 200 --streams {streams}"
     t = lambda *a: subprocess.run([tmux, *a], check=True)
     if subprocess.run([tmux, "has-session", "-t", args.session], capture_output=True).returncode != 0:

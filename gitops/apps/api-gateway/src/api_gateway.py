@@ -63,5 +63,12 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+class Server(ThreadingHTTPServer):
+    # Accept connections promptly, so time spent waiting for CPU shows up in the histogram rather than as
+    # connections stuck in the kernel's listen backlog, which no server-side metric can see.
+    request_queue_size = 512
+    daemon_threads = True
+
+
 if __name__ == "__main__":
-    ThreadingHTTPServer(("", 8080), Handler).serve_forever()
+    Server(("", 8080), Handler).serve_forever()

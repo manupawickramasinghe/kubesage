@@ -23,6 +23,10 @@ ssh -L 8600:localhost:8600 -L 3300:localhost:3300 manupa@192.168.1.9   # from th
 
 Grafana is at http://localhost:3300 on the desktop: anonymous view, admin/admin to edit.
 
+For the agent team: `docker compose up -d` also starts vmalert and Alertmanager (127.0.0.1:9193). Add
+`--agent-prs` to let the Executor open pull requests. `kubesage tmux` opens the tmux session over the RAM ring
+(`kubesage tmux --no-attach` to only create it). See [agents.md](agents.md).
+
 ## After a reboot
 
 | machine | comes back on its own | then run |

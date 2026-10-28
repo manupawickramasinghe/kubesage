@@ -443,6 +443,82 @@
   .tmux-status button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0 2px; }
   .tmux-status button[aria-selected="true"] { background: #e9ffef; color: #1f6f43; }
   .tmux-status .sp { flex: 1; }
+
+  /* ---------- Agent team (Lab) ---------- */
+  .team-card { margin-top: 8px; padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+  .team-head { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; }
+  .team-head p { margin: 6px 0 0; max-width: 620px; color: var(--fg-2); font-size: 13.5px; }
+  .tc-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .tc-bar select { height: 32px; min-width: 0; max-width: 260px; }
+  .tc-desc { margin: 14px 0 0; font-size: 13px; color: var(--fg-2); }
+  .tc-desc b { color: var(--fg); font-weight: 600; }
+  .tc-live { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; min-height: 22px; }
+  .tc-live .badge.firing { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)); }
+  .tc-live .badge.crit { border-color: var(--crit); }
+  .team-msg { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); min-height: 18px; overflow-wrap: anywhere; }
+  .team-msg[data-kind="err"] { color: var(--crit); }
+  .team-flow { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); gap: 0 28px; margin-top: 18px; align-items: center; }
+  @media (max-width: 980px) { .team-flow { grid-template-columns: 1fr; gap: 24px; } }
+  .team-col { display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .team-col.subs::after, .team-col.mid::after { content: ""; position: absolute; top: 50%; right: -24px; width: 20px; height: 2px; background: var(--border); }
+  @media (max-width: 980px) { .team-col.subs::after, .team-col.mid::after { top: auto; bottom: -18px; right: auto; left: 24px; width: 2px; height: 14px; } }
+  .team-col.flowing::after { background: var(--rec); }
+  .agent { position: relative; display: grid; gap: 2px; width: 100%; min-width: 0; padding: 10px 12px 10px 30px; text-align: left;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--fg); font: 12.5px/1.4 var(--sans);
+    cursor: pointer; box-shadow: var(--shadow); }
+  .agent:hover { border-color: var(--ring); }
+  .agent:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .agent[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
+  .agent.big { padding: 14px 14px 14px 32px; }
+  .agent-led { position: absolute; left: 12px; top: 14px; width: 8px; height: 8px; border-radius: 50%; background: var(--track); }
+  .agent[data-state="running"] .agent-led { background: var(--rec); box-shadow: 0 0 0 4px color-mix(in srgb, var(--rec) 25%, transparent); animation: pulse 1s ease-in-out infinite; }
+  .agent[data-state="done"] .agent-led { background: var(--good); }
+  .agent[data-state="failed"] .agent-led { background: var(--crit); }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--rec) 8%, transparent); } }
+  .agent-top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .agent-top b { font-size: 13.5px; font-weight: 600; }
+  .agent-size { font: 600 10.5px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .agent-model, .agent-stats { font: 11.5px var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+  .agent-sum { color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .team-detail { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; display: grid; gap: 14px; }
+  .team-detail h3 { margin: 0; font: 600 13px var(--sans); }
+  .team-detail .sub { color: var(--muted); font-size: 12.5px; }
+  .issue { padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); }
+  .issue-top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-weight: 600; font-size: 13px; }
+  .issue p { margin: 4px 0 0; font-size: 12.5px; color: var(--fg-2); }
+  .issue ul { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; }
+  .issue li { margin: 2px 0; overflow-wrap: anywhere; }
+  .issue code, .team-detail code { font: 11.5px var(--mono); background: var(--secondary); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+  .exec-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .diff { margin: 0; max-height: 420px; overflow: auto; padding: 10px 12px; border-radius: 9px; background: #0f0f0e; color: #e6e6e1;
+    font: 12px/1.5 var(--mono); white-space: pre; }
+  .diff .add { color: #6fdc8c; } .diff .del { color: #ff7b72; } .diff .hunk { color: #6cd4ea; } .diff .meta { color: #8a8a83; }
+  .rules { margin-top: 16px; }
+  .rules summary { cursor: pointer; font-size: 13px; color: var(--fg-2); }
+  .rules pre { margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg);
+    font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg-2); }
+
+  /* ---------- tmux view: a read-only mirror of the RAM ring ---------- */
+  .tmuxview { max-width: 1600px; margin: 0 auto; padding: 20px 16px 48px; }
+  .tmuxview .tmux { margin-top: 0; }
+  .tx-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; background: var(--t-bg2);
+    color: var(--t-dim); border-bottom: 1px solid var(--t-line); }
+  .tx-top b { color: var(--t-fg); }
+  .tx-top .sp { flex: 1; }
+  .tx-ro { color: var(--t-yellow); }
+  .tx-win { display: grid; gap: 1px; background: var(--t-line); height: calc(100vh - 220px); min-height: 460px; }
+  .tx-win[data-n="1"] { grid-template-columns: 1fr; }
+  .tx-win[data-n="2"] { grid-template-columns: 1fr 1fr; }
+  .tx-win[data-n="3"], .tx-win[data-n="4"] { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; }
+  .tx-win[data-n="5"], .tx-win[data-n="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; }
+  @media (max-width: 900px) { .tx-win { grid-template-columns: 1fr !important; height: auto; } .tx-win .pane { height: 360px; } }
+  .tx-win .pane-h { padding: 3px 10px; }
+  .tx-win .pane-h b { color: var(--t-green); }
+  .tx-lines { flex: 1; min-height: 0; overflow: auto; padding: 6px 10px; }
+  .tx-lines div { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .tx-lines .t { color: var(--t-dim); }
+  .tx-ok { color: var(--t-green); } .tx-err { color: var(--t-red); } .tx-hi { color: var(--t-yellow); } .tx-head { color: var(--t-violet); }
+  .tx-dim { color: var(--t-dim); } .tx-cy { color: var(--t-cyan); }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -456,6 +532,7 @@
     <nav class="viewtabs" role="tablist" aria-label="Views">
       <button class="viewtab" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="main" aria-selected="true">FinOps dashboard</button>
       <button class="viewtab" role="tab" id="tab-lab" data-view="lab" aria-controls="lab" aria-selected="false" tabindex="-1">Architecture &amp; CLI lab</button>
+      <button class="viewtab" role="tab" id="tab-tmux" data-view="tmux" aria-controls="tmuxview" aria-selected="false" tabindex="-1">tmux</button>
     </nav>
     <span id="mode" class="badge">…</span>
     <div class="actions">
@@ -577,7 +654,32 @@
     </div>
   </section>
 
-  <section aria-labelledby="flow-title">
+
+  <section class="team-card" id="team" aria-labelledby="team-title">
+    <div class="team-head">
+      <div><h2 id="team-title">Agent team</h2>
+        <p>Start a test case to cause a real problem on the lab node. The sub-agents read the cluster, the Thinker works out
+          the cause, and the Executor writes the fix as a branch under <code>gitops/</code>. Agents, models and rules live in
+          the repo's <code>agents/</code> folder.</p></div>
+      <div class="tc-bar">
+        <label class="sr-only" for="tc-select">Test case</label>
+        <select id="tc-select"></select>
+        <button id="tc-start" class="btn btn-outline btn-sm">Start test</button>
+        <button id="tc-stop" class="btn btn-ghost btn-sm">Stop</button>
+        <button id="team-run" class="btn btn-primary btn-sm">Run agent team</button>
+        <label class="switch"><input type="checkbox" id="team-auto"> Auto-run on alerts</label>
+      </div>
+    </div>
+    <p class="tc-desc" id="tc-desc"></p>
+    <div class="tc-live" id="tc-live" aria-live="polite"></div>
+    <p class="team-msg" id="team-msg" role="status"></p>
+    <div class="team-flow" id="team-flow"></div>
+    <div class="team-detail" id="team-detail"></div>
+    <details class="rules"><summary>Custom rules the Thinker and Executor follow (<code>agents/rules/</code>, read-only here)</summary>
+      <div id="team-rules"></div></details>
+  </section>
+
+  <section aria-labelledby="flow-title" style="margin-top: 28px">
     <h2 id="flow-title" class="sr-only">Dataflow</h2>
     <div class="flow-stages" id="flow-stages"></div>
     <p class="flow-note">Click a stage to filter the journal to it. A violet light and a moving connector mean that stage
@@ -612,6 +714,26 @@
     <div class="tmux-status"><span>[kubesage]</span>
       <span role="tablist" aria-label="Panes" id="tmux-windows"></span><span class="sp"></span>
       <span id="tmux-clock"></span></div>
+  </section>
+</div>
+
+<div id="tmuxview" class="tmuxview" role="tabpanel" aria-labelledby="tab-tmux" hidden>
+  <section class="tmux" aria-label="tmux mirror">
+    <div class="tx-top">
+      <b>tmux · kubesage</b><span class="tx-ro">read-only: text piped from the server's RAM ring, no input reaches it</span>
+      <span id="tx-ring"></span><span class="sp"></span>
+      <label class="sr-only" for="tx-tc">Test case</label><select id="tx-tc"></select>
+      <button class="tbtn" id="tx-start">start test</button><button class="tbtn" id="tx-stop">stop</button>
+      <button class="tbtn" id="tx-run">run agents</button>
+      <label class="sr-only" for="tx-range">Save range</label>
+      <select id="tx-range"><option value="5">last 5 min</option><option value="30">last 30 min</option><option value="0">all held</option></select>
+      <a class="tbtn" id="tx-save" href="/api/ring/dump?minutes=5" download style="display:inline-flex;align-items:center;text-decoration:none">save</a>
+      <button class="tbtn" id="tx-pause" aria-pressed="false">pause</button>
+    </div>
+    <div class="tx-win" id="tx-win"></div>
+    <div class="tmux-status"><span>[kubesage]</span>
+      <span role="tablist" aria-label="Windows" id="tx-windows"></span><span class="sp"></span>
+      <span id="tx-clock"></span></div>
   </section>
 </div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
@@ -1800,6 +1922,313 @@ function renderWireDetail(item) {
   } else addJson(box, res.body ?? res);
 }
 
+
+/* ---------- Agent team and live test cases (Lab), and the tmux view: a read-only mirror of the RAM ring ---------- */
+
+const team = {data: null, tcs: null, sel: null, busy: false, timers: [], fast: 0};
+const tx = {last: 0, recs: [], win: 0, paused: false, polling: false, stat: null, timers: [], loaded: false};
+
+function teamMsg(text, kind = "") { const el = $("#team-msg"); el.textContent = text; el.dataset.kind = kind; }
+
+function tcOptions() {
+  const cat = team.tcs?.catalog || [], active = team.tcs?.active || {};
+  const html = cat.map((t) => `<option value="${esc(t.name)}">${esc(t.title)}${active[t.name] ? " (running)" : ""}</option>`).join("");
+  const running = Object.keys(active)[0];
+  for (const sel of ["#tc-select", "#tx-tc"]) {
+    const el = $(sel), v = team.pick || running || el.value;
+    if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+    if (v && cat.some((t) => t.name === v)) el.value = v;
+  }
+}
+
+function renderTestcases() {
+  tcOptions();
+  const name = $("#tc-select").value, tc = (team.tcs?.catalog || []).find((t) => t.name === name);
+  $("#tc-desc").innerHTML = tc ? `<b>${esc(tc.title)}.</b> ${esc(tc.summary)} <span class="muted">Expected fix: ${esc(tc.expect)}</span>` : "";
+  const active = team.tcs?.active || {}, alerts = team.tcs?.alerts || [];
+  const chips = Object.entries(active).map(([n, a]) => `<span class="badge"><span class="pulse-dot" style="--c:var(--rec)"></span>${esc(n)}:
+    ${esc(Object.entries(a.phases).map(([k, v]) => `${v} ${k}`).join(", "))}${a.restarts ? ` · ${a.restarts} restarts` : ""}${a.stopping ? " · stopping" : ""}</span>`);
+  chips.push(...alerts.map((a) => `<span class="badge firing ${a.severity === "critical" ? "crit" : ""}" title="${esc(a.summary || "")}">
+    ${icon("zap")}${esc(a.name)}${a.pod ? ` · ${esc(a.pod)}` : a.node ? ` · ${esc(a.node)}` : ""}</span>`));
+  if (team.data?.pending) chips.push(`<span class="badge">team runs in ${team.data.pending.in_s} s (alert ${esc(team.data.pending.alert)})</span>`);
+  replaceHTML($("#tc-live"), chips.join("") || `<span class="muted" style="font-size:12.5px">${team.tcs?.cluster === false ? "Cluster unreachable." : "No test case running, no lab alerts firing."}</span>`);
+  const running = !!active[name];
+  for (const [start, stop] of [["#tc-start", "#tc-stop"], ["#tx-start", "#tx-stop"]]) {
+    $(start).disabled = team.busy || running || !tc;
+    $(stop).disabled = team.busy || !running;
+  }
+  const teamRunning = team.data?.run?.state === "running";
+  $("#team-run").disabled = $("#tx-run").disabled = team.busy || teamRunning;
+  $("#team-auto").checked = !!team.data?.auto;
+}
+
+const AGENT_FIELD = (a) => a.role === "thinker" ? `${a.findings ?? "–"} issues` : a.role === "executor" ? `${a.findings ?? "–"} edits`
+  : `${a.signals ?? "–"} signals · ${a.findings ?? "–"} findings`;
+
+function agentCard(name, a, big) {
+  const state = a.state || "idle", stats = state === "queued" || state === "idle" ? (a.description || "") :
+    `${AGENT_FIELD(a)} · ${usd(a.cost_usd || 0)}${a.ms != null ? ` · ${(a.ms / 1000).toFixed(1)} s` : ""}`;
+  return `<button class="agent ${big ? "big" : ""}" data-agent="${esc(name)}" data-state="${esc(state)}" aria-pressed="${team.sel === name}">
+    <span class="agent-led" aria-hidden="true"></span>
+    <span class="agent-top"><b>${esc(a.title || name)}</b><span class="agent-size">${esc(a.size || "")}</span>
+      <span class="sr-only">state ${esc(state)}</span></span>
+    <span class="agent-model">${esc(a.label || "")}${a.model && a.model !== a.label ? ` · ${esc(a.model)}` : ""}</span>
+    <span class="agent-stats">${esc(stats)}</span>
+    ${a.error ? `<span class="agent-sum" style="color:var(--crit)">${esc(a.error)}</span>` : a.summary ? `<span class="agent-sum">${esc(a.summary)}</span>` : ""}
+  </button>`;
+}
+
+function renderTeam() {
+  const d = team.data;
+  if (!d) return;
+  const run = d.run, agents = {};
+  (d.team.agents || []).forEach((a) => (agents[a.name] = {...a, state: "idle"}));
+  if (run) Object.entries(run.agents || {}).forEach(([n, a]) => (agents[n] = {...agents[n], ...a}));
+  const by = (role) => Object.entries(agents).filter(([, a]) => a.role === role);
+  const running = (role) => by(role).some(([, a]) => a.state === "running" || a.state === "done");
+  replaceHTML($("#team-flow"), d.team.error ? `<p class="team-msg" data-kind="err">agents/: ${esc(d.team.error)}</p>` : `
+    <div class="team-col subs ${running("thinker") ? "flowing" : ""}">${by("subagent").map(([n, a]) => agentCard(n, a)).join("")}</div>
+    <div class="team-col mid ${running("executor") ? "flowing" : ""}">${by("thinker").map(([n, a]) => agentCard(n, a, true)).join("")}</div>
+    <div class="team-col last">${by("executor").map(([n, a]) => agentCard(n, a, true)).join("")}</div>`);
+  const runLine = run ? `Run ${run.id} · ${run.trigger} · ${run.mode} · profile ${run.profile} · ${run.state}${run.cost_usd ? ` · ${usd(run.cost_usd)}` : ""}` : "No team run yet.";
+  if (!team.busy && !$("#team-msg").dataset.kind) $("#team-msg").textContent = runLine + (run?.error ? ` · ${run.error}` : "");
+  renderTeamDetail(run, agents);
+  const rules = d.team.rules || [];
+  const html = rules.length ? rules.map((r) => `<pre><b>${esc(r.file)}</b>\n${esc(r.text)}</pre>`).join("") : `<p class="sub">No rule files.</p>`;
+  if ($("#team-rules").dataset.html !== html) { $("#team-rules").innerHTML = html; $("#team-rules").dataset.html = html; }
+}
+
+function sevBadge(sev) {
+  const st = sev === "critical" ? "crit" : sev === "warning" ? "warn" : "good";
+  return `<span class="badge"><span class="dot" style="--c:var(--${st})"></span>${esc(sev)}</span>`;
+}
+
+function diffHTML(text) {
+  return text.split("\n").map((l) => {
+    const cls = l.startsWith("+++") || l.startsWith("---") || l.startsWith("diff ") || l.startsWith("index ") ? "meta"
+      : l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : l.startsWith("@@") ? "hunk" : "";
+    return cls ? `<span class="${cls}">${esc(l)}</span>` : esc(l);
+  }).join("\n");
+}
+
+function renderTeamDetail(run, agents) {
+  const box = $("#team-detail");
+  if (!run) { replaceHTML(box, `<p class="sub">Pick a test case, press Start test, wait for an alert (or press Run agent team).</p>`); return; }
+  const sel = team.sel && agents[team.sel];
+  let html = "";
+  if (sel && sel.role === "subagent") {
+    const rep = run.reports?.[team.sel], sigs = (run.signals?.[team.sel] || []).filter((x) => x.severity);
+    html = `<h3>${esc(sel.title)} · ${esc(sel.label)}</h3><p class="sub">${esc(rep?.summary || sel.error || "no report")}</p>
+      ${(rep?.findings || []).map((f) => `<div class="issue"><div class="issue-top">${sevBadge(f.severity)}${esc(f.title)}<code>${esc(f.target)}</code></div>
+        <p>${esc(f.summary)}</p><p class="sub">cites ${f.signal_ids.map((i) => `<code>${esc(i)}</code>`).join(" ")}</p></div>`).join("") || `<p class="sub">No findings.</p>`}
+      ${sigs.length ? `<h3>Signals over threshold</h3><ul class="sub">${sigs.map((x) => `<li><code>${esc(x.id)}</code> ${esc(x.kind)} = ${esc(x.value)} ${esc(x.unit)} · ${esc(x.detail)}</li>`).join("")}</ul>` : ""}`;
+  } else {
+    const dg = run.diagnosis;
+    if (!sel || sel.role === "thinker") {
+      html += dg ? `<h3>Thinker · ${esc(agents.thinker?.label || "")}</h3><p class="sub">${esc(dg.summary)}</p>
+        ${dg.issues.map((i) => `<div class="issue"><div class="issue-top">${sevBadge(i.severity)}${esc(i.id)} · ${esc(i.title)}
+          <span class="sub">${Math.round(i.confidence * 100)}% sure</span></div><p>${esc(i.root_cause)}</p>
+          <ul>${dg.actions.filter((a) => a.issue === i.id).map((a) => `<li><b>${esc(a.id)}</b> <code>${esc(a.type)}</code> <code>${esc(a.target)}</code> ${esc(a.summary)}
+            ${a.params?.monthly_delta_usd != null ? ` <b>${a.params.monthly_delta_usd >= 0 ? "+" : ""}${usd(a.params.monthly_delta_usd)}/mo</b>` : ""}
+            ${a.needs_human ? ` <span class="badge">needs a human</span>` : ""}<br><span class="sub">${esc(a.rationale)}</span></li>`).join("")}</ul></div>`).join("")}`
+        : `<p class="sub">${run.state === "running" ? "The Thinker is waiting for the sub-agents…" : esc(run.error || "No diagnosis.")}</p>`;
+      if ((run.rejected || []).length) html += `<details><summary class="sub">${run.rejected.length} item(s) rejected by validation</summary>
+        <ul class="sub">${run.rejected.map((r) => `<li>${esc(r.agent)}: ${esc(r.what)}: ${esc(r.reason)}</li>`).join("")}</ul></details>`;
+    }
+    if (!sel || sel.role === "executor") {
+      const ex = run.executor;
+      if (ex) {
+        const prBtn = ex.pr_url ? `<a class="btn btn-outline btn-sm" href="${esc(ex.pr_url)}" target="_blank" rel="noopener">${icon("pr")}View PR</a>`
+          : team.data.prs ? `<button class="btn btn-primary btn-sm" data-exec="pr" ${ex.commit ? "" : "disabled"}>Open pull request</button>`
+          : `<span class="sub">PRs are off: start the server with <code>--agent-prs</code></span>`;
+        html += `<h3>Executor · ${esc(agents.executor?.label || "")}</h3>
+          ${ex.error ? `<p class="team-msg" data-kind="err">${esc(ex.error)}</p>` : ""}
+          ${ex.commit ? `<p class="sub"><b>${esc(ex.title)}</b> · branch <code>${esc(ex.branch)}</code> from <code>origin/${esc(ex.base)}</code> · commit <code>${esc(ex.commit.slice(0, 8))}</code>
+            ${ex.applied ? ` · applied ${ex.applied.ok ? "" : "with errors "}${new Date(ex.applied.at * 1000).toLocaleTimeString()}` : ""}</p>
+          <div class="exec-bar"><button class="btn btn-outline btn-sm" data-exec="dry">Dry-run apply</button>
+            <button class="btn btn-outline btn-sm" data-exec="apply">Apply to cluster</button>${prBtn}</div>
+          <ul class="sub">${ex.edits.map((e) => `<li><code>${esc(e.path)}</code> · ${esc(e.action)} · ${esc(e.by)}</li>`).join("")}</ul>
+          <pre class="diff">${diffHTML(ex.diff || "")}</pre>` : `<p class="sub">${run.state === "running" ? "Waiting for the Thinker…" : "No commit: nothing valid to change."}</p>`}
+          ${ex.skipped?.length ? `<p class="sub">Not changed: ${ex.skipped.map((x) => `${esc(x.action)}: ${esc(x.reason)}`).join("; ")}</p>` : ""}
+          ${ex.rejected?.length ? `<p class="sub">Rejected edits: ${ex.rejected.map((x) => `<code>${esc(x.path)}</code> ${esc(x.reason)}`).join("; ")}</p>` : ""}`;
+      }
+    }
+  }
+  replaceHTML(box, html);
+}
+
+async function pollTeam() {
+  try { team.data = await api("/api/agents"); } catch (e) { teamMsg(`agents: ${e.message}`, "err"); return; }
+  if (!$("#team").hidden) renderTeam();
+  renderTestcases();
+  if (tx.loaded && JSON.stringify(txWindows().map((w) => w.panes.length)) !== tx.shape) renderTx();
+}
+async function pollTestcases() {
+  try { team.tcs = await api("/api/testcases"); } catch (e) { team.tcs = {catalog: team.tcs?.catalog || [], active: {}, alerts: [], cluster: false}; }
+  renderTestcases();
+}
+
+async function teamDo(label, fn) {
+  if (team.busy) return;
+  team.busy = true; renderTestcases(); $("#team-msg").dataset.kind = "busy"; $("#team-msg").textContent = label + "…";
+  try { const msg = await fn(); teamMsg(msg || "", ""); }
+  catch (e) { teamMsg(e.message, "err"); }
+  finally { team.busy = false; await Promise.all([pollTestcases(), pollTeam()]); }
+}
+
+const tcAction = (action, name) => teamDo(`${action} ${name || "all"}`, async () => {
+  const res = await api("/api/testcase", {action, name});
+  return `${action === "start" ? "Started" : "Stopped"} ${name}: ${res.steps.map((x) => x.cmd).join(" · ")}`;
+});
+const teamRun = () => teamDo("Starting the agent team", async () => {
+  const res = await api("/api/agents/run", {trigger: "manual"});
+  team.fast = Date.now() + 120000;
+  return `Team run ${res.id} started. Follow it here or in the tmux view.`;
+});
+
+async function execAction(kind) {
+  const run = team.data?.run;
+  if (!run) return;
+  if (kind === "apply" && !confirm(`Apply the Executor's commit ${run.executor.commit.slice(0, 8)} to the live cluster? `
+    + "This runs kubectl apply for the changed app directories in the lab namespace. Terraform changes are not applied.")) return;
+  await teamDo(kind === "pr" ? "Opening the pull request" : kind === "dry" ? "Dry-run apply" : "Applying", async () => {
+    if (kind === "pr") { const res = await api("/api/agents/pr", {id: run.id}); return `Opened ${res.pr_url}`; }
+    const res = await api("/api/agents/apply", {id: run.id, dry_run: kind === "dry"});
+    return `${kind === "dry" ? "Dry run" : "Applied"}: ${res.steps.map((x) => `${x.cmd} ${x.ok ? "ok" : "FAILED"}`).join(" · ")}`
+      + (res.skipped.length ? ` · not applied: ${res.skipped.map((x) => x.path).join(", ")} (Terraform)` : "");
+  });
+}
+
+/* tmux view */
+function txWindows() {
+  const agents = (team.data?.team?.agents || []).map((a) => a.name);
+  return [
+    {name: "agents", panes: (agents.length ? agents : ["team"]).map((n) => ({title: n, streams: [`agent/${n}`]}))},
+    {name: "testcases", panes: [{title: "test cases · alerts · team", streams: ["testcase/", "alerts", "agent/team"]},
+      {title: "kubectl get pods,events -n lab -w", streams: ["watch/"]}]},
+    {name: "journal", panes: [{title: "journal", streams: ["journal"]}, {title: "access log (4xx, refused)", streams: ["access"]}]},
+    {name: "ops", panes: [{title: "ops shell (kubesage tmux, piped with pipe-pane)", streams: ["tmux/"]}]},
+  ];
+}
+const txMatch = (stream, streams) => streams.some((s) => s.endsWith("/") ? stream.startsWith(s) : stream === s);
+function txClass(t) {
+  if (/^ {2}\+(?!\+\+)/.test(t)) return "tx-ok";
+  if (/^ {2}-(?!--)/.test(t)) return "tx-err";
+  if (/^ {2}@@/.test(t)) return "tx-cy";
+  if (t.startsWith("✗") || /\bFAILED\b|\[critical\]|OOMKilled|BackOff/.test(t)) return "tx-err";
+  if (t.startsWith("✓") || /-> ok$/.test(t)) return "tx-ok";
+  if (t.startsWith("━━")) return "tx-head";
+  if (t.includes("⋯")) return "tx-dim";
+  if (/^\s*[◆●]|\[warning\]|^FIRING/.test(t)) return "tx-hi";
+  if (/^\s*[→✎▶↳↺]/.test(t)) return "tx-cy";
+  return "";
+}
+function txLine(r) {
+  const d = document.createElement("div"), t = document.createElement("span");
+  t.className = "t";
+  t.textContent = new Date(r.ts * 1000).toTimeString().slice(0, 8) + " ";
+  const body = document.createElement("span");
+  body.className = txClass(r.text);
+  body.textContent = r.stream.startsWith("agent/") || r.stream.startsWith("tmux/") ? r.text : `${r.stream.replace(/^(testcase|watch)\//, "")}  ${r.text}`;
+  d.append(t, body);
+  return d;
+}
+function renderTx() {
+  const wins = txWindows();
+  tx.shape = JSON.stringify(wins.map((w) => w.panes.length));
+  tx.win = Math.min(tx.win, wins.length - 1);
+  $("#tx-windows").innerHTML = wins.map((w, i) => `<button role="tab" data-win="${i}" aria-selected="${i === tx.win}">${i}:${esc(w.name)}${i === tx.win ? "*" : ""}</button>`).join("");
+  const w = wins[tx.win], box = $("#tx-win");
+  box.dataset.n = w.panes.length;
+  box.replaceChildren(...w.panes.map((p, i) => {
+    const pane = document.createElement("div");
+    pane.className = "pane on";  // "on": the lab's single-pane phone layout hides the others
+    pane.innerHTML = `<div class="pane-h"><b>${tx.win}.${i}</b><span>${esc(p.title)}</span><span class="sp"></span><span>${esc(p.streams.join(" "))}</span></div>
+      <div class="tx-lines" role="log" aria-label="${esc(p.title)}"></div>`;
+    const lines = pane.querySelector(".tx-lines"), mine = tx.recs.filter((r) => txMatch(r.stream, p.streams)).slice(-800);
+    lines.append(...mine.map(txLine));
+    if (!mine.length) lines.append(Object.assign(document.createElement("div"), {className: "tx-dim", textContent: "(nothing in the ring for this pane yet)"}));
+    pane._streams = p.streams;
+    return pane;
+  }));
+  box.querySelectorAll(".tx-lines").forEach((l) => (l.scrollTop = l.scrollHeight));
+}
+function txAppend(recs) {
+  $$("#tx-win .pane").forEach((pane) => {
+    const lines = pane.querySelector(".tx-lines"), mine = recs.filter((r) => txMatch(r.stream, pane._streams));
+    if (!mine.length) return;
+    const stick = lines.scrollTop + lines.clientHeight >= lines.scrollHeight - 40;
+    lines.querySelector(".tx-dim:only-child")?.remove();
+    lines.append(...mine.map(txLine));
+    while (lines.children.length > 1200) lines.firstElementChild.remove();
+    if (stick && !tx.paused) lines.scrollTop = lines.scrollHeight;
+  });
+}
+async function pollRing() {
+  if (tx.polling) return;
+  tx.polling = true;
+  try {
+    const res = await api(tx.loaded ? `/api/ring?after=${tx.last}&limit=3000` : "/api/ring?tail=5000");
+    if (tx.loaded && res.last < tx.last) { tx.loaded = false; tx.recs = []; tx.last = 0; return; }  // a new ring
+    tx.last = res.last;
+    tx.recs.push(...res.records);
+    if (tx.recs.length > 20000) tx.recs.splice(0, tx.recs.length - 20000);
+    if (!tx.loaded) { tx.loaded = true; renderTx(); } else if (res.records.length) txAppend(res.records);
+  } catch (e) {
+    $("#tx-ring").textContent = `ring: ${e.message}`;
+  } finally { tx.polling = false; }
+}
+async function pollRingStat() {
+  try {
+    const st = await api("/api/ring/stat");
+    $("#tx-ring").textContent = `ring ${(st.used_bytes / 2 ** 20).toFixed(1)} / ${(st.capacity_bytes / 2 ** 20).toFixed(0)} MiB in RAM · `
+      + `${st.records.toLocaleString()} lines${st.wrapped ? " · wrapped" : ""}${st.oldest_ts ? ` · since ${new Date(st.oldest_ts * 1000).toLocaleTimeString()}` : ""}`;
+  } catch (e) { $("#tx-ring").textContent = `ring: ${e.message}`; }
+  $("#tx-clock").textContent = `"${lab.status?.host || "kubesage"}" ${new Date().toTimeString().slice(0, 5)}`;
+}
+
+function startTeam() {
+  if (team.timers.length) return;
+  pollTestcases(); pollTeam();
+  team.timers = [setInterval(() => (Date.now() < team.fast || team.data?.run?.state === "running" || team.data?.pending ? pollTeam() : null), 1500),
+    setInterval(pollTeam, 6000), setInterval(pollTestcases, 5000)];
+}
+function stopTeam() { team.timers.forEach(clearInterval); team.timers = []; }
+function startTx() {
+  if (tx.timers.length) return;
+  pollRing(); pollRingStat();
+  tx.timers = [setInterval(pollRing, 1000), setInterval(pollRingStat, 5000)];
+}
+function stopTx() { tx.timers.forEach(clearInterval); tx.timers = []; }
+
+function initTeam() {
+  const sync = (from, to) => $(from).addEventListener("change", () => { $(to).value = $(from).value; team.pick = $(from).value; renderTestcases(); });
+  sync("#tc-select", "#tx-tc"); sync("#tx-tc", "#tc-select");
+  $("#tc-start").onclick = () => tcAction("start", $("#tc-select").value);
+  $("#tc-stop").onclick = () => tcAction("stop", $("#tc-select").value);
+  $("#tx-start").onclick = () => tcAction("start", $("#tx-tc").value);
+  $("#tx-stop").onclick = () => tcAction("stop", $("#tx-tc").value);
+  $("#team-run").onclick = $("#tx-run").onclick = teamRun;
+  $("#team-auto").onchange = (ev) => teamDo("Saving", async () => {
+    const res = await api("/api/agents/auto", {on: ev.currentTarget.checked});
+    return `Auto-run on alerts ${res.auto ? "on" : "off"}.`;
+  });
+  $("#team-flow").onclick = (ev) => {
+    const b = ev.target.closest("[data-agent]");
+    if (!b) return;
+    team.sel = team.sel === b.dataset.agent ? null : b.dataset.agent;
+    renderTeam();
+  };
+  $("#team-detail").onclick = (ev) => { const b = ev.target.closest("[data-exec]"); if (b) execAction(b.dataset.exec); };
+  $("#tx-windows").onclick = (ev) => { const b = ev.target.closest("[data-win]"); if (b) { tx.win = +b.dataset.win; renderTx(); } };
+  $("#tx-range").onchange = (ev) => ($("#tx-save").href = `/api/ring/dump?minutes=${ev.currentTarget.value}`);
+  $("#tx-pause").onclick = (ev) => {
+    tx.paused = !tx.paused;
+    ev.currentTarget.setAttribute("aria-pressed", String(tx.paused));
+    ev.currentTarget.textContent = tx.paused ? "resume" : "pause";
+  };
+}
+
 /* Panes and view switching */
 function selectPane(i) {
   lab.pane = i;
@@ -1821,14 +2250,18 @@ function startLab() {
 }
 function stopLab() { lab.timers.forEach(clearInterval); lab.timers = []; }
 
-const viewFromHash = () => (location.hash === "#lab" ? "lab" : "dashboard");
+const VIEWS = ["dashboard", "lab", "tmux"];
+const viewFromHash = () => (VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "dashboard");
 function showView(view) {
-  const isLab = view === "lab";
-  $("#main").hidden = isLab;
-  $("#lab").hidden = !isLab;
+  $("#main").hidden = view !== "dashboard";
+  $("#lab").hidden = view !== "lab";
+  $("#tmuxview").hidden = view !== "tmux";
   $$(".viewtab").forEach((t) => { const on = t.dataset.view === view; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
-  document.title = isLab ? "KubeSage · Architecture & CLI lab" : "KubeSage · AI Control Center";
-  if (isLab) startLab(); else stopLab();
+  document.title = {dashboard: "KubeSage · AI Control Center", lab: "KubeSage · Architecture & CLI lab", tmux: "KubeSage · tmux"}[view];
+  if (view === "lab") startLab(); else stopLab();
+  if (view !== "dashboard") startTeam(); else stopTeam();
+  if (view === "tmux") startTx(); else stopTx();
+  if (view === "lab" && team.data) renderTeam();
 }
 
 function initLab() {
@@ -1867,11 +2300,11 @@ function initLab() {
     `<button role="tab" data-pane="${i}" aria-selected="${i === 0}" aria-controls="pane-${i}">${i}:${name}</button>`).join("");
   $("#tmux-windows").onclick = (ev) => { const b = ev.target.closest("[data-pane]"); if (b) selectPane(+b.dataset.pane); };
   $$(".viewtab").forEach((t) => {
-    t.onclick = () => (location.hash = t.dataset.view === "lab" ? "lab" : "dashboard");
+    t.onclick = () => (location.hash = t.dataset.view);
     t.onkeydown = (ev) => {
       if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
-      const other = $$(".viewtab")[t.dataset.view === "lab" ? 0 : 1];
-      other.focus(); other.click();
+      const tabs = [...$$(".viewtab")], next = tabs[(tabs.indexOf(t) + (ev.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+      next.focus(); next.click();
     };
   });
   window.addEventListener("hashchange", () => showView(viewFromHash()));
@@ -1922,6 +2355,7 @@ new ResizeObserver(() => {
   setInterval(renderSteps, 1000);
 })();
 initLab();
+initTeam();
 showView(viewFromHash());
 </script>
 </body>

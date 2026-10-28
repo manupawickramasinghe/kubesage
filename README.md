@@ -204,6 +204,22 @@ Series use real metric names (`container_cpu_usage_seconds_total`, `container_me
 The "before" node pool (1× D8s_v5, the desktop) is set in [`config/skus.yaml`](config/skus.yaml). Prices are
 Azure list prices: each real machine stands in for the cloud VM its `kubesage.io/sku` label names.
 
+### Agent team and live test cases
+
+```bash
+docker compose up -d                      # also starts vmalert + Alertmanager (:9193)
+kubectl apply -f deploy/k8s/monitoring/   # vmagent/KSM keep the extra series the agents read
+KUBESAGE_MODELS=cerebras kubesage serve --host 0.0.0.0 --agent-prs
+kubesage testcase start cpu-code          # or the Lab's dropdown
+kubesage agents run                       # or wait for the alert to trigger it
+kubesage tmux                             # tmux over the RAM ring
+```
+
+Four sub-agents (PromQL, system resources, Alertmanager, security) on a small model compact the live data; the
+Thinker (large model) finds the cause; the Executor (medium model) writes the fix as a branch under `gitops/` and,
+on request, a pull request. Agents, models and custom rules are files in `agents/`. See
+[docs/agents.md](docs/agents.md).
+
 ## Layout
 
 ```
@@ -223,6 +239,8 @@ config/       model tiers + SKU catalog
 deploy/       Grafana provisioning + dashboard, demo k8s manifests
 scripts/      pinned tool install, cluster up/reset, live metrics, join/leave a machine, cleanup
 docs/         guides, diagrams, screenshots, handover
+agents/       the agent team: one folder per agent, models.yaml, rules/
+gitops/       what the test cases deploy and the Executor edits
 ```
 
 ## Roadmap

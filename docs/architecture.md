@@ -93,7 +93,7 @@ sequenceDiagram
 
 | path | what it does |
 |---|---|
-| `kubesage/cli.py` | `simulate`, `stats`, `analyze`, `apply`, `gitops`, `serve`, `spike` |
+| `kubesage/cli.py` | `simulate`, `stats`, `analyze`, `apply`, `gitops`, `serve`, `spike`, `ring`, `tmux`, `agents`, `testcase` |
 | `kubesage/config.py` | loads `config/models[.<profile>].yaml` and `config/skus.yaml` |
 | `kubesage/simulate/` | the five demo scenarios as curves, and the VictoriaMetrics backfill |
 | `kubesage/metrics/` | PromQL client, collection (skips workloads with under an hour of samples), Stage 1 stats |
@@ -110,4 +110,12 @@ sequenceDiagram
 | `deploy/k8s/monitoring/` | kube-state-metrics + vmagent |
 | `deploy/grafana/` | Grafana provisioning and the "requested vs used" dashboard |
 | `scripts/` | pinned tools, cluster up/down/reset, live metrics, join/leave a machine |
+| `agents/` | the agent team's definitions, prompts, collectors, models and custom rules (see [agents.md](agents.md)) |
+| `kubesage/agents/` | the team engine: loader, context, schemas, orchestration, edit validation, the Executor's clone |
+| `kubesage/lab/` | the live test cases (start/stop/status) and the out-of-band security test manifest |
+| `kubesage/ring.py` | the RAM ring buffer behind the tmux view and `kubesage ring` |
+| `kubesage/kubestats.py` | copies kubelet's disk numbers into VictoriaMetrics |
+| `kubesage/web/team_api.py` | the team, test-case and ring endpoints; alert watcher; lab log followers |
+| `gitops/` | the test cases' workloads and the node-pool Terraform that Executor PRs edit |
+| `deploy/alerts/` | vmalert rules + Alertmanager config |
 | `tests/` | pytest suite (see [testing.md](testing.md)) |

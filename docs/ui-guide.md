@@ -236,6 +236,39 @@ real log lines, requests exactly as sent. Nothing is simulated.
 
 On a phone the stages stack, and the terminal shows one pane at a time; switch panes from the green status bar.
 
+### Agent team (top of the lab)
+
+![The agent team](images/ui-agents.png)
+
+- **Test case** dropdown, **Start test**, **Stop**: deploy or remove one of the nine live test cases in the `lab`
+  namespace (high memory, CPU throttled, single-threaded code, disk I/O, disk storage, latency, Pending pods,
+  pod density, a hand-made insecure pod). The line under it says what the test case does and what fix to expect.
+  Badges show running test cases with their pod phases and restarts, and the lab alerts firing in Alertmanager.
+- **Run agent team** runs it now. With **Auto-run on alerts** on, the team runs 45 s after a new lab alert fires.
+- The **team diagram**: four sub-agents (small model) → Thinker (large) → Executor (medium). Each card shows its
+  model, signals or findings, cost and time, and a light: violet while it works, green when done, red on error.
+  Click a card for its details: a sub-agent's findings and over-threshold signals; the Thinker's issues and
+  actions (with the monthly cost of SKU changes); the Executor's branch, edits and diff.
+- Executor buttons: **Dry-run apply** (`kubectl apply --dry-run=server`), **Apply to cluster** (asks first; lab
+  namespace only; Terraform changes are never applied), **Open pull request** (only with `--agent-prs`).
+- **Custom rules**: the `agents/rules/` files the Thinker and Executor follow, read-only here.
+
+## tmux
+
+The header's third tab is a read-only mirror of the server's RAM ring, laid out like tmux:
+- window **0:agents**: one pane per agent, with its signals, findings, model calls and their reasoning, edits
+  and the diff, as they happen;
+- **1:testcases**: test-case starts and stops, the test pods' own logs, alerts, and
+  `kubectl get pods,events -n lab -w`;
+- **2:journal**: the lab journal, and requests that got a 403 or 404 or a refused shell command;
+- **3:ops**: whatever the presenter types in the `ops` window of `kubesage tmux` on the server, piped in as text.
+
+Nothing typed in the browser reaches a terminal: there is no input box, and the ring has no write endpoint. The
+top bar has the test-case controls, the ring's size in RAM, **save** (the last 5 or 30 minutes, or everything held,
+as a text file) and **pause**.
+
+![The tmux view](images/ui-tmux.png)
+
 ## Interactions
 
 | action | result |

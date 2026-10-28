@@ -241,7 +241,26 @@ def run(team: Team, s: TeamSettings, *, trigger: str = "manual", on_update: Call
         notify()
         return tr
     charge(thinker.name, entry)
-    diagnosis = _check_diagnosis(diagnosis, all_signals, inv, catalog, tr)
+    max_issues = thinker.config.settings.get("max_issues", 6)
+    before = len(tr.data["rejected"])
+    checked = _check_diagnosis(diagnosis.model_copy(deep=True), all_signals, inv, catalog, tr, max_issues)
+    refused = [r for r in tr.data["rejected"][before:] if r["what"].startswith("action")]
+    if refused and mode == "live":
+        _say(thinker.name, f"  ↺ {len(refused)} action(s) failed the guardrails; asking the Thinker once more")
+        for r in refused:
+            _say(thinker.name, f"    ✗ {r['what']}: {r['reason'][:200]}")
+        retry = (user[:-1] + "," + json.dumps({"rejected_last_time": refused}, separators=(",", ":"))[1:]
+                 if user.endswith("}") else user)
+        try:
+            again, entry = llm.structured(thinker.name, thinker.prompt + contract("thinker", thinker) +
+                                          "\n- rejected_last_time lists your previous actions that failed KubeSage's guardrails "
+                                          "and why. Return the full corrected diagnosis.", retry, Diagnosis,
+                                          lambda: diagnosis, stage="thinker", workload="team-retry", unit="agents", flow_stage=3)
+            charge(thinker.name, entry)
+            checked = _check_diagnosis(again, all_signals, inv, catalog, tr, max_issues)
+        except LLMError as exc:
+            _say(thinker.name, f"  retry failed ({exc}); keeping the actions that passed")
+    diagnosis = checked
     for issue in diagnosis.issues:
         _say(thinker.name, f"  ● {issue.id} [{issue.severity}, {issue.confidence:.0%} sure] {issue.title}: {issue.root_cause[:220]}")
     for a in diagnosis.actions:
@@ -274,10 +293,14 @@ def _reasoning(trace: list[dict], name: str) -> str:
     return ""
 
 
-def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRun) -> Diagnosis:
+def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRun, max_issues: int = 6) -> Diagnosis:
     reject = lambda what, why: tr.data["rejected"].append({"agent": "thinker", "what": what, "reason": why})
+    rank = {"critical": 0, "warning": 1, "info": 2}
+    ordered = sorted(d.issues, key=lambda i: rank[i.severity])
+    for issue in ordered[max_issues:]:
+        reject(f"issue {issue.id} {issue.title!r}", f"over the limit of {max_issues} issues per run")
     issues = []
-    for issue in d.issues:
+    for issue in ordered[:max_issues]:
         issue.evidence = [i for i in issue.evidence if i in signals]
         if issue.evidence:
             issues.append(issue)
@@ -309,6 +332,8 @@ def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRu
                     a.params = {**a.params, "pool": pool, "from_sku": cur["sku"], "to_sku": to,
                                 "monthly_delta_usd": round((skus[to].hourly_usd - skus[cur["sku"]].hourly_usd)
                                                            * catalog.hours_per_month * max(1, cur["node_count"]), 2)}
+        if not why and a.type == "set_resources":
+            why = _fits_today(a, inv)
         if a.type == "remove_workload":
             a.needs_human = True
         if why:
@@ -317,6 +342,39 @@ def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRu
             actions.append(a)
     d.issues, d.actions = issues, actions
     return d
+
+
+_UNITS = {"Ki": 2 ** 10, "Mi": 2 ** 20, "Gi": 2 ** 30, "Ti": 2 ** 40, "k": 1e3, "M": 1e6, "G": 1e9, "m": 1e-3}
+
+
+def _qty(q) -> float:
+    q = str(q).strip()
+    for suffix in sorted(_UNITS, key=len, reverse=True):
+        if q.endswith(suffix):
+            return float(q[:-len(suffix)]) * _UNITS[suffix]
+    return float(q)
+
+
+def _fits_today(a: Action, inv: dict) -> str | None:
+    """A request no node of the workload's pool can satisfy leaves the pod Pending once applied."""
+    name = a.target.split("/")[-1]
+    w = next((x for x in inv["workloads"] if x["name"] == name), None)
+    pool = ((w or {}).get("node_selector") or {}).get("kubesage.io/pool")
+    nodes = [n for n in inv["nodes"] if not pool or n.get("pool") == pool]
+    try:
+        for kind, effect in (("requests", "the pod would stay Pending"), ("limits", "the node can't give it that much")):
+            values = (a.params or {}).get(kind) or {}
+            for key, label in (("memory", "GiB"), ("cpu", "cores")):
+                if values.get(key) is not None and nodes:
+                    biggest = max(_qty(n["allocatable"][key]) for n in nodes)
+                    if _qty(values[key]) > biggest:
+                        have = biggest / 2 ** 30 if key == "memory" else biggest
+                        return (f"{kind} {key}={values[key]}, but the biggest {pool or 'cluster'} node has {have:.1f} {label} "
+                                f"allocatable today, so {effect}. Size requests and limits for today's nodes; put the "
+                                f"future peak in a change_node_sku action instead.")
+    except (ValueError, TypeError, KeyError):
+        return f"resources {a.params} are not valid Kubernetes quantities"
+    return None
 
 
 def _files_for(actions: list[Action], clone: Path) -> dict[str, str]:
@@ -434,14 +492,14 @@ def _execute(team, s, tr, llm, diagnosis: Diagnosis, inv, catalog, run_dir: Path
         _say(ex.name, f"  ✗ rejected {e['path']} ({e['action']}): {e['reason'][:200]}")
     skipped = [x.model_dump() for x in cs.skipped] + state["skipped"]
     body = cs.body.rstrip() + "\n\n---\n" + _footer(tr, applied, rejected, diagnosis)
-    state.update(branch=branch, base_sha=base_sha, edits=applied, rejected=rejected, skipped=skipped, title=cs.title[:72],
+    state.update(branch=branch, base_sha=base_sha, edits=applied, rejected=rejected, skipped=skipped, title=_title(cs.title),
                  body=body, files=sorted({e["path"] for e in applied}))
     if applied:
-        commit = repo.commit(clone, f"{cs.title[:72]}\n\nKubeSage agent team run {tr.id}.")
+        commit = repo.commit(clone, f"{_title(cs.title)}\n\nKubeSage agent team run {tr.id}.")
         state.update(commit=commit, diff=repo.diff(clone, base_sha))
         (run_dir / "changes.diff").write_text(state["diff"])
         (run_dir / "pr_body.md").write_text(body)
-        _say(ex.name, f"✓ committed {commit[:8]} on {branch}: {cs.title[:80]}")
+        _say(ex.name, f"✓ committed {commit[:8]} on {branch}: {_title(cs.title)}")
         for line in state["diff"].splitlines()[:120]:
             _say(ex.name, f"  {line}")
     else:
@@ -450,6 +508,11 @@ def _execute(team, s, tr, llm, diagnosis: Diagnosis, inv, catalog, run_dir: Path
     tr.agent(ex.name, state="done", findings=len(applied), summary=cs.title[:200], ms=int((time.monotonic() - started) * 1000))
     if applied and s.open_pr and ex.config.settings.get("auto_pr"):
         open_pr(tr, s, run_dir)
+
+
+def _title(text: str, limit: int = 72) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[:limit - 1].rsplit(" ", 1)[0].rstrip(",;:-") + "…"
 
 
 def _footer(tr: TeamRun, applied: list[dict], rejected: list[dict], d: Diagnosis) -> str:

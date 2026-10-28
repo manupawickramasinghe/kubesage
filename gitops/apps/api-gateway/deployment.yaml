@@ -20,7 +20,8 @@ spec:
           command: [python, -u, /src/api_gateway.py]
           env:
             - {name: WORK_MS, value: "30"}
-          readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          # TCP, not /healthz: under load an HTTP check queues behind the CPU-starved requests and marks the pod unready.
+          readinessProbe: {tcpSocket: {port: 8080}, periodSeconds: 5}
           resources:
             requests: {cpu: 250m, memory: 64Mi}
             limits: {cpu: 300m, memory: 128Mi}
