@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from kubesage.config import SkuCatalog
 from kubesage.llm.schemas import ScalingPlan
@@ -53,6 +53,25 @@ class Demand(BaseModel):
     mem_mib: float
     largest_pod_cpu: float
     largest_pod_mem_mib: float
+    # Every pod's (cores, MiB), for packing; kept out of report.json and the model's prompt.
+    pods: list[tuple[float, float]] = Field(default_factory=list, exclude=True)
+
+
+def nodes_to_pack(pods: list[tuple[float, float]], cpu_alloc: float, mem_alloc: float) -> int | None:
+    """Nodes first-fit-decreasing needs to place every pod, or None if one pod is bigger than a node. Totals alone
+    say four 2-core pods fit three nodes of 3.6 allocatable cores; placed, they need four."""
+    bins: list[list[float]] = []
+    for cpu, mem in sorted(pods, key=lambda p: max(p[0] / cpu_alloc, p[1] / mem_alloc), reverse=True):
+        if cpu > cpu_alloc or mem > mem_alloc:
+            return None
+        for b in bins:
+            if b[0] + cpu <= cpu_alloc + 1e-9 and b[1] + mem <= mem_alloc + 1e-9:
+                b[0] += cpu
+                b[1] += mem
+                break
+        else:
+            bins.append([cpu, mem])
+    return len(bins)
 
 
 class SkuCandidate(BaseModel):
@@ -69,7 +88,8 @@ def node_candidates(demand: Demand, catalog: SkuCatalog) -> list[SkuCandidate]:
         cpu_alloc, mem_alloc = sku.vcpu * catalog.allocatable_cpu, sku.memory_gib * 1024 * catalog.allocatable_mem
         if demand.largest_pod_cpu > cpu_alloc or demand.largest_pod_mem_mib > mem_alloc:
             continue
-        nodes = max(catalog.min_nodes, math.ceil(demand.cpu_cores / cpu_alloc), math.ceil(demand.mem_mib / mem_alloc))
+        packed = nodes_to_pack(demand.pods, cpu_alloc, mem_alloc) or 0
+        nodes = max(catalog.min_nodes, math.ceil(demand.cpu_cores / cpu_alloc), math.ceil(demand.mem_mib / mem_alloc), packed)
         out.append(SkuCandidate(sku=sku.name, family=sku.family, nodes=nodes,
                                 monthly_usd=round(nodes * sku.hourly_usd * catalog.hours_per_month, 2)))
     return sorted(out, key=lambda c: c.monthly_usd)

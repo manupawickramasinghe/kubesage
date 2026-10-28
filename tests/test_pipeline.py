@@ -189,3 +189,51 @@ def test_guardrails_cap_minimum_and_preserve_cpu_scaling_headroom(stats):
     safe, notes = guardrails.apply(huge, stats["checkout-web"])
     assert safe.scaling.max_replicas > safe.scaling.min_replicas
     assert any("room to grow" in n for n in notes)
+
+
+def test_a_replica_cut_must_still_cover_the_measured_total(stats):
+    # Review F03: four pods using 0.8 cores in total were accepted as one pod capped at 0.25 cores.
+    s = stats["catalog-api"].model_copy(update={"replicas": 4, "cpu_total_p95": 0.8, "cpu_pod_p50": 0.15, "cpu_pod_p99": 0.2,
+                                                "weekday_hourly_cpu": [0.7] * 24, "weekend_hourly_cpu": [0.7] * 24,
+                                                "signals": []})
+    rec = Recommendation(workload="x", risk="low", diagnosis="x",
+                         resources=ResourceSpec(cpu_request_m=250, cpu_limit_m=250, mem_request_mi=512, mem_limit_mi=1024),
+                         scaling=ScalingPlan(min_replicas=1, max_replicas=1))
+    safe, notes = guardrails.apply(rec, s)
+    assert safe.scaling.cpu_utilization_target == guardrails.DEFAULT_CPU_TARGET
+    assert safe.scaling.max_replicas * 0.25 >= 0.8 and safe.scaling.min_replicas * 0.25 >= 0.7
+    assert any("0.80-core p95 total" in n for n in notes) and any("min replicas raised 1 -> 3" in n for n in notes)
+    # fixed replicas: the per-pod limit has to cover its share of the total
+    fixed, notes = guardrails.apply(rec.model_copy(update={"scaling": None}), s)
+    assert fixed.resources.cpu_limit_m == 250 and not any("CPU limit raised" in n for n in notes)
+    two = s.model_copy(update={"replicas": 2})
+    fixed, notes = guardrails.apply(rec.model_copy(update={"scaling": None}), two)
+    assert fixed.resources.cpu_limit_m == 400 and any("CPU limit raised 250m -> 400m" in n for n in notes)
+
+
+def test_every_bound_the_guardrails_move_is_noted(stats):
+    # Review F17: max below min, windows outside min..max and a CPU target outside 30-95% were changed silently.
+    rec = Recommendation(workload="x", risk="low", diagnosis="x", scaling=ScalingPlan(
+        min_replicas=3, max_replicas=2, cpu_utilization_target=99,
+        cron_windows=[CronWindow(start="50 8 * * 1-5", end="0 11 * * 1-5", desired_replicas=1)]))
+    safe, notes = guardrails.apply(rec, stats["catalog-api"])
+    assert safe.scaling.max_replicas == 3 and safe.scaling.cron_windows[0].desired_replicas == 3
+    assert safe.scaling.cpu_utilization_target == 95
+    assert {"max replicas raised 2 -> 3", "cron window 50 8 * * 1-5 replicas 1 -> 3", "CPU target 99% -> 95%"} <= \
+        {n.split(" (")[0] for n in notes}
+
+
+def test_pool_size_comes_from_packing_pods_not_totals():
+    # Review F08: four 2-core pods got a three-node D4 candidate (3.6 allocatable cores each); placed, they need four.
+    catalog = load_skus()
+    d4 = catalog.get("D4s_v5")
+    cpu_alloc, mem_alloc = d4.vcpu * catalog.allocatable_cpu, d4.memory_gib * 1024 * catalog.allocatable_mem
+    assert cpu_alloc == pytest.approx(3.6)
+    demand = costing.Demand(cpu_cores=8, mem_mib=4 * 512, largest_pod_cpu=2, largest_pod_mem_mib=512,
+                            pods=[(2.0, 512.0)] * 4)
+    by = {c.sku: c.nodes for c in costing.node_candidates(demand, catalog)}
+    assert by["D4s_v5"] == 4
+    assert costing.nodes_to_pack([(2.0, 512.0)] * 4, cpu_alloc, mem_alloc) == 4
+    assert costing.nodes_to_pack([(1.0, 512.0)] * 7, cpu_alloc, mem_alloc) == 3
+    assert costing.nodes_to_pack([(4.0, 512.0)], cpu_alloc, mem_alloc) is None
+    assert "pods" not in demand.model_dump()  # kept out of report.json and the planner's prompt

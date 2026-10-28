@@ -18,7 +18,7 @@ from pathlib import Path
 import httpx
 
 from kubesage import journal, lab, ring
-from kubesage.agents import repo, team
+from kubesage.agents import policy, repo, team
 from kubesage.agents.loader import TeamError, load_team
 from kubesage.apply import kubectl_base
 
@@ -36,7 +36,7 @@ class TeamApi:
         self._run_lock = threading.Lock()
         self._lab_lock = threading.Lock()
         self.current: team.TeamRun | None = None
-        self._alerts_seen: dict[str, float] = {}
+        self._alerts_seen: dict[str, tuple[float, str]] = {}  # fingerprint: (first seen, alert name)
         self._alerts: list[dict] = []
         self._pending_trigger: tuple[float, str] | None = None
         self._last_auto = 0.0
@@ -59,24 +59,32 @@ class TeamApi:
                 alerts = httpx.get(f"{self.alertmanager}/api/v2/alerts?active=true&silenced=false", timeout=5).json()
             except Exception:
                 continue
-            lab_alerts = [a for a in alerts if a.get("labels", {}).get("namespace") in (None, lab.NAMESPACE)]
-            self._alerts = lab_alerts
-            fresh = [a for a in lab_alerts if a.get("fingerprint") not in self._alerts_seen]
-            for a in fresh:
-                self._alerts_seen[a.get("fingerprint")] = time.time()
-                labels = a.get("labels", {})
-                text = f"FIRING {labels.get('alertname')} [{labels.get('severity', '-')}] {a.get('annotations', {}).get('summary', '')}"
-                ring.emit("alerts", text)
-                journal.log("alertmanager", text, level=logging.WARNING)
-            if fresh and self.auto and self._pending_trigger is None and time.time() - self._last_auto > 180:
-                # Wait for the related alerts to fire too, so the team sees the whole picture.
-                self._pending_trigger = (time.time() + 45, fresh[0]["labels"].get("alertname", "alert"))
-                ring.emit("agent/team", f"alert {self._pending_trigger[1]} fired: the team runs in 45 s")
-            if self._pending_trigger and time.time() >= self._pending_trigger[0]:
-                name = self._pending_trigger[1]
-                self._pending_trigger = None
-                self._last_auto = time.time()
-                self.run({"trigger": f"alert:{name}"})
+            self._alerts_tick(alerts)
+
+    def _alerts_tick(self, alerts: list[dict]) -> None:
+        lab_alerts = [a for a in alerts if a.get("labels", {}).get("namespace") in (None, lab.NAMESPACE)]
+        self._alerts = lab_alerts
+        active = {a.get("fingerprint") for a in lab_alerts}
+        # Forget what resolved, so the same alert firing again later is news (and can trigger the team) again.
+        for fp, name in [(fp, name) for fp, (_, name) in self._alerts_seen.items() if fp not in active]:
+            del self._alerts_seen[fp]
+            ring.emit("alerts", f"RESOLVED {name}")
+        fresh = [a for a in lab_alerts if a.get("fingerprint") not in self._alerts_seen]
+        for a in fresh:
+            labels = a.get("labels", {})
+            self._alerts_seen[a.get("fingerprint")] = (time.time(), labels.get("alertname", "alert"))
+            text = f"FIRING {labels.get('alertname')} [{labels.get('severity', '-')}] {a.get('annotations', {}).get('summary', '')}"
+            ring.emit("alerts", text)
+            journal.log("alertmanager", text, level=logging.WARNING)
+        if fresh and self.auto and self._pending_trigger is None and time.time() - self._last_auto > 180:
+            # Wait for the related alerts to fire too, so the team sees the whole picture.
+            self._pending_trigger = (time.time() + 45, fresh[0]["labels"].get("alertname", "alert"))
+            ring.emit("agent/team", f"alert {self._pending_trigger[1]} fired: the team runs in 45 s")
+        if self._pending_trigger and time.time() >= self._pending_trigger[0]:
+            name = self._pending_trigger[1]
+            self._pending_trigger = None
+            self._last_auto = time.time()
+            self.run({"trigger": f"alert:{name}"})
 
     def _kubectl_lines(self, args: list[str], stream: str) -> int:
         """Run a kubectl that prints lines (logs -f, get -w) and pipe each line into the ring."""
@@ -238,7 +246,7 @@ class TeamApi:
         try:
             data = self._run_data(body.get("id"))
             url = team.open_pr(data, self._settings(), self.out_dir / data["id"])
-            (self.out_dir / data["id"] / "run.json").write_text(json.dumps(data, indent=1, default=str))
+            self._save(data)
             return 200, {"pr_url": url}
         except (ValueError, OSError) as exc:
             return 400, {"error": str(exc)}
@@ -270,8 +278,21 @@ class TeamApi:
                     targets.append(("-f", str(clone / path), path))
                 else:
                     skipped.append({"path": path, "reason": "Terraform: needs `terraform apply` against Azure; the home lab can't change hardware"})
+            targets = list(dict.fromkeys(targets))
+            # The commit passed these checks when it was made; check again what would actually be sent, so a run
+            # from an older KubeSage, or a clone changed by hand, can't push something outside the lab.
+            problems = []
+            for flag, where, shown in targets:
+                try:
+                    problems += [f"{shown}: {x}" for x in policy.check(policy.render(Path(where)), [lab.NAMESPACE], self._nodes())]
+                except policy.PolicyError as exc:
+                    problems.append(f"{shown}: {exc}")
+            if problems:
+                ring.emit("agent/executor", f"✗ apply refused: {problems[0][:200]}")
+                journal.log("executor", f"apply refused: {'; '.join(problems)[:300]}", level=logging.WARNING)
+                return 422, {"error": "refused: " + "; ".join(problems)[:800], "problems": problems}
             steps = []
-            for flag, where, shown in dict.fromkeys(targets):
+            for flag, where, shown in targets:
                 cmd = [*kubectl_base(), "apply", flag, where, *(["--dry-run=server"] if dry else [])]
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
                 out = (proc.stdout + proc.stderr).strip()
@@ -285,8 +306,7 @@ class TeamApi:
             ok = all(s["ok"] for s in steps)
             if not dry:
                 ex["applied"] = {"at": time.time(), "ok": ok}
-                if not self.current or self.current.id != data["id"]:
-                    (self.out_dir / data["id"] / "run.json").write_text(json.dumps(data, indent=1, default=str))
+                self._save(data)
             return (200 if ok else 502), {"ok": ok, "dry_run": dry, "steps": steps, "skipped": skipped}
         except (ValueError, OSError) as exc:
             return 400, {"error": str(exc)}
@@ -294,6 +314,22 @@ class TeamApi:
             return 502, {"error": str(exc)}
         finally:
             self._run_lock.release()
+
+    def _save(self, data: dict) -> None:
+        """Persist a change to a run (Apply, PR) now, the current run included, so a restart doesn't lose it."""
+        if self.current and self.current.id == data["id"]:
+            data = self.current.snapshot()
+        team.save_run(self.out_dir / data["id"], data)
+
+    def _nodes(self) -> list[dict] | None:
+        try:
+            proc = subprocess.run([*kubectl_base(), "--request-timeout=10s", "get", "nodes", "-o", "json"],
+                                  capture_output=True, text=True, timeout=20)
+            items = json.loads(proc.stdout).get("items", []) if proc.returncode == 0 else []
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            return None
+        return [{"pool": n["metadata"].get("labels", {}).get("kubesage.io/pool"), "allocatable": n["status"]["allocatable"]}
+                for n in items] or None
 
     def set_auto(self, body: dict) -> tuple[int, dict]:
         if not isinstance(body.get("on"), bool):

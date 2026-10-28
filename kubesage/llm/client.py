@@ -159,7 +159,11 @@ class LLMClient:
             out += usage.get("completion_tokens", 0)
             cached += (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0
             choice = (data.get("choices") or [{}])[0]
-            content = (choice.get("message") or {}).get("content") or ""
+            message = choice.get("message") or {}
+            content = message.get("content") or ""
+            if message.get("refusal"):
+                problem = f"refused: {str(message['refusal'])[:200]}"
+                continue
             if not content.strip():  # gpt-oss can reason until max_tokens and send no content key at all
                 problem = (f"no answer (finish_reason {choice.get('finish_reason')!r} after "
                            f"{usage.get('completion_tokens', 0)} output tokens)")

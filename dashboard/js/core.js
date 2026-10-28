@@ -9,7 +9,12 @@ const tok = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
 const cores = (m) => (m == null ? "—" : (m / 1000).toFixed(2));
 const mib = (v) => (v == null ? "—" : v >= 1024 ? (v / 1024).toFixed(1) + " GiB" : Math.round(v) + " MiB");
 const sum = (xs, key) => xs.reduce((a, x) => a + (x[key] ?? 0), 0);
-const measured = (xs, key) => xs.some((x) => x[key] != null) ? sum(xs, key) : null;
+// A measured total only when every pod has a sample (a Pending pod uses nothing): a partial sum would read as spare
+// capacity. coverage() says how many were sampled when some weren't.
+const sampled = (x, key) => x[key] != null || x.phase === "Pending";
+const measured = (xs, key) => xs.every((x) => sampled(x, key)) ? sum(xs, key) : null;
+const coverage = (xs, key) => { const n = xs.filter((x) => sampled(x, key)).length; return n < xs.length ? `${n} of ${xs.length} pods sampled` : ""; };
+const partial = (xs, key) => coverage(xs, key) ? ` <span class="muted">(${coverage(xs, key)})</span>` : "";
 const shortNode = (n) => n.replace(/^k3d-[^-]+-/, "");
 const shortPod = (p, app) => (p.startsWith(app + "-") ? "…" + p.slice(app.length) : p);
 const appOf = (id) => id.split("/").pop();
@@ -70,12 +75,27 @@ async function api(path, body) {
 // Polling updates the numbers without taking keyboard focus away from an inspector or diagram.
 function replaceHTML(el, html) {
   const active = document.activeElement, within = active && el.contains(active);
-  const attr = within && ["data-pod", "data-node", "data-pick", "data-close", "data-app"].find((a) => active.hasAttribute(a));
+  const attr = within && ["data-pod", "data-node", "data-pick", "data-close", "data-app", "data-agent", "data-exec", "data-goto"]
+    .find((a) => active.hasAttribute(a));
   const selector = attr ? `${active.tagName.toLowerCase()}[${attr}="${CSS.escape(active.getAttribute(attr))}"]${active.hasAttribute("data-key") ? `[data-key="${CSS.escape(active.getAttribute("data-key"))}"]` : ""}` : null;
   const open = [...el.querySelectorAll("details[data-preserve][open]")].map((d) => d.dataset.preserve);
   el.innerHTML = html;
   open.forEach((id) => { const d = el.querySelector(`details[data-preserve="${CSS.escape(id)}"]`); if (d) d.open = true; });
-  if (within) (selector && el.querySelector(selector) || $("#cluster-card")).focus({preventScroll: true});
+  // Back to the same control; failing that, to this view (never to a card in another view).
+  if (within) (selector && el.querySelector(selector) || el.closest("[data-panel]") || $("#cluster-card")).focus({preventScroll: true});
+}
+
+// An inline message inside a view that isn't open is no message at all: say it in the toast as well.
+const inOpenView = (el) => !!el && !el.closest("[data-panel]")?.hidden;
+let toastTimer = null;
+function toast(message, kind = "ok") {
+  const el = $("#toast");
+  el.hidden = false;
+  el.dataset.kind = kind;
+  el.setAttribute("role", kind === "err" ? "alert" : "status");
+  $("#toast-text").textContent = message;
+  clearTimeout(toastTimer);
+  if (kind !== "err") toastTimer = setTimeout(() => (el.hidden = true), 8000);  // errors stay until dismissed
 }
 
 function notice(message, kind = "ok") {
@@ -84,16 +104,19 @@ function notice(message, kind = "ok") {
   el.dataset.kind = kind;
   el.setAttribute("role", kind === "err" ? "alert" : "status");
   $("#notice-text").textContent = message;
+  if (!inOpenView(el)) toast(message, kind);
 }
 
 function updateControls() {
   const blocked = isBusy || !!cluster?.operation;
+  // A cluster whose pods and workloads couldn't be read is reachable but unknown: nothing that changes it runs blind.
+  const live = cluster?.available && cluster.objects !== false;
   $$("[data-act]").forEach((b) => (b.disabled = blocked));
-  $("#btn-apply").disabled = blocked || !report || !cluster?.available;
+  $("#btn-apply").disabled = blocked || !report || !live;
   $("#btn-gitops").disabled = blocked || !report;
-  $("#btn-reset").disabled = blocked || !cluster?.available || config.namespace !== "demo";
+  $("#btn-reset").disabled = blocked || !live || config.namespace !== "demo";
   const active = (cluster?.active_jobs || []).length > 0 || spikeEnds > Date.now();
-  $("#btn-spike").disabled = blocked || !cluster?.available || active;
+  $("#btn-spike").disabled = blocked || !live || active;
   $("#report-select").disabled = isBusy || !reports.length;
   $("#dryrun").disabled = isBusy;
   ["#btn-export", "#btn-manifests"].forEach((s) => ($(s).disabled = !report));

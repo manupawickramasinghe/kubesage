@@ -3,13 +3,11 @@ fallback when every model-written edit for an action fails validation)."""
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 
 import yaml
 
 from kubesage.agents.schemas import Action, Edit
-from kubesage.apply import kubectl_base
 
 
 class EditError(ValueError):
@@ -90,15 +88,6 @@ def validate_file(path: str, text: str, skus: set[str]) -> None:
         for size in re.findall(r'vm_size\s*=\s*"([^"]+)"', text):
             if not size.startswith("Standard_") or size.removeprefix("Standard_") not in skus:
                 raise EditError(f"{path}: vm_size {size} is not in config/skus.yaml")
-
-
-def kustomize_ok(app_dir: Path) -> str | None:
-    """None if `kubectl kustomize` builds the app directory, else the error."""
-    try:
-        proc = subprocess.run([*kubectl_base(), "kustomize", str(app_dir)], capture_output=True, text=True, timeout=30)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return str(exc)
-    return None if proc.returncode == 0 else (proc.stderr.strip() or proc.stdout.strip())[:400]
 
 
 # ---- deterministic edits ----
@@ -213,6 +202,7 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: {name}
+  labels: {{app: {name}, app.kubernetes.io/managed-by: kubesage}}
 spec:
   scaleTargetRef: {{name: {name}}}
   minReplicaCount: {int(p.get('min_replicas', 1))}

@@ -5,7 +5,11 @@
 
 const team = {data: null, tcs: null, sel: null, busy: false, timers: [], fast: 0};
 
-function teamMsg(text, kind = "") { const el = $("#team-msg"); el.textContent = text; el.dataset.kind = kind; }
+function teamMsg(text, kind = "") {
+  const el = $("#team-msg");
+  el.textContent = text; el.dataset.kind = kind;
+  if (text && kind !== "busy" && !inOpenView(el)) toast(text, kind || "ok");  // e.g. a case started from the tmux view
+}
 
 function tcOptions() {
   const cat = team.tcs?.catalog || [], active = team.tcs?.active || {};
@@ -65,14 +69,15 @@ function agentCard(name, a, big) {
 
 function runBar(run) {
   if (!run) return `<span>No team run yet. Start a test case and wait for its alert, or press <b>Run agent team</b>.</span>`;
-  const st = run.state === "done" ? (run.error ? "crit" : "good") : run.state === "running" ? "rec" : "crit";
+  const st = run.state === "done" ? (run.error ? "crit" : run.warning ? "warn" : "good") : run.state === "running" ? "rec" : "crit";
   const t0 = Date.parse(run.started_at), t1 = Date.parse(run.finished_at);  // ISO 8601 from run.json
   const secs = t0 && t1 ? `${((t1 - t0) / 1000).toFixed(0)} s` : "";
   const when = t0 ? new Date(t0).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "";
   return `<span class="badge"><span class="${run.state === "running" ? "pulse-dot" : "dot"}" style="--c:var(--${st})"></span>${esc(run.state)}</span>
     <span>Run <code>${esc(run.id)}</code></span><span>${esc(run.trigger === "manual" ? "started by hand" : run.trigger)}${when ? ` at ${when}` : ""}</span>
     <span>${esc(run.mode)} · ${esc(run.profile)}</span>${secs ? `<span class="num-v">${secs}</span>` : ""}
-    <span class="num-v">${usd(run.cost_usd || 0)}</span>${run.error ? `<span style="color:var(--crit)">${esc(run.error)}</span>` : ""}
+    <span class="num-v">${usd(run.cost_usd || 0)}</span>${run.error ? `<span style="color:var(--crit)">${esc(run.error)}</span>`
+      : run.warning ? `<span>${esc(run.warning)}</span>` : ""}
     <span class="sp"></span><button class="btn btn-ghost btn-sm" data-goto="tmux">Follow in tmux</button>`;
 }
 

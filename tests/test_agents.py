@@ -10,7 +10,7 @@ import yaml
 
 from kubesage import lab, ring
 from kubesage.agents import edits as E
-from kubesage.agents import loader, repo, team
+from kubesage.agents import loader, policy, repo, team
 from kubesage.agents.context import Context
 from kubesage.agents.schemas import Action, Diagnosis, Edit, Issue
 from kubesage.config import load_skus
@@ -28,11 +28,29 @@ def test_ring_wraps_and_keeps_the_newest_records(tmp_path):
     st = r.stat()
     assert st["wrapped"] and st["last_seq"] == 40000 and st["records"] < 40000
     recs, last = r.read(0, limit=10)
-    assert last == 40000 and recs[0].seq > 1  # the oldest were overwritten
+    assert recs[0].seq > 1 and last == recs[-1].seq  # the oldest were overwritten; a short read resumes after its last
     recs, _ = r.read(39995)
     assert [x.text for x in recs] == [f"line {i}" for i in range(39995, 40000)]
     tail, _ = r.tail(3, streams=["s1"])
     assert [x.text for x in tail] == ["line 39995", "line 39997", "line 39999"]
+
+
+def test_ring_pages_through_every_record_with_a_limit_and_a_stream_filter(tmp_path):
+    # Review F06: five records read two at a time returned records 1-2 and cursor 5, so 3-4 were never shown.
+    r = ring.Ring(tmp_path / "ring", size_mb=1)
+    for i in range(1, 6):
+        r.write("a" if i != 4 else "b", f"line {i}")
+    seen, after = [], 0
+    for _ in range(5):
+        recs, after = r.read(after, limit=2)
+        seen += [x.seq for x in recs]
+    assert seen == [1, 2, 3, 4, 5] and after == 5
+    seen, after = [], 0
+    for _ in range(5):
+        recs, after = r.read(after, limit=1, streams=["a"])
+        seen += [x.seq for x in recs]
+    assert seen == [1, 2, 3, 5] and after == 5
+    assert r.read(5) == ([], 5)  # caught up: the cursor stays put
 
 
 def test_ring_is_shared_between_openers_and_threads(tmp_path):
@@ -169,6 +187,70 @@ def test_the_thinker_is_held_to_its_evidence_targets_and_todays_nodes():
     assert "Pending" in reasons and "M416ms_v2" in reasons and "not in the inventory" in reasons
 
 
+def test_the_thinker_refuses_impossible_resources_and_other_namespaces():
+    # Review F01: a negative request, a request above its limit and an unknown namespace all used to pass.
+    tr = team.TeamRun(loader.load_team(ROOT / "agents", profile="cerebras"), "test", "mock")
+    inv = {**INV, "workloads": [{**INV["workloads"][0], "containers": [{"name": "ledger-cache", "requests": {"memory": "256Mi"},
+                                                                         "limits": {"memory": "512Mi"}}]}]}
+    issue = Issue(id="I1", title="t", category="memory", severity="critical", confidence=0.9, root_cause="x",
+                  evidence=["promql:a"], targets=["deployment/lab/ledger-cache"])
+    act = lambda id, **kw: Action(id=id, issue="I1", summary="s", rationale="r", **kw)
+    d = Diagnosis(summary="", issues=[issue], actions=[
+        act("A1", type="set_resources", target="deployment/lab/ledger-cache", params={"requests": {"cpu": "-1"}}),
+        act("A2", type="set_resources", target="deployment/lab/ledger-cache", params={"requests": {"memory": "1Gi"}}),
+        act("A3", type="security_hardening", target="namespace/kube-system"),
+        act("A4", type="set_resources", target="nodepool/lab", params={"limits": {"memory": "1Gi"}}),
+        act("A5", type="set_resources", target="deployment/lab/ledger-cache", params={"requests": {"memory": "512Mi"}})])
+    out = team._check_diagnosis(d, {"promql:a": {}}, inv, load_skus(), tr)
+    assert [a.id for a in out.actions] == ["A5"]
+    reasons = [r["reason"] for r in tr.data["rejected"]]
+    assert "more than zero" in reasons[0] and "above limits.memory=512Mi" in reasons[1]
+    assert "outside the lab namespace" in reasons[2] and "can't target a nodepool" in reasons[3]
+
+
+def test_policy_refuses_other_namespaces_kinds_and_resources_no_node_has():
+    nodes = INV["nodes"]
+    dep = yaml.safe_load(DEPLOY) | {"metadata": {"name": "ledger-cache", "namespace": "lab"}}
+    assert policy.check([dep], ["lab"], nodes) == []
+    huge = json.loads(json.dumps(dep))
+    huge["spec"]["template"]["spec"]["containers"][0]["resources"]["limits"]["memory"] = "1Ti"
+    assert "more than the biggest node" in policy.check([huge], ["lab"], nodes)[0]
+    assert "outside lab" in policy.check([dep | {"metadata": {"name": "x", "namespace": "kube-system"}}], ["lab"])[0]
+    assert "only the lab namespace" in policy.check([{"kind": "Namespace", "metadata": {"name": "prod"}}], ["lab"])[0]
+    assert "kind ClusterRoleBinding" in policy.check([{"kind": "ClusterRoleBinding", "metadata": {"name": "x"}}], ["lab"])[0]
+    assert policy.qty("1.5Gi") == 1.5 * 2 ** 30 and policy.qty("250m") == 0.25
+    with pytest.raises(ValueError):
+        policy.qty("lots")
+
+
+def test_executor_edits_must_implement_an_approved_action_inside_its_files(tmp_path, monkeypatch):
+    clone = tmp_path / "clone"
+    shutil.copytree(ROOT / "gitops", clone / "gitops")
+    a = Action(id="A1", issue="I1", type="set_resources", target="deployment/lab/ledger-cache", summary="s", rationale="r",
+               params={"limits": {"memory": "1Gi"}})
+    dep = "gitops/apps/ledger-cache/deployment.yaml"
+    good = Edit(path=dep, find="limits: {cpu: 500m, memory: 512Mi}", replace="limits: {cpu: 500m, memory: 1Gi}", action="A1")
+    edits = [good,
+             Edit(path="gitops/apps/risk-scorer/deployment.yaml", find="replicas: 1", replace="replicas: 9", action="A1"),
+             Edit(path=dep, find="replicas: 1", replace="replicas: 3", action="A9")]
+    kept, refused = team._bind(edits, [a], "model")
+    assert kept == [good] and "may only change gitops/apps/ledger-cache/" in refused[0]["reason"]
+    assert "A9" in refused[1]["reason"]
+    # the right file, but not what was approved: the rendered result is compared with the action
+    monkeypatch.setattr(policy, "render", _render)
+    wrong = good.model_copy(update={"replace": "limits: {cpu: 500m, memory: 4Gi}"})
+    applied, rejected = team._materialize(clone, [wrong], set(), "model", [a], ["lab"], INV["nodes"])
+    assert applied == [] and "approved limits.memory=1Gi" in rejected[0]["reason"]
+    assert "memory: 512Mi" in (clone / dep).read_text()  # rolled back
+
+
+@pytest.mark.skipif(not (ROOT / ".bin/kubectl").exists(), reason="needs the repo's kubectl for kustomize")
+def test_every_shipped_lab_app_renders_inside_the_policy():
+    for app in sorted((ROOT / "gitops/apps").iterdir()):
+        objs = policy.render(app)
+        assert objs and policy.check(objs, ["lab"]) == [], app.name
+
+
 # ---- a whole team run, mock mode, against a throwaway git origin ----
 
 def _origin(tmp_path) -> str:
@@ -179,6 +261,17 @@ def _origin(tmp_path) -> str:
         subprocess.run(["git", "-C", str(work), *args], check=True)
     subprocess.run(["git", "clone", "-q", "--bare", str(work), str(tmp_path / "origin.git")], check=True)
     return str(tmp_path / "origin.git")
+
+
+def _render(target):
+    """policy.render without kubectl: an app folder's own files, in the namespace its kustomization names."""
+    if not target.is_dir():
+        return list(yaml.safe_load_all(target.read_text()))
+    kust = yaml.safe_load((target / "kustomization.yaml").read_text())
+    objs = [d for f in kust["resources"] for d in yaml.safe_load_all((target / f).read_text()) if d]
+    for o in objs:
+        o["metadata"].setdefault("namespace", kust.get("namespace"))
+    return objs
 
 
 def test_a_mock_team_run_diagnoses_and_commits_a_fix(tmp_path, monkeypatch):
@@ -197,7 +290,7 @@ def test_a_mock_team_run_diagnoses_and_commits_a_fix(tmp_path, monkeypatch):
                                    "allocatable": {"cpu": "8", "memory": "14749276Ki", "pods": "110"}, "nodeInfo": {}}}]}
     monkeypatch.setattr(Context, "kube", lambda self, *a: nodes if a[:2] == ("get", "nodes") else
                         {"items": [deployment]} if "deployments" in a else {"items": []})
-    monkeypatch.setattr(E, "kustomize_ok", lambda d: None)
+    monkeypatch.setattr(policy, "render", _render)
     monkeypatch.setenv("KUBESAGE_RING", str(tmp_path / "ring"))
     monkeypatch.setattr(ring, "_shared", None)
     t = loader.load_team(agents, profile="cerebras")
@@ -270,6 +363,23 @@ def test_the_security_agent_reports_probes_csrf_rejections_and_refused_commands(
     kinds = {x["kind"]: x for x in ctx.signals}
     assert kinds["web_unknown_paths"]["value"] == 3 and kinds["web_unknown_paths"]["severity"] == "warning"
     assert kinds["web_csrf_rejected"]["value"] == 1 and kinds["web_shell_refused"]["value"] == 1
+
+
+
+def test_the_image_allowlist_matches_whole_names_not_prefixes():
+    # Review F15: startswith() let python-malicious:1 and registry.k8s.io.attacker/payload:1 through.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("sec", ROOT / "agents/security/collect.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    allowed = yaml.safe_load((ROOT / "agents/security/agent.yaml").read_text())["settings"]["allowed_registries"]
+    ok = ["python:3.13.12-alpine3.22", "docker.io/library/python:3.13", "index.docker.io/library/python@sha256:abc",
+          "registry.k8s.io/pause:3.9", "registry.k8s.io/metrics-server/metrics-server:v0.7.2",
+          "rancher/mirrored-pause:3.6"]
+    bad = ["python-malicious:1", "registry.k8s.io.attacker/payload:1", "busybox:latest", "evil.io/python:3",
+           "docker.io/pythonx/tool:1", "localhost:5000/python:1"]
+    assert [i for i in ok if not mod.allowed_image(i, allowed)] == []
+    assert [i for i in bad if mod.allowed_image(i, allowed)] == []
 
 
 # ---- test cases ----
@@ -361,3 +471,65 @@ def test_web_access_log_feeds_the_security_agent(server):
     lines = [r.text for r in ring.shared().iter_since(0, streams=["access"])]
     assert any("/.env -> 404" in x for x in lines) and any("POST /api/apply -> 403" in x for x in lines)
     assert any("refused: kubectl delete pod x" in x for x in lines)
+
+
+def _committed_run(out: Path, run_id="20260101-000000") -> dict:
+    data = {"id": run_id, "state": "done", "agents": {}, "executor": {"commit": "abc123", "files": ["gitops/apps/ledger-cache/deployment.yaml"]}}
+    (out / "agents" / run_id).mkdir(parents=True)
+    team.save_run(out / "agents" / run_id, data)
+    return data
+
+
+def test_agent_apply_rechecks_what_it_would_send_and_saves_the_outcome(tmp_path, monkeypatch):
+    from kubesage.web import team_api
+    api = team_api.TeamApi(vm="http://127.0.0.1:9", alertmanager="http://127.0.0.1:9", out_dir=tmp_path, mode="mock", prs=False)
+    monkeypatch.setattr(api, "_nodes", lambda: None)
+    monkeypatch.setattr(repo, "git", lambda *a: "")
+    _committed_run(tmp_path)
+    sent = []
+    monkeypatch.setattr(team_api.subprocess, "run", lambda cmd, **kw: sent.append(cmd) or
+                        subprocess.CompletedProcess(cmd, 0, "deployment.apps/ledger-cache configured", ""))
+    # Review F01: a commit whose rendered objects leave the lab namespace is refused before kubectl apply runs.
+    monkeypatch.setattr(policy, "render", lambda t: [{"kind": "Namespace", "metadata": {"name": "prod"}}])
+    status, body = api.apply({"id": "20260101-000000", "dry_run": False})
+    assert status == 422 and "only the lab namespace" in body["error"] and sent == []
+    # Review F11: an ordinary Apply's outcome is written to run.json, so a restart still shows it.
+    monkeypatch.setattr(policy, "render", lambda t: [{"kind": "Deployment", "metadata": {"name": "ledger-cache", "namespace": "lab"}}])
+    status, body = api.apply({"id": "20260101-000000", "dry_run": False})
+    assert status == 200 and body["ok"] and len(sent) == 1
+    assert team.load_run(tmp_path / "agents", "20260101-000000")["executor"]["applied"]["ok"] is True
+
+
+def test_an_alert_that_resolves_and_fires_again_triggers_the_team_again(tmp_path, monkeypatch):
+    from kubesage.web import team_api
+    monkeypatch.setenv("KUBESAGE_RING", str(tmp_path / "ring"))
+    monkeypatch.setattr(ring, "_shared", None)
+    api = team_api.TeamApi(vm="http://127.0.0.1:9", alertmanager="http://127.0.0.1:9", out_dir=tmp_path, mode="mock", prs=False)
+    alert = {"fingerprint": "f1", "labels": {"alertname": "ContainerOOMKilled", "namespace": "lab"}}
+    api._alerts_tick([alert])
+    assert api._pending_trigger and api._pending_trigger[1] == "ContainerOOMKilled"
+    api._pending_trigger, api._last_auto = None, 0.0  # as if that run happened long ago
+    api._alerts_tick([alert])
+    assert api._pending_trigger is None  # still the same firing: not news
+    api._alerts_tick([])  # resolved
+    api._alerts_tick([alert])  # fires again
+    assert api._pending_trigger and api._pending_trigger[1] == "ContainerOOMKilled"
+    texts = [r.text for r in ring.shared().iter_since(0, streams=["alerts"])]
+    assert texts == ["FIRING ContainerOOMKilled [-] ", "RESOLVED ContainerOOMKilled", "FIRING ContainerOOMKilled [-] "]
+
+
+def test_stopping_a_case_removes_what_an_applied_fix_added(monkeypatch):
+    # Review F07: stop deleted the repo's copy of the app, missing a ScaledObject the Executor's fix had added.
+    calls = []
+
+    def kubectl(*args, stdin=None, timeout=60):
+        calls.append(args)
+        out = "scaledobject.keda.sh \"risk-scorer\" deleted" if "scaledobjects.keda.sh" in args else ""
+        return subprocess.CompletedProcess(args, 0, out, "")
+    monkeypatch.setattr(lab, "_kubectl", kubectl)
+    steps = lab.stop(lab.BY_NAME["cpu-code"])
+    assert ("-n", "lab", "delete", "scaledobjects.keda.sh", "--field-selector", "metadata.name=risk-scorer",
+            "--ignore-not-found", "--wait=false") in calls
+    assert [s["cmd"] for s in steps][:2] == ["kubectl delete -k gitops/apps/risk-scorer", "kubectl delete scaledobjects/risk-scorer"]
+    so = yaml.safe_load(E.scaled_object("risk-scorer", {}))
+    assert so["metadata"]["labels"]["app.kubernetes.io/managed-by"] == "kubesage"

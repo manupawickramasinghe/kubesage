@@ -154,6 +154,7 @@ function renderClusterStatus() {
   const pending = c.nodes.flatMap((n) => n.pods).filter((p) => p.phase === "Pending").length;
   el.innerHTML = `<strong>${icon(nodes.every((n) => n.ready) ? "healthy" : "complex")} ${nodes.filter((n) => n.ready).length}/${nodes.length} machines ready</strong>
     <span>${pods.filter((p) => p.ready).length}/${pods.length} pods ready${pending ? ` · ${pending} pending` : ""}</span>
+    ${c.objects === false ? `<strong>${icon("complex")} Pods and workloads could not be read; the counts are unknown, not zero</strong>` : ""}
     <span class="muted">${c.metrics ? "Live metrics" : "Usage metrics unavailable"} · refreshed ${esc(new Date(c.observed_at || Date.now()).toLocaleTimeString())} · polls every 3s</span>
     ${nodes.some((n) => n.k3d) ? '<span class="muted">Desktop usage covers its Kubernetes container only.</span>' : ""}
     ${c.operation ? `<strong>${icon("loader", "spin")} ${esc(c.operation.name)} in progress</strong>` : ""}`;
@@ -235,7 +236,7 @@ function renderCluster() {
     prevHeight = maxHeight;
     const ox = T, oy = column ? T : -T, slab = box(ox, oy, W, D, -ISO.slab, 0);
     const live = pods.filter((p) => p.phase !== "Terminating");
-    const reqM = sum(live, "cpu_request_m"), usedM = sum(live, "cpu_used_m");
+    const reqM = sum(live, "cpu_request_m"), usedM = measured(live, "cpu_used_m");
     let g = `<g class="${n.role === "pending" ? "pending-node" : ""}" data-node="${esc(n.name)}" data-tip tabindex="0" role="button"
       aria-label="${esc(`Machine ${n.host || n.name}, ${pods.length} pods`)}">
       <polygon class="slab-l" points="${slab.left}"/><polygon class="slab-r" points="${slab.right}"/><polygon class="slab-t" points="${slab.top}"/>`;
@@ -277,7 +278,7 @@ function renderCluster() {
     const hw = n.role === "pending" ? "waiting for a machine" : [cpuName(n.cpu_model), n.cpu_cores != null ? `${n.cpu_cores} threads` : "",
       n.mem_mi != null ? `${mib(n.mem_mi)} RAM` : ""].filter(Boolean).join(" · ");
     const now = n.cpu_used_m != null ? `using ${cores(n.cpu_used_m)} cores · ${mib(n.mem_used_mi)}${n.k3d ? " (k3d node)" : ""}` : "";
-    const use = live.length ? `pods reserve ${cores(reqM)} cores, use ${live.some((p) => p.cpu_used_m != null) ? cores(usedM) : "—"}` : "no workload pods";
+    const use = live.length ? `pods reserve ${cores(reqM)} cores, use ${cores(usedM)}${coverage(live, "cpu_used_m") ? ` (${coverage(live, "cpu_used_m")})` : ""}` : "no workload pods";
     const tag = n.role === "control-plane" ? "control plane" : n.role;
     g += `<text class="nl-name" x="${cx.toFixed(1)}" y="${by + 28}">${esc(n.host || shortNode(n.name))}<tspan class="nl-tag" dx="8">${esc(tag)}</tspan></text>
       <text class="nl-sub" x="${cx.toFixed(1)}" y="${by + 46}">${esc(hw)}</text>
@@ -351,13 +352,14 @@ function renderInspector() {
   const req = sum(pods, "cpu_request_m"), used = measured(pods, "cpu_used_m");
   const apps = [...new Set(pods.map((p) => p.app))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
   replaceHTML(el, `<div class="insp-h"><b>Whole cluster</b></div>
-    <div class="big">${c.metrics && req ? Math.round((used / req) * 100) + "%" : "—"}</div>
-    <div class="muted">${c.metrics ? "of the CPU reserved by workload pods is in use right now" : "live usage appears once metrics-server is ready"}</div>
+    <div class="big">${c.metrics && req && used != null ? Math.round((used / req) * 100) + "%" : "—"}</div>
+    <div class="muted">${!c.metrics ? "live usage appears once metrics-server is ready"
+      : used == null ? `waiting for usage samples: ${coverage(pods, "cpu_used_m")}` : "of the CPU reserved by workload pods is in use right now"}</div>
     <dl class="kv"><dt>Machines</dt><dd>${esc(c.nodes.filter((n) => n.role !== "pending").map((n) => n.host || n.name).join(", "))}</dd>
       <dt>Real capacity</dt><dd>${sum(c.nodes, "cpu_cores")} threads · ${mib(sum(c.nodes, "mem_mi"))}</dd>
       <dt>Cost model</dt><dd>${usd(sum(c.nodes, "pool_monthly_usd"))}/mo</dd>
-      <dt>CPU reserved · used</dt><dd>${cores(req)} · ${cores(used)} cores</dd>
-      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(measured(pods, "mem_used_mi"))}</dd></dl>
+      <dt>CPU reserved · used</dt><dd>${cores(req)} · ${cores(used)} cores${partial(pods, "cpu_used_m")}</dd>
+      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(measured(pods, "mem_used_mi"))}${partial(pods, "mem_used_mi")}</dd></dl>
     <table class="mini"><tr><th>Workload</th><th>Pods</th><th>Reserved</th><th>Used</th></tr>${apps.map((a) => {
       const ps = pods.filter((p) => p.app === a);
       return `<tr><td><button class="linkish" data-pick="${esc(a)}"><span class="dot" style="--c:${color(a)}"></span>${esc(a)}</button></td>
@@ -375,8 +377,9 @@ function nodePanel(n, pods) {
       <dt>OS</dt><dd>${esc(n.os || "—")}</dd><dt>Kernel</dt><dd>${esc(n.kernel || "—")}</dd>
       <dt>Kubernetes</dt><dd>${esc(n.kubelet || "—")}</dd><dt>IP</dt><dd>${esc(n.external_ip || n.internal_ip || "—")}</dd>
       <dt>Node</dt><dd>${esc(n.name)}</dd><dt>Joined</dt><dd>${n.created ? esc(new Date(n.created).toLocaleString()) : "—"}</dd></dl>
-    ${n.alloc_cpu_m ? meter("Pods: CPU", sum(pods, "cpu_used_m"), sum(pods, "cpu_request_m"), n.alloc_cpu_m, cores)
-      + meter("Pods: memory", sum(pods, "mem_used_mi"), sum(pods, "mem_request_mi"), n.alloc_mem_mi, mib) : ""}
+    ${n.alloc_cpu_m ? meter("Pods: CPU", measured(pods, "cpu_used_m"), sum(pods, "cpu_request_m"), n.alloc_cpu_m, cores)
+      + meter("Pods: memory", measured(pods, "mem_used_mi"), sum(pods, "mem_request_mi"), n.alloc_mem_mi, mib)
+      + (coverage(pods, "cpu_used_m") ? `<p class="muted">Usage total waits for every pod: ${coverage(pods, "cpu_used_m")}.</p>` : "") : ""}
     ${n.cpu_used_m != null ? meter(`${where}: CPU now`, n.cpu_used_m, null, n.cpu_cores * 1000, cores)
       + meter(`${where}: memory now`, n.mem_used_mi, null, n.mem_mi, mib) : ""}
     <p class="muted">${n.k3d ? "This node is a k3d container on the desktop, so its usage is Kubernetes' share, not everything the desktop runs."
@@ -394,8 +397,8 @@ function appPanel(app, pods) {
   return `<div class="insp-h"><span class="dot" style="--c:${color(app)}"></span><b>${esc(app)}</b>${closeBtn}</div><div class="insp-tags">${tags}</div>
     <dl class="kv"><dt>Pods ready</dt><dd>${pods.filter((p) => p.ready).length} of ${pods.length}${sc.desired != null && sc.desired !== pods.length ? ` → ${sc.desired}` : ""}</dd>
       <dt>Scaling</dt><dd>${scaling}</dd>${sc.cpu != null ? `<dt>CPU vs target</dt><dd>${sc.cpu}% / ${sc.cpu_target ?? "—"}%</dd>` : ""}
-      <dt>CPU reserved · used</dt><dd>${cores(sum(pods, "cpu_request_m"))} · ${cores(measured(pods, "cpu_used_m"))}</dd>
-      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(measured(pods, "mem_used_mi"))}</dd>
+      <dt>CPU reserved · used</dt><dd>${cores(sum(pods, "cpu_request_m"))} · ${cores(measured(pods, "cpu_used_m"))}${partial(pods, "cpu_used_m")}</dd>
+      <dt>Memory reserved · used</dt><dd>${mib(sum(pods, "mem_request_mi"))} · ${mib(measured(pods, "mem_used_mi"))}${partial(pods, "mem_used_mi")}</dd>
       ${deployment ? `<dt>Live request / pod</dt><dd>${cores(deployment.cpu_request_m)} cores · ${mib(deployment.mem_request_mi)}</dd>` : ""}
       ${livePlan ? `<dt>Plan vs live specs</dt><dd>${livePlan.state === "applied" ? "Matches" : `${differences.length} differences`}</dd>` : ""}
       ${w ? `<dt>Analysis cost estimate</dt><dd>${usd(w.monthly_before_usd)} → ${usd(w.monthly_after_usd)}/mo</dd>` : ""}</dl>
@@ -688,15 +691,27 @@ $("#inspector").addEventListener("click", (ev) => {
   const pick = ev.target.closest("[data-pick]");
   if (pick) select({kind: "app", id: pick.dataset.pick});
 });
-document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && sel) select(null); });
+document.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Escape") return;
+  hideTip();  // a tooltip from keyboard focus closes even when nothing is selected
+  if (sel) select(null);
+});
 
 $("#btn-analyze").onclick = (ev) => busy(ev.currentTarget, async () => {
   notice("Analyzing usage history and checking the proposed changes…");
   log("analyzing: stats → triage → remediation → node pool");
   const res = await api("/api/analyze", {});
+  // The plan on screen is the plan Apply submits: show it now, before a history refresh that can fail.
   runId = res.run; report = res.report; applied = null;
-  await refreshReports();
   renderReport(true);
+  try { await refreshReports(); }
+  catch (e) {
+    log(`analysis history: ${e.message}`, "err");
+    const select = $("#report-select");
+    if (![...select.options].some((o) => o.value === runId)) select.add(new Option(`${runId} · ${report.mode || "analysis"}`, runId), 0);
+    select.value = runId;
+  }
+  wireChanged();
   log(`analysis ${res.run} done · LLM ${usd(report.llm_cost_usd)}${report.mode === "mock" ? " (mock)" : ""}`, "ok");
   notice(`Analysis complete: ${report.workloads.filter((w) => w.recommendation).length} workloads have proposed changes. Review the plan before applying.`);
   await refreshCluster();
@@ -709,6 +724,7 @@ $("#btn-apply").onclick = (ev) => busy(ev.currentTarget, async () => {
   const skipped = res.steps.filter((s) => s.skipped).length;
   log(`${dry ? "validated" : "applied"} ${res.run}${skipped ? ` · ${skipped} skipped` : ""}`, "ok");
   applied = {run: res.run, dry, skipped, ok: res.steps.filter((s) => s.ok && !s.skipped).length, total: res.steps.length};
+  wireChanged();
   notice(`${dry ? "Validation complete. No changes saved." : "Apply finished; watching rollout readiness."} ${applied.ok}/${applied.total} changes ${dry ? "checked" : "written"}${skipped ? `; ${skipped} skipped. Open Activity for details.` : "."}`, skipped ? "warn" : "ok");
   renderSteps();
   await refreshCluster();
@@ -738,6 +754,7 @@ $("#btn-gitops").onclick = (ev) => busy(ev.currentTarget, async () => {
 });
 
 $("#dismiss-notice").onclick = () => ($("#notice").hidden = true);
+$("#toast-x").onclick = () => ($("#toast").hidden = true);
 $("#dryrun").onchange = () => setLabel("#btn-apply", "check", $("#dryrun").checked ? "Validate plan" : "Apply fixes");
 ["#rps", "#secs", "#workms"].forEach((id) => $(id).addEventListener("input", renderSteps));
 $("#report-select").onchange = (ev) => busy(ev.currentTarget, async () => {

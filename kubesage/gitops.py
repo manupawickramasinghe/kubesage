@@ -2,6 +2,7 @@
 and open a pull request. The repo is left on the branch it was on."""
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,8 +30,21 @@ class Exported:
     pr_url: str | None = None
 
 
+GIT_TIMEOUT = 120  # a hung push or credential prompt must not hold the server's operation lock forever
+
+
+def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=GIT_TIMEOUT,
+                              env={**os.environ, "GIT_TERMINAL_PROMPT": "0"}, **kw)
+    except subprocess.TimeoutExpired as exc:
+        raise GitOpsError(f"{' '.join(cmd[:4])}: no answer after {GIT_TIMEOUT} s") from exc
+    except OSError as exc:
+        raise GitOpsError(f"{cmd[0]}: {exc}") from exc
+
+
 def _git(repo: Path, *args: str) -> str:
-    proc = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    proc = _run(["git", "-C", str(repo), *args])
     if proc.returncode:
         raise GitOpsError(f"git {' '.join(args)}: {proc.stderr.strip() or proc.stdout.strip()}")
     return proc.stdout.strip()
@@ -91,8 +105,8 @@ def export(run_dir: Path, repo: Path, *, path: str, kustomize_base: str, branch:
 
     pr_url = None
     if open_pr:
-        proc = subprocess.run(["gh", "pr", "create", "--base", base_branch, "--head", branch, "--title", title,
-                               "--body", body], cwd=repo, capture_output=True, text=True)
+        proc = _run(["gh", "pr", "create", "--base", base_branch, "--head", branch, "--title", title, "--body", body],
+                    cwd=repo)
         if proc.returncode:
             raise GitOpsError(f"branch {branch} pushed, but gh pr create failed: {proc.stderr.strip()}")
         pr_url = proc.stdout.strip().splitlines()[-1]

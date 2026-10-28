@@ -134,8 +134,8 @@ async function pollEvents() {
 async function refreshLab() {
   try { lab.status = await api("/api/lab"); } catch (e) { lab.status = null; }
   $("#sh-prompt").textContent = `kubesage@${lab.status?.host || "server"}:~$`;
-  const run = $("#wire-run").value || runId;
-  if (run && run !== lab.traceRun) await loadTrace(run);
+  const run = lab.wirePicked || runId;
+  if (run && (run !== lab.traceRun || lab.traceStale)) await loadTrace(run);
   else if (!run && !$("#wire-detail").childElementCount) renderWire();
   renderStages();
 }
@@ -171,18 +171,26 @@ function shComplete(input) {
   const words = [...new Set([...shortcuts(), "clear", "history", "kubectl get ", "kubectl describe ", "kubectl logs ",
     "kubectl top ", "kubectl events ", "promql ", "kubesage "])];
   const options = words.filter((w) => w.startsWith(input.value) && w !== input.value);
-  if (!options.length) return;
+  if (!options.length) return false;
   let common = options[0];
   options.forEach((o) => { while (!o.startsWith(common)) common = common.slice(0, -1); });
-  if (common.length > input.value.length) input.value = common;
-  else shPrint(options.join("    "), "sh-dim"), shScroll();
+  if (common.length > input.value.length) { input.value = common; lab.tabbed = null; }
+  else { shPrint(options.join("    "), "sh-dim"); shScroll(); lab.tabbed = input.value; }  // listed: the next Tab moves on
+  return true;
 }
 
 /* Wire inspector */
 const KINDS = [["promql", "PromQL"], ["llm", "LLM"], ["kubectl", "kubectl"], ["backfill", "backfill"]];
 
+// After Analyze, Apply or a backfill the trace (and the run list) changed: reload it, keeping a run picked by hand.
+function wireChanged() {
+  lab.traceStale = true;
+  if (!$("#lab").hidden) refreshLab();
+}
+
 async function loadTrace(run) {
   lab.traceRun = run;
+  lab.traceStale = false;
   try { lab.trace = await api(`/api/trace?run=${encodeURIComponent(run)}`); }
   catch (e) { lab.trace = {run, error: e.message, exchanges: [], kubectl: [], backfill: null}; }
   lab.pick = 0;
@@ -335,7 +343,8 @@ function initLab() {
     const input = ev.currentTarget;
     if (ev.key === "ArrowUp" && lab.hpos > 0) { ev.preventDefault(); input.value = lab.history[--lab.hpos]; }
     else if (ev.key === "ArrowDown") { ev.preventDefault(); lab.hpos = Math.min(lab.hpos + 1, lab.history.length); input.value = lab.history[lab.hpos] || ""; }
-    else if (ev.key === "Tab" && input.value) { ev.preventDefault(); shComplete(input); }
+    // Tab completes; when there is nothing (more) to complete it moves focus as usual, and Shift+Tab always does.
+    else if (ev.key === "Tab" && !ev.shiftKey && input.value && lab.tabbed !== input.value && shComplete(input)) ev.preventDefault();
     else if (ev.key === "l" && ev.ctrlKey) { ev.preventDefault(); $("#sh-out").replaceChildren(); }
   });
   $("#jr-filters").innerHTML = [0, 1, 2, 3, 4, 5].map((f) => `<button class="tbtn" data-f="${f}" aria-pressed="${f === 0}"
@@ -347,7 +356,10 @@ function initLab() {
     ev.currentTarget.textContent = lab.paused ? "resume" : "pause";
     if (!lab.paused) $("#jr").scrollTop = $("#jr").scrollHeight;
   };
-  $("#wire-run").onchange = (ev) => loadTrace(ev.currentTarget.value);
+  $("#wire-run").onchange = (ev) => {
+    lab.wirePicked = ev.currentTarget.value === runId ? null : ev.currentTarget.value;  // the latest: keep following it
+    loadTrace(ev.currentTarget.value);
+  };
   $("#wire-kinds").onclick = (ev) => { const b = ev.target.closest("[data-kind]"); if (b) { lab.kind = b.dataset.kind; lab.pick = 0; renderWire(); } };
   $("#wire-list").onclick = (ev) => { const b = ev.target.closest("[data-i]"); if (b) { lab.pick = +b.dataset.i; renderWire(); } };
   $("#wire-list").addEventListener("keydown", (ev) => {
@@ -374,7 +386,7 @@ function initLab() {
       const res = await api("/api/backfill", {days: 30});
       log(`backfill: ${res.samples.toLocaleString()} samples, ${res.series} series, ${res.days} days in ${res.seconds} s`, "ok");
       lab.kind = "backfill";
-      await loadTrace(lab.traceRun || runId);
+      wireChanged();
     });
   };
   shPrint("KubeSage lab shell. Read-only: kubectl get/describe/top/logs/events, promql, kubesage route|ledger|plan|runs. Type help.", "sh-dim wrap");

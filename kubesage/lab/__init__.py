@@ -125,6 +125,15 @@ def stop(tc: TestCase, gitops: Path = GITOPS) -> list[dict]:
     where = f"gitops/apps/{tc.app}" if tc.gitops else f"kubesage/lab/{tc.app}.yaml"
     steps.append(_step(f"kubectl delete {'-k' if tc.gitops else '-f'} {where}",
                        _kubectl("delete", *manifest_args(tc, gitops), "--ignore-not-found", "--wait=false")))
+    # An applied Executor fix can add objects the repo's copy doesn't list, such as a ScaledObject: the lab namespace
+    # is KubeSage's, so anything named after the app goes too (without KEDA there is nothing to remove).
+    for kind in ("scaledobjects.keda.sh", "poddisruptionbudgets"):
+        proc = _kubectl("-n", NAMESPACE, "delete", kind, "--field-selector", f"metadata.name={tc.app}", "--ignore-not-found",
+                        "--wait=false")
+        if proc.returncode == 0 and proc.stdout.strip():
+            steps.append(_step(f"kubectl delete {kind.split('.')[0]}/{tc.app}", proc))
+        elif proc.returncode and "doesn't have a resource type" not in proc.stderr:
+            steps.append(_step(f"kubectl delete {kind.split('.')[0]}/{tc.app}", proc))
     # An applied Executor fix changes the source, so its ConfigMap has another hash suffix: remove every version.
     old = [n for n in _kubectl("-n", NAMESPACE, "get", "configmaps", "-o", "name").stdout.split()
            if n.startswith(f"configmap/{tc.app}-src-")]

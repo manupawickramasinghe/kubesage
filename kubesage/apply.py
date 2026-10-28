@@ -1,7 +1,8 @@
 """Apply an analysis run's manifests to a cluster with kubectl.
 
-Order: resource patches, then node-pool migrations, then ScaledObjects. A migration is skipped unless some
-node carries the target SKU label, so pods never go Pending on a cluster that lacks the cheaper nodes.
+Order: resource patches (each after removing an autoscaler it replaces), then node-pool migrations, then
+ScaledObjects. A migration is skipped unless some node carries the target SKU label, so pods never go Pending on a
+cluster that lacks the cheaper nodes.
 """
 from __future__ import annotations
 
@@ -16,6 +17,8 @@ from pathlib import Path
 import yaml
 
 REPO_BIN = Path(__file__).resolve().parent.parent / ".bin"
+MANAGED_LABEL = "app.kubernetes.io/managed-by=kubesage"
+NO_KIND = "doesn't have a resource type"
 
 
 @dataclass
@@ -89,7 +92,17 @@ def plan(run_dir: Path, *, dry_run: bool = False, kubectl: list[str] | None = No
         return Step(f, [*kubectl, "-n", meta["namespace"], "patch", "deployment", meta["name"],
                         "--type", "strategic", "--patch-file", str(f), *extra])
 
-    steps = [patch(f) for f in sorted(manifests.glob("*.patch.yaml"))]
+    def unscale(f: Path) -> Step | None:
+        # A fixed replica count replaces autoscaling: remove the ScaledObject an earlier run applied, or the HPA
+        # KEDA made for it keeps resizing the Deployment the patch just pinned.
+        doc = yaml.safe_load(f.read_text())
+        meta = doc["metadata"]
+        if (doc.get("spec") or {}).get("replicas") is None or (manifests / f"{meta['name']}.keda.yaml").exists():
+            return None
+        return Step(f, [*kubectl, "-n", meta["namespace"], "delete", "scaledobjects.keda.sh", "-l", MANAGED_LABEL,
+                        "--field-selector", f"metadata.name={meta['name']}", "--ignore-not-found", *extra])
+
+    steps = [step for f in sorted(manifests.glob("*.patch.yaml")) for step in (unscale(f), patch(f)) if step]
     for f in sorted(manifests.glob("*.migrate.yaml")):
         step = patch(f)
         selector = yaml.safe_load(f.read_text())["spec"]["template"]["spec"]["nodeSelector"]
@@ -122,6 +135,8 @@ def run(steps: list[Step]) -> list[Step]:
             step.returncode, step.output = 124, "kubectl timed out after 60 seconds; check the cluster before retrying"
         except OSError as exc:
             step.returncode, step.output = 127, f"could not start kubectl: {exc}"
+        if step.returncode and "scaledobjects.keda.sh" in step.cmd and NO_KIND in step.output:
+            step.returncode, step.output = 0, "KEDA isn't installed here, so there is no ScaledObject to remove"
         if step.returncode != 0:
             failed = step.file.name
     return steps

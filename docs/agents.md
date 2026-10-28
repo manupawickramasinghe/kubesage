@@ -31,12 +31,19 @@ flowchart LR
    Terraform, the SKU catalog with prices) and the custom rules. It returns *issues* (root cause, severity,
    confidence, evidence) and *actions* (set_resources, change_node_sku, code_change, autoscale, storage,
    security_hardening, ...). Guardrails reject what is unsupported: an issue without evidence, an action on a
-   target that doesn't exist, a SKU outside the catalog, or requests or limits bigger than today's nodes. When
-   something is rejected, the Thinker gets one retry with the reasons.
+   target that doesn't exist or is outside the `lab` namespace, an action type on the wrong kind of target, a
+   SKU outside the catalog, or requests and limits that aren't positive quantities, put a request above its
+   limit, or are bigger than today's nodes. When something is rejected, the Thinker gets one retry with the
+   reasons.
 3. The **Executor** gets the actions and the current text of every file they touch, and returns find/replace
-   edits plus a PR title and body. Each edit must match its file exactly once and leave it valid: YAML parses
-   without duplicate keys, `kubectl kustomize` builds the app, Python compiles, and every Terraform `vm_size` is
-   in `config/skus.yaml`. Edits that fail are dropped and listed. When all the model's edits for a structured
+   edits plus a PR title and body. Each edit must name an action it was given and stay inside that action's
+   files (its own `gitops/apps/<app>/`, `gitops/infra/nodepools.tf` for node pools, `gitops/apps/namespace.yaml`
+   for the namespace). It must match its file exactly once and leave it valid: YAML parses without duplicate
+   keys, Python compiles, and every Terraform `vm_size` is in `config/skus.yaml`. Then the app is rendered with
+   `kubectl kustomize` and the objects themselves are checked (`kubesage/agents/policy.py`): only the kinds the
+   lab apps use, only the `lab` namespace, container resources positive, request no more than limit and within
+   the biggest node, and a `set_resources` change must leave exactly the values the Thinker's checks passed.
+   Edits that fail are dropped and listed. When all the model's edits for a structured
    action fail, KubeSage's rule-based executor writes that action instead, and the PR labels those edits
    `rules-fallback`. The edits are committed to a fresh branch in the Executor's own clone (`out/agents/repo`),
    never in the checkout the server runs from.
@@ -173,7 +180,11 @@ overrides it). Opening a pull request is separate and opt-in:
 
 PRs are opened with `gh` as whoever is logged in, against this repo's `origin` (the public kubesage repo).
 **Apply to cluster** runs `kubectl apply -k` for each changed `gitops/apps/<app>` from the Executor's commit
-(**Dry-run apply** adds `--dry-run=server`). Terraform changes in `gitops/infra/` are never applied: the home
+(**Dry-run apply** adds `--dry-run=server`). It renders the commit first and refuses (HTTP 422, nothing sent) if
+any object would break the same policy, so a run made by an older KubeSage or a clone edited by hand can't push
+something outside the lab. The outcome is saved in the run's `run.json` at once. Stopping a test case also
+removes a ScaledObject or PodDisruptionBudget an applied fix added for that app, which the repo's copy of the
+app doesn't list. Terraform changes in `gitops/infra/` are never applied: the home
 lab can't change its hardware, and `terraform apply` against Azure is a person's job.
 
 ## Security

@@ -83,10 +83,11 @@ Applied to every recommendation, with every override recorded:
 | **Workloads with `recurring-peak` or `cpu-over-request` keep a CPU trigger** (70%), and max > min | found live, twice: cron-only scaling for checkout-web, so a traffic spike never added pods |
 | Scale-to-zero drops the CPU trigger | KEDA can't wake a workload from zero on CPU |
 | min 0 with no cron window → 1 | nothing would wake it |
-| max replicas ≤ 20; cron replicas within [min, max]; CPU target within 30–95% | sanity |
+| max replicas ≤ 20; cron replicas within [min, max]; CPU target within 30–95% (each change noted) | sanity |
 | CPU request ≥ the 30-day median (active-period median for scale-to-zero) | never starve a pod |
 | memory request ≥ the median (active p95 for scale-to-zero); limit ≥ 1.15 × observed max and ≥ request | never OOM-kill on day one |
 | CPU limit ≥ the request and the p99 | no throttling below observed load |
+| **The replicas a plan can reach × CPU per pod (limit, else request) ≥ the p95 total across pods**: else a CPU trigger is added and max raised, or cron windows raised for scale-to-zero; min covers the median total; with fixed replicas the CPU limit covers its share | per-pod floors don't protect a replica cut: four pods using 0.8 cores could become one pod capped at 0.25 |
 
 ## Rendering (`recommend/render.py`)
 
@@ -109,7 +110,9 @@ label, so pods never end up Pending.
   change, replicas are the week's expected average from the cron windows; CPU-triggered scale-out isn't
   modelled.
 - **Billing view**: for the demand after the changes, every SKU that fits the largest pod is a candidate, with
-  `nodes = max(min_nodes, ⌈cpu / (vcpu × 0.9)⌉, ⌈mem / (GiB × 0.8)⌉)`. The strategist picks one, given the
+  `nodes = max(min_nodes, ⌈cpu / (vcpu × 0.9)⌉, ⌈mem / (GiB × 0.8)⌉, packed)`, where `packed` places every pod
+  first-fit-decreasing onto nodes of that SKU (four 2-core pods need four 3.6-core nodes, not three). The burst
+  warning uses the same packing. It doesn't model other namespaces' pods or taints. The strategist picks one, given the
   candidates and which workloads have sustained load. Burstable B-series is a poor fit for those. An invalid
   pick falls back to the deterministic choice.
 - **Before** = `current_pool` in `skus.yaml`: 1× D8s_v5, matching the real desktop.
