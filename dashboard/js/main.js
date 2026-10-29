@@ -22,7 +22,7 @@ function showView(next) {
   $(".skip").href = PANELS[next];
   if (next === "lab") startLab(); else stopLab();
   if (next !== "dashboard" || demo.on) startTeam(); else stopTeam();  // the demo's caption bar shows the team's state
-  if (next === "tmux") startTx(); else stopTx();
+  syncTx();  // the tmux view, or the tmux panel beside this one
   if (next === "agents" && team.data) renderTeam();
   renderDemo();
   renderDock();
@@ -70,5 +70,6 @@ new ResizeObserver(() => {
 initLab();
 initTeam();
 initDemo();
+initTx();
 initViews();
 showView(viewFromHash());

@@ -1,7 +1,10 @@
 """Shared fixtures: the demo scenarios reduced to Stage 1 stats, and a mock-mode analysis of them."""
+import os
+
 import numpy as np
 import pytest
 
+from kubesage import ring
 from kubesage.config import load_models, load_skus
 from kubesage.llm.client import LLMClient
 from kubesage.metrics.stats import summarize
@@ -11,6 +14,17 @@ from kubesage.simulate.scenarios import DEMO_WORKLOADS
 
 TZ = "Asia/Colombo"
 END = 1_790_000_000 // 300 * 300
+
+
+@pytest.fixture(scope="session", autouse=True)
+def private_ring(tmp_path_factory):
+    """Tests log agent and journal lines through ring.emit(). Without this they land in /dev/shm/kubesage-ring, the
+    live server's ring, and its tmux view shows a test's refused apply as if the Executor had done it."""
+    os.environ["KUBESAGE_RING"] = str(tmp_path_factory.mktemp("ring") / "ring")
+    os.environ["KUBESAGE_RING_MB"] = "4"
+    ring._shared = None
+    yield
+    ring._shared = None
 
 
 @pytest.fixture(scope="session")

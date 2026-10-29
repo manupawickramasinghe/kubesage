@@ -30,6 +30,8 @@
       <button id="btn-gitops" class="btn btn-outline" data-act hidden></button>
       <button id="btn-reset" class="btn btn-ghost" data-act
         title="Put the demo back in its oversized 'before' state: big requests, every workload on the 8600G"></button>
+      <button id="btn-side" class="btn btn-ghost btn-icon" aria-controls="txside" aria-pressed="false"
+        aria-label="Show tmux beside every view" title="Show tmux beside every view"></button>
       <button id="btn-theme" class="btn btn-ghost btn-icon" aria-label="Toggle dark mode"></button>
     </div>
   </div>
@@ -271,6 +273,8 @@
           <select id="tx-range"><option value="5">last 5 min</option><option value="30">last 30 min</option><option value="0">all held</option></select>
           <a class="tbtn" id="tx-save" href="/api/ring/dump?minutes=5" download style="display:inline-flex;align-items:center;text-decoration:none">save</a>
           <button class="tbtn" id="tx-pause" aria-pressed="false">pause</button></span>
+        <button class="tbtn" id="tx-side" aria-pressed="false" aria-controls="txside"
+          title="Keep this mirror open in a panel beside the other views">show beside other views</button>
       </div>
     </div>
     <div class="tx-win" id="tx-win"></div>
@@ -279,6 +283,23 @@
       <span id="tx-clock"></span></div>
   </section>
 </div>
+<!-- The same mirror beside the other views, one window at a time; drag its left edge to resize. -->
+<aside class="tmux txside" id="txside" aria-label="tmux beside this view" hidden>
+  <div class="txs-grip" id="txs-grip" role="separator" aria-orientation="vertical" aria-label="Resize the tmux panel"
+    aria-valuemin="320" tabindex="0"></div>
+  <div class="tx-top">
+    <div class="tx-id"><b>tmux · kubesage</b>
+      <span class="tx-ro" title="Text piped from the server's RAM ring. Nothing typed here reaches a terminal."><svg class="ic" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11"
+          width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>read-only</span></div>
+    <div class="tx-ctl"><button class="tbtn" id="txs-full">full view</button>
+      <button class="tbtn" id="txs-x" aria-label="Close the tmux panel">close</button></div>
+  </div>
+  <div class="tx-win" id="txs-win"></div>
+  <div class="tmux-status"><span>[kubesage]</span>
+    <span role="tablist" aria-label="Windows" id="txs-windows"></span><span class="sp"></span>
+    <span id="txs-clock"></span></div>
+</aside>
 <aside class="dock" id="dock" aria-label="Demo guide" hidden>
   <div class="dk-top">
     <span class="dk-count" id="dk-count"></span><span class="dk-act" id="dk-act"></span>

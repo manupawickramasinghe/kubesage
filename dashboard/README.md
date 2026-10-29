@@ -16,7 +16,7 @@ build step, no CDN. Files are read from disk on every request, so after an edit 
 | `js/finops.js` | the FinOps view and its three steps |
 | `js/lab.js` | Under the hood: pipeline stages, the read-only shell, journal and wire |
 | `js/agents.js` | the agent team: test cases, team runs, diagnosis and change |
-| `js/tmux.js` | the tmux view |
+| `js/tmux.js` | the tmux view, and the same mirror as a panel beside the other views |
 | `js/demo.js` | the run of show (`DEMO`): each step's view, what to ring, narration, button and live status |
 | `js/main.js` | view switching from the URL hash, and start-up. Loaded last |
 | `fonts/` | Inter and Instrument Serif (SIL OFL, licences beside them) |

@@ -256,7 +256,6 @@ function initTeam() {
   };
   $("#team-detail").onclick = (ev) => { const b = ev.target.closest("[data-exec]"); if (b) execAction(b.dataset.exec); };
   $("#team-runbar").onclick = (ev) => { const b = ev.target.closest("[data-goto]"); if (b) location.hash = b.dataset.goto; };
-  $("#tx-windows").onclick = (ev) => { const b = ev.target.closest("[data-win]"); if (b) { tx.win = +b.dataset.win; renderTx(); } };
   $("#tx-range").onchange = (ev) => ($("#tx-save").href = `/api/ring/dump?minutes=${ev.currentTarget.value}`);
   $("#tx-pause").onclick = (ev) => {
     tx.paused = !tx.paused;
