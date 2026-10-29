@@ -48,7 +48,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Header */
-header.top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border);
+header.top { position: sticky; top: 0; z-index: 10; container-type: inline-size; border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .top-inner { max-width: 1200px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -.01em; margin-right: 4px; }
@@ -158,7 +158,11 @@ h2 { margin: 0; font: 400 28px/1.1 var(--serif); letter-spacing: -.01em; }
 .viewtab[aria-selected="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
 .viewtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .vt-short { display: none; }
-@media (max-width: 900px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; } }
+@media (max-width: 900px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
+  .top-inner { column-gap: 8px; } .actions { gap: 4px; } .actions .btn-icon, #btn-side { width: 32px; padding: 0; } }
+/* The header's own width decides too: the tmux side panel narrows the page without narrowing the window. */
+@container (max-width: 1080px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
+  #btn-side { padding: 0 8px; } #btn-side span { display: none; } }
 @media (max-width: 600px) {
   .brand span { display: none; }
   .top-inner { gap: 8px; }

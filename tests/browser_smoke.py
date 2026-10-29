@@ -74,6 +74,8 @@ class MockApi:
         self.sequence = 0
         self.team, self.active = team_fixture(), {}
         self.runs, self.analyze_run = [LATEST, OLDER], LATEST
+        self.ring = ring_fixture()
+        self.gitops = True
 
     def route(self, route):
         request = route.request
@@ -84,7 +86,7 @@ class MockApi:
         if url.path in self.failures:
             status, value = self.failures[url.path]
         elif url.path == "/api/config":
-            status, value = 200, {"mode": "mock", "namespace": "demo", "gitops": True}
+            status, value = 200, {"mode": "mock", "namespace": "demo", "gitops": self.gitops}
         elif url.path == "/api/reports":
             status, value = 200, {"runs": [] if self.empty else [{"run": run, "mode": "mock"} for run in self.runs]}
         elif url.path == "/api/report":
@@ -132,8 +134,12 @@ class MockApi:
                 self.active[body["name"]] = {"pods": 1, "phases": {"Running": 1}, "restarts": 0, "since": "x", "stopping": False}
             status, value = (200, {"ok": True, "steps": [{"cmd": "kubectl apply -k gitops/apps/x", "ok": True, "output": ""}]}
                              if url.path == "/api/testcase" else {"id": "20261028-120000"})
-        elif url.path == "/api/ring":
-            status, value = 200, {"records": [] if parse_qs(url.query).get("after") else ring_fixture(), "last": 9}
+        elif url.path == "/api/ring":  # like the server: a tail of the streams asked for, or what came after
+            query = {k: v[0] for k, v in parse_qs(url.query).items()}
+            want = [p for p in query.get("streams", "").split(",") if p]
+            recs = [r for r in self.ring if not want or any(r["stream"].startswith(p) for p in want)]
+            recs = [r for r in recs if r["seq"] > int(query["after"])] if "after" in query else recs[-int(query.get("tail", 200)):]
+            status, value = 200, {"records": recs, "last": self.ring[-1]["seq"]}
         elif url.path == "/api/ring/stat":
             status, value = 200, {"used_bytes": 2 ** 20, "capacity_bytes": 500 * 2 ** 20, "records": 9, "wrapped": False, "oldest_ts": 1.79e9}
         else:
@@ -485,6 +491,102 @@ def run(args):
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
             scenario("tmux-phone-width", tmux_phone, width=390)
+
+            def tmux_beside(page, mock):
+                page.goto(url + "#agents")
+                expect(page.locator("#txside")).to_be_hidden()
+                page.locator("#btn-side").click()
+                expect(page.locator("#txside")).to_be_visible()
+                expect(page.locator("#btn-side")).to_have_attribute("aria-pressed", "true")
+                expect(page.locator("#txs-win .pane")).to_have_count(6)
+                expect(page.locator("#txs-win")).to_contain_text("ProcessPoolExecutor")
+                side, agents = page.locator("#txside").bounding_box(), page.locator("#agents").bounding_box()
+                assert agents["x"] + agents["width"] <= side["x"] + 1, (agents, side)  # beside the view, not over it
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                page.locator('#txs-win [data-zoom="2"]').click()  # tmux's prefix z
+                expect(page.locator("#txs-win .pane:visible")).to_have_count(1)
+                expect(page.locator("#txs-windows")).to_contain_text("0:agents*Z")
+                page.locator('#txs-windows [data-win="3"]').click()
+                expect(page.locator("#txs-win")).to_contain_text("$ kubectl top pods")
+                page.locator("#txs-full").click()  # the full view replaces the panel and keeps its own window
+                expect(page.locator("#tmuxview")).to_be_visible()
+                expect(page.locator("#txside")).to_be_hidden()
+                expect(page.locator("#tx-win .pane")).to_have_count(6)
+                expect(page.locator("#tx-side")).to_have_attribute("aria-pressed", "true")
+                page.goto(url + "#dashboard")
+                expect(page.locator("#txside")).to_be_visible()
+                expect(page.locator("#txs-win")).to_contain_text("$ kubectl top pods")
+                width = page.locator("#txside").bounding_box()["width"]
+                page.locator("#txs-grip").focus()
+                page.keyboard.press("ArrowLeft")
+                assert page.locator("#txside").bounding_box()["width"] == width + 40
+                page.reload()  # open, width and window are remembered
+                expect(page.locator("#txside")).to_be_visible()
+                expect(page.locator("#txs-windows")).to_contain_text("3:ops*")
+                assert page.locator("#txside").bounding_box()["width"] == width + 40
+                page.locator("#txs-x").click()
+                expect(page.locator("#txside")).to_be_hidden()
+                assert page.evaluate("getComputedStyle(document.body).paddingRight") == "0px"
+                assert page.locator("#txside input, #txside textarea, #txside [contenteditable]").count() == 0
+                assert not any(path.startswith("/api/ring") and b for path, b in mock.requests), "the mirror must never POST"
+
+            scenario("tmux-beside-other-views", tmux_beside)
+
+            def tmux_panel_from_the_tmux_tab(page, mock):
+                # The panel hides over the tmux tab, so turning it on there must take you somewhere it shows.
+                page.goto(url + "#lab")
+                expect(page.locator("#btn-side")).to_contain_text("tmux panel")  # labelled, not a bare icon
+                page.goto(url + "#tmux")
+                page.locator("#tx-side").click()
+                expect(page.locator("#lab")).to_be_visible()
+                expect(page.locator("#txside")).to_be_visible()
+                expect(page.locator("#txs-win .pane")).to_have_count(6)
+
+            scenario("tmux-panel-from-the-tmux-tab", tmux_panel_from_the_tmux_tab)
+
+            def quiet_panes_keep_their_lines(page, mock):
+                # Live: hours of kubectl -w after a team run left every agent pane "nothing in the ring" on first load.
+                mock.ring = ring_fixture()[:4] + [{"seq": 10 + i, "ts": 1.79e9 + 10 + i, "stream": "watch/pods",
+                                                   "text": f"checkout-web-{i} Running"} for i in range(6000)]
+                page.goto(url + "#tmux")
+                expect(page.locator("#tx-win .pane").nth(0)).to_contain_text("PromQL: collecting")
+                expect(page.locator("#tx-win .pane").nth(5)).to_contain_text("ProcessPoolExecutor")
+                page.locator('#tx-windows [data-win="1"]').click()
+                expect(page.locator("#tx-win .pane").nth(1)).to_contain_text("checkout-web-5999 Running")
+
+            scenario("quiet-panes-keep-their-lines", quiet_panes_keep_their_lines)
+
+            def tmux_beside_phone(page, mock):
+                page.goto(url + "#agents")
+                page.locator("#btn-side").click()
+                expect(page.locator("#txs-win .pane")).to_have_count(6)
+                box = page.locator("#txside").bounding_box()
+                assert box["width"] <= 768 and box["y"] > 300, box  # a sheet at the bottom, under the view
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+            scenario("tmux-beside-tablet-width", tmux_beside_phone, width=768)
+
+            def header_keeps_its_rows(page, mock):
+                # The side button must not push the header onto another row; nor may the panel, by narrowing the page.
+                # Without --gitops, as the LAN server runs: its extra button wraps the header at tablet widths anyway.
+                mock.gitops = False
+                height = lambda: page.evaluate("document.querySelector('header.top').offsetHeight")
+                for width in (390, 768, 1280, 1920):
+                    page.set_viewport_size({"width": width, "height": 900})
+                    page.goto(url + "#agents")
+                    expect(page.locator("#team-flow .agent")).to_have_count(6)
+                    page.wait_for_function("document.fonts.status === 'loaded'")
+                    closed = height()
+                    page.evaluate("document.querySelector('#btn-side').style.display = 'none'")
+                    assert height() == closed, (width, "the button adds a row", closed, height())
+                    page.evaluate("document.querySelector('#btn-side').removeAttribute('style')")
+                    if width > 600:
+                        page.locator("#btn-side").click()
+                        expect(page.locator("#txside")).to_be_visible()
+                        assert height() == closed, (width, "the open panel wraps the header", closed, height())
+                        page.locator("#txs-x").click()
+
+            scenario("header-keeps-its-rows", header_keeps_its_rows)
 
             def plan_shown_is_plan_applied(page, mock):
                 # Review F02: a failed history refresh after Analyze left the old plan on screen while Apply sent the new run.

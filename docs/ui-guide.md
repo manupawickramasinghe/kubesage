@@ -344,7 +344,18 @@ grey italic, so the findings (yellow), results (green) and edits stand out.
 
 Nothing typed in the browser reaches a terminal: there is no input box, and the ring has no write endpoint (the
 **read-only mirror** badge). The top bar has the ring's size in RAM, the test-case controls and **run agents**,
-then **save** (the last 5 or 30 minutes, or everything held, as a text file) and **pause**.
+then **save** (the last 5 or 30 minutes, or everything held, as a text file) and **pause**. **zoom** on a pane
+fills the window with it, like tmux's prefix z (the status bar marks the window `Z`).
+
+**Beside the other views.** **tmux panel** in the header (top right, next to the theme toggle), or **open as side
+panel** in the tmux top bar, opens the mirror as a column on the right of Demo, FinOps, Agent team and Under the hood, so you can watch the
+agents while you present. It has its own window (pick it from its green status bar) and zoom, **full view** opens
+the tmux tab, and **close** puts it away. Drag its left edge to make it wider (or focus the edge and use ← →). It
+hides while the tmux tab is open (turning it on from there takes you back to the last view), and the browser remembers whether it was open, its width and its window. On a
+tablet it is a sheet across the bottom; on a phone use the tmux tab.
+
+The first load takes the newest lines of each feed separately, so an agent pane still shows the last team run
+after hours of `kubectl -w` output.
 
 ![The tmux view](images/ui-tmux.png)
 

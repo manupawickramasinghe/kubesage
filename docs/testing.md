@@ -26,7 +26,7 @@ KUBESAGE_RING="$review_ring_dir/ring" KUBESAGE_RING_MB=4 .venv/bin/python -m pyt
 
 | file | covers |
 |---|---|
-| `tests/conftest.py` | session fixtures: the five demo scenarios reduced to Stage 1 stats, and a mock-mode analysis |
+| `tests/conftest.py` | session fixtures: the five demo scenarios reduced to Stage 1 stats, a mock-mode analysis, and a private RAM ring so tests never write into a live server's `/dev/shm` ring |
 | `test_pipeline.py` | Stage 1 signals, routing, recommendations, resource/replica guardrails, replica cuts against the measured total, a note for every bound the guardrails move, CPU scaling headroom, node sizing at CPU maximum replicas and by packing pods onto nodes, invalid and overnight cron windows, overlapping schedule costs |
 | `test_apply.py` | Patch ordering, Ready/schedulable target node capacity, migration skips, removing the autoscaler a fixed replica count replaces, apply timeouts and stopping after failures, ignoring incomplete runs |
 | `test_service.py` | Atomic report publication, failed writes preserve the previous report, existing runs cannot be overwritten |
@@ -53,7 +53,9 @@ APIs, so it spends no LLM credit and makes no cluster changes:
 
 It checks selection, validation/apply/reload, traffic/reset, history-pinned actions, downloads, filters,
 failure states, measured traffic success/errors/latency, the agent team panel (untrusted model text stays text),
-the tmux mirror (no input elements, never POSTs, panes visible at phone width), the demo guide, the plan on screen
+the tmux mirror (no input elements, never POSTs, panes visible at phone width, quiet panes keep their lines on first
+load), the tmux panel beside the other views (beside, not over, the view; own window and zoom; remembered after a
+reload; a sheet on a tablet; the header keeps its rows), the demo guide, the plan on screen
 being the plan Apply sends, errors reaching whichever view is open, keyboard focus and shell Tab, the Wire
 reloading after operations, unknown usage shown as unknown, and responsive layouts in both themes at 390, 768 and
 1400 px. Toolbar Start/Stop testcase and Run agents controls do POST;

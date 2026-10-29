@@ -155,7 +155,8 @@ the oldest 1 MiB segment is overwritten. It survives server restarts, but not a 
 | `journal`, `access` | the Lab's journal, and Control Center requests that got a 403 or 404 or a refused shell command |
 | `tmux/<pane>` | panes of a real tmux session piped in with `tmux pipe-pane` |
 
-**The tmux view** (header → tmux) shows the ring as tmux windows (`agents`, `testcases`, `journal`, `ops`). It
+**The tmux view** (header → tmux) shows the ring as tmux windows (`agents`, `testcases`, `journal`, `ops`). The
+**tmux panel** button in the header (next to the theme toggle) keeps the same mirror open beside every other view. It
 is a read-only mirror. The web can read the ring (`GET /api/ring`, `/api/ring/stat`, `/api/ring/dump`) but no
 endpoint writes to it, and nothing typed in a browser reaches a terminal. **save** downloads the last 5 minutes,
 30 minutes or the whole ring as a text file, with API key values redacted.

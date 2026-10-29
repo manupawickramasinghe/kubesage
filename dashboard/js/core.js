@@ -34,6 +34,7 @@ const ICON = {
   prev: '<path d="m15 6-6 6 6 6"/>',
   play: '<path d="M7 4.5v15l12-7.5z"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  side: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16M17 8h1M17 11h1"/>',
   loader: '<path d="M21 12a9 9 0 1 1-6.2-8.6"/>',
   healthy: '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.7 2.7L16 9.5"/>',
   routine: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
