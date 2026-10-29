@@ -4,7 +4,7 @@ Serves the real dashboard/ (and the video's slides under /demo/) and answers the
 the lab cluster on 29 October 2026: the latest FinOps analysis and its trace, the cluster as it was, team run
 20261029-034845 and the ring lines it wrote, shown on the hypothetical cluster of scenario.py. The state moves on as the
 page presses its buttons (Analyze, Apply, Send traffic, Start test, Dry-run apply). Nothing here talks to a cluster or
-a model. Traffic replays the recorded 60 req/s run of 2026-10-27 (docs/testing.md) six times faster.
+a model. Traffic replays the recorded 60 req/s run of 2026-10-27 (docs/testing.md) twenty times faster.
 """
 from __future__ import annotations
 
@@ -22,11 +22,11 @@ import scenario
 DATA = Path(__file__).parent / "data"
 REPO = Path(__file__).resolve().parents[2]
 DASHBOARD, DEMO = REPO / "dashboard", REPO / "demo"
-TRAFFIC_S = 30          # the recorded 180 s run, shown in 30 s
+TRAFFIC_S = 9           # the recorded 180 s run, shown in 9 s
 SPEED = 180 / TRAFFIC_S
 ANALYZE_S = 3           # a live analysis takes a few seconds: statistics, one triage call, then more reasoning
-ALERT_S = 1             # on the cluster the alert takes about a minute
-TEAM_WAIT_S = 0.5       # and the team then waits 45 s for related alerts
+ALERT_S = 0.5           # on the cluster the alert takes about a minute
+TEAM_WAIT_S = 0.3       # and the team then waits 45 s for related alerts
 APPLY_SPEED = 2         # Apply's rollout, twice as fast as the recorded one
 
 

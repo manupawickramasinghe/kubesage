@@ -51,9 +51,10 @@ Prices are Azure list prices: each real machine stands in for the cloud VM its `
 
 ### Demo video
 
-A narrated video under three minutes. Slides first: the summary, a hypothetical customer cluster and how KubeSage works.
-Then one minute of the dashboard right-sizing that cluster and fixing an incident, simulated from runs recorded on the
-real cluster. **[Watch it](demo/video/kubesage-demo.mp4)**; the [demo folder](demo/README.md) has the chapters, the
+A narrated video under three minutes. Slides first: what's new (FinOps and SRE in one system, event-driven scaling for
+sale-day rushes, runs that cost cents, findings backed by evidence, a person in charge), a hypothetical customer cluster
+and how KubeSage works. Then under a minute of the dashboard right-sizing that cluster, riding out a flash sale and fixing
+an incident, simulated from runs recorded on the real cluster. **[Watch it](demo/video/kubesage-demo.mp4)**; the [demo folder](demo/README.md) has the chapters, the
 pictures made for it, every screenshot, and how the video was made.
 
 ## Why it's different

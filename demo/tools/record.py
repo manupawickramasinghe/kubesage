@@ -24,7 +24,7 @@ DUR = {s["id"]: s["seconds"] for s in json.loads((WORK / "audio" / "durations.js
 SAY = {s["id"]: s["narration"] for s in json.loads((HERE / "narration.json").read_text())}
 URL = "http://127.0.0.1:8700/"
 LEAD = 0.4       # the voice starts this long after its scene (build.py)
-PAD = 1.0        # silence after a slide's voice-over
+PAD = 0.6        # silence after a slide's voice-over
 DEMO_PAD = 0.15  # and after each step of the one-minute demo
 DEMO_MAX = 60.0
 
@@ -33,7 +33,9 @@ STEPS = """() => {
   const keep = [[0, "The cluster", "shop-prod, a hypothetical online store on two Azure nodes. Each glass is the CPU a pod "
       + "reserves; the block inside is what it uses."],
     [1, "Find the waste", "Free statistics first, one cheap triage call, and more reasoning only for the harder workloads."],
-    [3, "Apply the plan", "Right-sized requests, KEDA scaling, and the cheaper F8s_v2 node."],
+    [3, "Apply the plan", "Right-sized requests, the KEDA scaling rule, and the cheaper F8s_v2 node."],
+    [4, "A flash sale", "The recorded 60 req/s load test, replayed at SPEED× speed: CPU passes its 70% target and KEDA scales "
+      + "checkout-web out."],
     [5, "A bad release", "ledger-cache needs about 700 MiB under a 512 MiB limit, so it is OOM-killed. Alertmanager fires an alert."],
     [6, "The team investigates", "Four small agents gather evidence at once; the Thinker finds the root cause."],
     [7, "Ship the fix", "The Executor writes the fix as a git commit. A person decides whether it ships."]];
@@ -101,7 +103,7 @@ def main():
                                "return f && f.document.readyState === 'complete' && f.document.fonts.status === 'loaded' && typeof f.goStep === 'function'; }")
         app = page.frame(name="app")
         app.wait_for_function("() => document.querySelector('#mode').textContent.includes('LLM')")
-        app.evaluate(STEPS)
+        app.evaluate(STEPS.replace("SPEED", f"{sim_server.SPEED:g}"))
         app.evaluate(SCRUB)
         fr = page.frame_locator("#app")
         page.evaluate("show('s-title')")
@@ -145,7 +147,7 @@ def main():
 
         _, end = scene("title")
         until(end)
-        for sid in ("summary", "server", "finops", "team"):
+        for sid in ("summary", "server", "rush", "finops", "team"):
             slide(sid)
 
         # The website: one minute on the hypothetical cluster.
@@ -153,50 +155,50 @@ def main():
         page.wait_for_timeout(700)
         demo_at = time.time()
         page.evaluate("app(true)")
-        _, end = scene("d-cluster", DEMO_PAD)
-        page.wait_for_timeout(2500)
+        t0, end = scene("d-analyze", DEMO_PAD)               # The cluster, then Find the waste
+        app.evaluate("() => $('#btn-analyze').click()")
+        page.wait_for_timeout(2200)
         mark("demo-cluster")
-        until(end - 3.2)
-        app.evaluate("() => $('#btn-analyze').click()")   # results land as the next step begins
-        until(end)
-
-        nxt()                                              # Find the waste
-        _, end = scene("d-analyze", DEMO_PAD)
-        fr.locator("#dk-status").filter(has_text="workloads change").wait_for(timeout=15000)
-        page.wait_for_timeout(1800)
+        until(end, [(cue_times("d-analyze", t0)[2], nxt)])  # as the voice reaches Analyze
         mark("demo-analysis")
-        until(end)
 
         nxt()                                              # Apply the plan
-        _, end = scene("d-apply", DEMO_PAD, hold=7.9)
+        _, end = scene("d-apply", DEMO_PAD, hold=7.0)
         page.wait_for_timeout(300)
         act()
-        page.wait_for_timeout(7600)
+        page.wait_for_timeout(6500)
         mark("demo-applied")
+        until(end)
+
+        nxt()                                              # A flash sale
+        _, end = scene("d-flash", DEMO_PAD, hold=sim_server.TRAFFIC_S - 0.5)
+        page.wait_for_timeout(300)
+        act()
+        page.wait_for_timeout(5500)
+        mark("demo-flash")
+        until(end - 2.5)
+        # The bad release ships as the sale winds down, so the team has its commit by the time the minute ends.
+        app.evaluate("() => { $('#tc-select').value = 'memory';"
+                     " Promise.resolve(tcAction('start', 'memory')).then(() => { $('#toast').hidden = true; }); }")  # no pop-up
         until(end)
 
         nxt()                                              # A bad release
         _, end = scene("d-incident", DEMO_PAD)
         app.evaluate("() => setChat(true)")
-        fr.locator("#dk-tc").select_option("memory")
-        page.wait_for_timeout(300)
-        act()
-        fr.locator("#tc-live").filter(has_text="ContainerOOMKilled").wait_for(timeout=15000)  # the team starts 0.5 s after it
-        page.wait_for_timeout(1500)
-        mark("demo-incident")
         until(end)
+        mark("demo-incident")
 
-        nxt()                                              # The team investigates
+        nxt()                                              # The team investigates: held until the Executor has its commit
         _, end = scene("d-team", DEMO_PAD)
         page.wait_for_timeout(int(DUR["d-team"] * 600))
         mark("demo-team")
         until(end)
+        fr.locator("#team-flow .agent[data-state='done']").nth(5).wait_for(timeout=20000)
 
         nxt()                                              # Ship the fix
         _, end = scene("d-fix", DEMO_PAD)
-        fr.locator("#team-flow .agent[data-state='done']").nth(5).wait_for(timeout=15000)
         fr.locator("#dk-min").click()                      # the caption bar folds away from the diff
-        page.wait_for_timeout(1200)
+        page.wait_for_timeout(1000)
         app.evaluate("() => [...document.querySelectorAll('#team-detail .det-h')].find((h) => h.textContent.startsWith('Change'))"
                      ".scrollIntoView({behavior: 'smooth', block: 'start'})")  # the commit and its diff
         page.wait_for_timeout(2500)
@@ -206,7 +208,7 @@ def main():
 
         page.evaluate("app(false)")
         page.evaluate("show('s-close')")
-        _, end = scene("close", pad=2.6)
+        _, end = scene("close", pad=1.8)
         page.wait_for_timeout(2500)
         mark("close")
         until(end)

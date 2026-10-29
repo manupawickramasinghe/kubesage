@@ -1,50 +1,54 @@
 [
  {
   "id": "title",
-  "narration": "This is KubeSage, an AI SRE team for Kubernetes. Here is how it works, in under three minutes."
+  "narration": "This is KubeSage, an AI SRE team for Kubernetes. Here is what is new, in under three minutes."
  },
  {
   "id": "summary",
-  "narration": "First, the summary. KubeSage finds capacity you pay for but never use, and right-sizes it within guardrails. When something breaks, a team of AI agents gathers evidence, finds the cause, and writes the fix. Agent fixes become git commits that a person reviews before applying."
+  "narration": "First, the summary. KubeSage puts FinOps and SRE in one system. It plans the savings, scales for the rush, and fixes what breaks. Small models do the legwork, and these runs cost cents. Every finding must cite evidence. Agent fixes are git commits. Plans and fixes reach the cluster only when a person applies them."
  },
  {
   "id": "server",
-  "narration": "Picture a hypothetical online store on Azure Kubernetes. Five services share one general-purpose node at two hundred eighty dollars a month. Some requests were set high, just in case: two services reserve two cores each and use almost none. A cheaper compute-optimised node stands ready. Tonight, a ledger cache ships with too little memory."
+  "narration": "Picture a hypothetical online store on Azure Kubernetes. Five services share one node at two hundred eighty dollars a month. Two of them reserve two cores each while using almost none. Checkout traffic peaks every weekday morning, and sale days are bigger still. Tonight, a ledger cache ships with too little memory."
+ },
+ {
+  "id": "rush",
+  "narration": "Sales are where FinOps and engineering meet. From thirty days of usage, KubeSage finds the weekday rush. Its KEDA rule adds pods ten minutes early. A CPU trigger catches surges no schedule predicts, like a flash sale. For a date like Black Friday, engineers add their own window to the same rule. KubeSage also sizes the node pool for the peaks it schedules."
  },
  {
   "id": "finops",
-  "narration": "To find waste, KubeSage reads thirty days of usage. Statistics are free, and healthy workloads stop after a quick triage. Only harder cases get more model reasoning. Guardrails floor requests from history and keep scaling within bounds. The result is a plan for requests, autoscaling, and the node pool."
+  "narration": "Finding the waste is cheap by design. Statistics are free, and healthy workloads stop after one quick triage call. Only harder cases get more model reasoning. Guardrails floor requests from history. This whole analysis cost about one cent."
  },
  {
   "id": "team",
-  "narration": "When an alert fires, four small agents gather evidence in parallel: metrics, system resources, alerts, and security. A larger Thinker model reads their findings and your team's plain English rules to find the root cause. An Executor writes the fix. Policy checks limit each edit's scope and type, before the commit."
- },
- {
-  "id": "d-cluster",
-  "narration": "Here is the KubeSage dashboard on that simulated cluster. Each glass box is a pod, as tall as the CPU it reserves, filled as far as it is used."
+  "narration": "When an alert fires, four small agents gather evidence in parallel. Findings that cite no collected signal are dropped. A larger Thinker reads the rest, plus your team's plain-English rules, to find the root cause. An Executor writes the fix as a git commit, after policy checks limit each edit."
  },
  {
   "id": "d-analyze",
-  "narration": "Analyze finds that a cheaper node would save about thirty-four dollars a month, twelve percent. The model calls to find it cost about one cent."
+  "narration": "Here is the simulated cluster. Each glass is the CPU a pod reserves. Analyze estimates about thirty-four dollars in monthly savings, for one cent of model calls."
  },
  {
   "id": "d-apply",
-  "narration": "Apply moves the right-sized services to the cheaper node. Report-worker scales to zero outside its nightly window."
+  "narration": "Apply right-sizes the services, moves them to the cheaper node, and adds the KEDA scaling rule."
+ },
+ {
+  "id": "d-flash",
+  "narration": "Now a flash sale: sixty requests a second, replayed fast. CPU passes its target, and checkout-web scales out to six pods."
  },
  {
   "id": "d-incident",
-  "narration": "Now the bad release ships. Ledger-cache needs more memory than its limit, so it is killed. The ContainerOOMKilled alert fires."
+  "narration": "Then the bad release: ledger-cache runs out of memory, and the ContainerOOMKilled alert fires."
  },
  {
   "id": "d-team",
-  "narration": "The team starts on its own. The four sub-agents report, the Thinker finds the cause, and the Executor writes the fix. The chat on the left shows each hand-off."
+  "narration": "The team starts on its own. The sub-agents report, the Thinker finds the cause, and the chat shows every hand-off."
  },
  {
   "id": "d-fix",
-  "narration": "The commit raises ledger-cache's memory, proposes a memory-optimised node pool, and adds two security fixes. Sixteen seconds, two cents. A person decides what ships."
+  "narration": "The fix is a commit: more memory, a proposal for a memory-optimised node pool, and two security fixes. Sixteen seconds, two cents. A person decides."
  },
  {
   "id": "close",
-  "narration": "That is KubeSage. It finds the waste, fixes what breaks, and leaves the decision to a person."
+  "narration": "That is KubeSage: FinOps and SRE in one system, built for the rush, with a person in charge."
  }
 ]
