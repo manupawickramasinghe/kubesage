@@ -1,9 +1,27 @@
 # Testing
 
+Fresh verification on **29 October 2026** covered two pinned revisions:
+
+| Revision | pytest | Chromium scenarios |
+|---|---:|---:|
+| Merged `main`, `2425375` (PR #15) | **124 passed** | **22/22 passed** |
+| Pending PR #16–#19 stack, `641c74b` | **141 passed** | **37/37 passed** |
+
+The full runs included local Kustomize checks using the pinned kubectl. API/browser fixtures were isolated;
+these checks made no paid model calls or live cluster changes. On merged `main`, set `KUBESAGE_RING` to a
+private temporary path and `KUBESAGE_RING_MB=4` before pytest so journal/agent fixtures do not write into the
+running server's ring. PR #17 adds this isolation as a fixture. Missing kubectl skips one test on main and two
+on the candidate, so a smaller passing count is not the full result above.
+
+Additional targeted probes found remaining issues outside the green suites; see
+[REVIEW_REPORT.md](REVIEW_REPORT.md) for finding statuses, pending fixes and the new live snapshot. Historical
+live demonstrations below were not replayed for this report update.
+
 ## Automated (`pytest`, no cluster or network needed)
 
 ```bash
-.venv/bin/python -m pytest -q
+review_ring_dir=$(mktemp -d)
+KUBESAGE_RING="$review_ring_dir/ring" KUBESAGE_RING_MB=4 .venv/bin/python -m pytest -q
 ```
 
 | file | covers |
@@ -16,6 +34,7 @@
 | `test_demo_app.py` | the demo app's `/work` endpoint burns CPU; the spike Job uses the demo app image and gets a unique name |
 | `test_gitops.py` | the overlay is committed on a branch and pushed; it builds with kustomize; REPORT.md keeps the node-pool notes |
 | `test_agents.py` | The RAM ring (wraparound, several writers, escape stripping, paging with a limit and a stream filter); loading `agents/` (new and disabled agents, unknown sizes); edit validation (exact match, paths, duplicate YAML keys, Python, Terraform SKUs); deterministic edits; the Thinker's guardrails (evidence, targets, namespaces, SKUs, positive quantities, request vs limit, today's node capacity); the change policy (kinds, namespace, resources) and binding edits to approved actions; every shipped lab app inside the policy; a full mock team run that commits to a throwaway git origin; Apply re-checking the commit and saving its outcome; alerts that resolve and fire again; stopping a case removes what a fix added; the security collector and its image allowlist; test-case manifests and status; the team, test-case and ring endpoints (validation, read-only ring, redacted dump, access log) |
+| `test_lab.py` | Inspection-shell command refusals/argument construction, safe trace Authorization placeholders, Lab status and journal behavior |
 | `test_web.py` | Reports/history and selected runs, request validation, mutation locking, namespace isolation, fonts, quantity parsing, live plan/drift/readiness (a missing Deployment is never ready) and traffic status (a stranger's Job is ignored), unavailable cluster data, and JavaScript parsing (`node --check`) |
 | `test_llm.py` | The live client with canned provider replies: an empty reply retried with less reasoning, two empty replies or a refusal named in the error, invalid JSON fed back once |
 
@@ -41,7 +60,8 @@ reasoning from this run's window only, kept polled on FinOps, an earlier run, a 
 remembered, a drawer on a tablet, opened from the run bar on a phone), the demo guide, the plan on screen
 being the plan Apply sends, errors reaching whichever view is open, keyboard focus and shell Tab, the Wire
 reloading after operations, unknown usage shown as unknown, and responsive layouts in both themes at 390, 768 and
-1400 px. Screenshots and `results.json`
+1400 px. Toolbar Start/Stop testcase and Run agents controls do POST;
+read-only describes the terminal mirror, not every control in the view. Screenshots and `results.json`
 are written to the output directory. Normal pytest runs do not require a browser. Check Firefox/Zen manually
 as well when available.
 
@@ -107,8 +127,9 @@ For a new run, verify the current plan rather than expecting the historical SKU 
 5. Reset at the end. Saved analysis reports should remain available, while live plan status reflects the
    reset cluster.
 
-Node sizing now includes maximum CPU autoscaler replicas. Some plans require additional capacity and can
-cost more than the baseline; reporting a negative saving is valid.
+Node sizing uses scheduled peaks. Maximum CPU autoscaler demand is checked separately as `demand_burst`;
+notes report modelled fit/shortfall. Some plans require additional capacity and can cost more than the
+baseline; reporting a negative saving is valid.
 
 ## Manual: cleanup
 
