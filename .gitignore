@@ -8,3 +8,5 @@ out/
 *.jsonl
 *.jsonl.gz
 .bin/
+# demo video build: frames, voice-over and Piper
+demo/tools/build/

@@ -7,7 +7,7 @@ KubeSage finds money a Kubernetes cluster wastes and fixes it:
 
 It spends as little as possible on its own LLM calls, and shows every cent.
 
-![The Control Center](images/ui-before.png)
+![The Control Center](../demo/screenshots/ui-before.png)
 
 | document | read it for |
 |---|---|
@@ -25,9 +25,10 @@ It spends as little as possible on its own LLM calls, and shows every cent.
 | [REVIEW_REPORT.md](REVIEW_REPORT.md) | **Updated 29 October:** merged-main and pending-stack review, 124/141 tests, 22/37 browser scenarios, live evidence and remaining findings |
 | [HANDOVER.md](HANDOVER.md) | Briefing for whoever reviews the UI/UX and tests next |
 
-Screenshots, all taken from the live cluster:
+Screenshots, all taken from the live cluster (they live in [demo/screenshots](../demo/screenshots), next to the
+[demo video](../demo/README.md)):
 
 | | |
 |---|---|
-| ![before](images/ui-before.png) **Before**: everything on the desktop, tall glass, small cores | ![after](images/ui-after-apply.png) **After Apply**: everything on the laptop, right-sized |
-| ![dark](images/ui-after-apply-dark.png) **Dark mode** | ![phone](images/ui-phone.png) **Phone (390 px)** |
+| ![before](../demo/screenshots/ui-before.png) **Before**: everything on the desktop, tall glass, small cores | ![after](../demo/screenshots/ui-after-apply.png) **After Apply**: everything on the laptop, right-sized |
+| ![dark](../demo/screenshots/ui-after-apply-dark.png) **Dark mode** | ![phone](../demo/screenshots/ui-phone.png) **Phone (390 px)** |

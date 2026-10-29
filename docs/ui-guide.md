@@ -33,7 +33,7 @@ The **Demo** tab is the page to open in front of judges. Its headline says what 
 under it are live: the waste the last analysis found, how long the last incident took from alert to fix, the
 real hardware and the agent team's models.
 
-![The Demo tab](images/ui-demo.png)
+![The Demo tab](../demo/screenshots/ui-demo.png)
 
 **Before you present** runs the checks from the [demo-day checklist](operations.md#demo-day-checklist) live. Each
 chip turns amber with its fix next to it:
@@ -49,7 +49,7 @@ chip turns amber with its fix next to it:
 step opens the view it happens on, scrolls to what the audience should look at and rings it in violet. A
 **caption bar** at the bottom says, in plain words, what the screen shows, so the judges can read along:
 
-![The caption bar on step 7](images/ui-demo-caption.png)
+![The caption bar on step 7](../demo/screenshots/ui-demo-caption.png)
 
 - the step's one button (Analyze, Apply fixes, Send traffic, Start test, Run agent team, Apply to cluster or Stop
   test case). It presses the same button as the view itself, so busy states, notices and the activity log work as
@@ -76,7 +76,7 @@ any row of the run of show starts from that step.
 
 ## FinOps
 
-![The FinOps view in the "before" state](images/ui-control-center.png)
+![The FinOps view in the "before" state](../demo/screenshots/ui-control-center.png)
 
 ### The page at a glance
 
@@ -175,7 +175,7 @@ not a measured bill reduction.
 
 #### Cluster (the isometric drawing)
 
-![After Apply: pods moved to the laptop](images/ui-after-apply.png)
+![After Apply: pods moved to the laptop](../demo/screenshots/ui-after-apply.png)
 
 | shape | meaning |
 |---|---|
@@ -257,7 +257,7 @@ the browser's last validation result are session information.
 Live incidents. A test case causes a real problem on the laptop, and the agent team finds the cause and writes the
 fix. [agents.md](agents.md) explains the agents, models and rules behind it.
 
-![The agent team](images/ui-agents.png)
+![The agent team](../demo/screenshots/ui-agents.png)
 
 - **Run agent team** (top right, beside the title) runs it now. With **Auto-run on alerts** on, the team runs 45 s after a new lab
   alert fires.
@@ -311,7 +311,7 @@ metrics backfill are supported; check the mode and source of each result. It has
 1. the **right-sizing pipeline**, the five stages behind the FinOps view;
 2. the **terminal**: shell, journal and wire panes.
 
-![The right-sizing pipeline and the terminal](images/ui-lab.png)
+![The right-sizing pipeline and the terminal](../demo/screenshots/ui-lab.png)
 
 - **Pipeline actions**, beside the pipeline's title: Backfill 30 days, Run analysis, Apply fixes and Send traffic.
   They are the dashboard's actions, with the same operation lock (**Reset demo** stays in the header). Backfill is
@@ -385,7 +385,7 @@ tablet it is a sheet across the bottom; on a phone use the tmux tab.
 The first load takes the newest lines of each feed separately, so an agent pane still shows the last team run
 after hours of `kubectl -w` output.
 
-![The tmux view](images/ui-tmux.png)
+![The tmux view](../demo/screenshots/ui-tmux.png)
 
 ## Interactions
 

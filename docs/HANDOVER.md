@@ -139,7 +139,7 @@ everything by "would a hackathon judge get this in 10 seconds?"
    - Check that keyboard focus is visible in the SVGs.
    - Check that screen-reader labels make sense.
    - Check reduced motion.
-9. **Mobile.** 390 px: steps, charts and the stacked cluster. See `docs/images/ui-phone.png`.
+9. **Mobile.** 390 px: steps, charts and the stacked cluster. See `demo/screenshots/ui-phone.png`.
 10. **Copy.** Terse, plain-English labels. Check consistency: "reserve/reserved/request", "machine/node".
 
 ## Testing: what to verify

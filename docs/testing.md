@@ -159,7 +159,7 @@ firefox --headless --screenshot out.png --window-size=1400,2900 file://$PWD/snap
 ```
 
 Check light and dark (`data-theme="dark"` on `<html>`) and a 390 px phone width. The screenshots in
-`docs/images/` were made this way from the live cluster.
+`demo/screenshots/` were made this way from the live cluster.
 
 Additional checks against the live server:
 

@@ -43,8 +43,8 @@ const DEMO = [
         + (u.pct != null ? ` · ${u.pct}% of reserved CPU in use` : "")];
     }},
   {act: 0, title: "Find the waste", view: "dashboard", target: "#figures",
-    say: "KubeSage reads 30 days of usage. Statistics are free, so every workload gets one cheap triage call and only the "
-      + "hard ones go to a bigger model. The whole analysis costs about a cent.",
+    say: "KubeSage reads 30 days of usage. Statistics cost no model calls, so every workload gets one cheap triage call and "
+      + "only the hard ones go to a stronger tier: more reasoning, or a bigger model. The whole analysis costs about a cent.",
     actions: [{label: "Analyze", icon: "spark", ...proxy("#btn-analyze")}],
     status() {
       if ($("#btn-analyze .spin")) return ["live", "Analyzing: free statistics, one triage call, then a bigger model where needed…"];
@@ -55,8 +55,8 @@ const DEMO = [
         + `${report.workloads.length} workloads change · analysis cost ${usd(report.llm_cost_usd)}`];
     }},
   {act: 0, title: "How it decided", view: "dashboard", target: "#decision-card",
-    say: "Each line is a workload. Healthy ones stop after free statistics, routine ones go to a medium model and complex ones "
-      + "to a large one. Guardrails then check every number against what was measured before anything can be applied.",
+    say: "Each line is a workload. Healthy ones stop after triage, routine ones go to the worker tier and complex ones to the "
+      + "strategist, the strongest. Guardrails then hold requests above what was measured and keep scaling within bounds.",
     status() {
       if (!report) return ["todo", "Analyze first"];
       const clamps = report.workloads.reduce((n, w) => n + (w.guardrail_notes || []).length, 0);
@@ -125,7 +125,8 @@ const DEMO = [
     }},
   {act: 1, title: "Ship the fix", view: "agents", target: "#team-detail",
     say: "The Executor, a medium model, writes the fix as a git commit. Before it is offered, every edit must apply exactly, "
-      + "the YAML must build and changed Python must compile. A person reads the diff and decides whether to apply it or open a pull request.",
+      + "the YAML must build, changed Python must compile and the Kubernetes changes must pass the policy; node-pool changes stay "
+      + "a Terraform proposal. A person reads the diff and decides whether to apply it or open a pull request.",
     actions: [{label: "Apply to cluster", icon: "check", run: () => execAction("apply"),
       enabled: () => !!team.data?.run?.executor?.commit && !team.busy}],
     status() {
@@ -136,8 +137,8 @@ const DEMO = [
       return ["live", `Commit ${ex.commit.slice(0, 8)} · ${plural(ex.edits?.length ?? 0, "file")} · ${ex.pr_url ? "pull request open" : "ready to apply"}`];
     }},
   {act: 2, title: "Why it matters", view: "demo", target: "#demo-why",
-    say: "Small models do the legwork, so an incident costs cents, not dollars. Nothing is trusted without evidence, and every "
-      + "change is a git commit a person approves. Stopping the test case puts the laptop back.",
+    say: "Small models do the legwork, so an incident costs cents, not dollars. Every finding must cite evidence, and every "
+      + "agent fix is a git commit a person approves. Stopping the test case puts the laptop back.",
     actions: [{label: "Stop test case", icon: "x", run: async () => { for (const n of activeTcs()) await tcAction("stop", n); },
       enabled: () => activeTcs().length > 0 && !team.busy}],
     status() {
