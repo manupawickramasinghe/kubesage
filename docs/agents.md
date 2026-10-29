@@ -106,11 +106,15 @@ Every test case was run on the real cluster, and every alert above fired. The ag
 - **pod-count**: cut each replica's request to 500m so all 12 fit, rather than adding a node.
 - **pod-density**: added a KEDA ScaledObject for sidecar-swarm (a new file, plus the kustomization entry).
 
-Model output varies from run to run. These are single runs, not guarantees; the guardrails and validation are
-what make every run safe to apply.
+Model output varies from run to run. These are single runs, not guarantees. Guardrails and structural
+validation filter some invalid results; they do not make every run safe to apply. Review the final diff and
+rendered objects. The [29 October review](REVIEW_REPORT.md) records open action-policy, namespace-confinement
+and resource-validation gaps. It separately assesses the policy checks proposed in PR #16; those checks
+are not yet on merged main and still have residual limits.
 
-Every test case is bounded: memory stays under its container limit, CPU under its limit, disk writes under
-1 GiB of space, and the pause-image pods use a few MiB each. Run one at a time; the laptop also runs Pi-hole
+Individual test cases have resource constraints: container limits where configured, limited scratch space,
+and small pause-image pods. These do not enforce a combined shared-machine budget or a strict load-job
+deadline. Run one at a time; the laptop also runs Pi-hole
 and GitHub runners. **Merging an Executor PR fixes a test case for good**, because test cases deploy from
 `gitops/`. To repeat a demo, close the PR rather than merging it.
 
@@ -189,5 +193,7 @@ What the security sub-agent can see, all read-only:
 It can't see process activity inside containers, network flows, or kube-apiserver audit logs. That would need
 Falco or an API server audit policy; neither is installed.
 
-The web UI has no login. Anyone on the network can start test cases, run the team and press Apply (for the lab
-namespace only). The ring and the tmux view are read-only, and the lab shell stays read-only.
+The web UI has no login. Anyone on the network can start test cases, run the team and press Apply. Agent
+Apply is intended for lab applications, but a hard rendered namespace/kind boundary is not currently
+enforced; see the current review. Ring reads and the tmux terminal mirror are read-only. The tmux toolbar
+can start/stop cases and run agents; the separate Lab shell restricts commands to inspection.

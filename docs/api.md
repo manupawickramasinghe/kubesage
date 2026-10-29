@@ -38,8 +38,10 @@ The ring has no write endpoint, and none of these endpoints gives the browser a 
 recorded in an in-memory request log that the security agent reads; 403s, 404s and refused shell commands also
 go to the ring's `access` stream.
 
-Mutations share a lock: overlapping analyze, apply, spike, reset or GitOps requests return 409. Request bodies
-must be JSON objects of at most 64 KiB. Invalid parameter types or ranges return 400.
+FinOps mutations share a lock: overlapping analyze, apply, spike, reset, backfill or GitOps requests return 409.
+Agent run/PR/Apply operations and testcase operations use separate locks; there is no global or cross-process
+serialization across these groups. Request bodies must be JSON objects of at most 64 KiB. Invalid parameter
+types or ranges return 400.
 
 Apply skips migrations when the target SKU lacks the planned number of Ready, schedulable nodes. A skipped
 step is reported even when the response is 200; `ok` does not mean every manifest was written. A failed or
@@ -124,13 +126,14 @@ Written to `out/<run>/report.json` and returned by `/api/report` and `/api/analy
 - `node_pool`:
   - `before_sku`, `before_nodes`, `before_monthly_usd`;
   - `choice {sku, nodes, rationale}`, `after_monthly_usd`;
-  - `candidates[]`, `demand_before`, `demand_after`;
+  - `candidates[]`, `demand_before`, `demand_after`, optional `demand_burst`;
   - `node_label`, `migrations {file: yaml}`, `notes[]`;
 - `ledger[]`: `{stage, workload, tier, model, input_tokens, cached_tokens, output_tokens, cost_usd}`;
 - `llm_cost_usd`, `baselines_usd {all_calls_on_strategist, raw_series_to_strategist}`, `notes[]`.
 
-Each run is an immutable snapshot, published only after all files are complete. Node sizing includes CPU
-autoscalers at their maximum replicas; workload costs use scheduled average replicas with overlapping cron
-targets combined by their maximum. The model can therefore recommend additional node capacity instead of a
-cost reduction. The UI downloads this report as JSON and its manifests as a YAML bundle without a separate
-download endpoint.
+Each run is an immutable snapshot, published only after all files are complete. Node sizing uses scheduled
+peaks (minimum/cron targets); maximum CPU autoscaler demand is checked separately as `demand_burst`, with
+fit/shortfall notes. This is an aggregate model, not a scheduler or a guarantee that all scale-out pods fit.
+Workload costs use scheduled average replicas, with overlapping targets combined by their maximum and
+unpredictable CPU scale-out excluded. The UI downloads the report as JSON and manifests as a YAML bundle.
+See the [current review](REVIEW_REPORT.md) for unresolved policy, state and evidence gaps.
