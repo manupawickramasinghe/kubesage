@@ -99,15 +99,15 @@ and [docs/operations.md](docs/operations.md) is the runbook and demo-day checkli
 ### Right-sizing: a three-stage, cost-aware router
 
 ```mermaid
-flowchart LR
-    M[("VictoriaMetrics<br/>30 days of cAdvisor and<br/>kube-state-metrics series")] --> S1["Stage 1 · statistics<br/>p50/p95/p99, hourly profiles,<br/>peaks, leak slope · no LLM"]
-    S1 --> S2{"Stage 2 · triage<br/>one cheap call<br/>for all workloads"}
-    S2 -- HEALTHY --> STOP["no further tokens"]
-    S2 -- ROUTINE --> W["Stage 3 · worker model<br/>right-size, KEDA rules"]
-    S2 -- COMPLEX --> ST["Stage 3 · strategist model<br/>root cause, node pool"]
-    W --> G["Guardrails<br/>never below observed usage"]
+flowchart TB
+    M[("VictoriaMetrics · 30 days of cAdvisor<br/>and kube-state-metrics series")] --> S1["<b>Stage 1 · statistics</b><br/>p50/p95/p99, hourly profiles, peaks, leak slope<br/>no LLM, no cost"]
+    S1 --> S2{"<b>Stage 2 · triage</b><br/>one cheap call<br/>for all workloads"}
+    S2 -- HEALTHY --> STOP["Stop here:<br/>no more tokens"]
+    S2 -- ROUTINE --> W["<b>Stage 3 · worker model</b><br/>right-size, KEDA rules"]
+    S2 -- COMPLEX --> ST["<b>Stage 3 · strategist model</b><br/>root cause, node pool"]
+    W --> G["<b>Guardrails</b><br/>never below observed usage"]
     ST --> G
-    G --> OUT["Resource patches · ScaledObjects<br/>node-pool SKU plan · cost model"]
+    G --> OUT["Resource patches · KEDA ScaledObjects<br/>node-pool SKU plan · cost model"]
 ```
 
 Models return parameters, never YAML. Deterministic guardrails clamp anything below observed usage, and every
@@ -119,10 +119,14 @@ overlay with a pull request (`kubesage gitops`). [docs/pipeline.md](docs/pipelin
 
 ```mermaid
 flowchart LR
-    A["Alertmanager alert<br/>or Run agent team"] --> P["PromQL"] & R["System resources"] & AL["Alertmanager"] & SE["Security"]
-    P & R & AL & SE -- "findings that cite<br/>collected signals" --> T["Thinker<br/>large model"]
-    T -- "a plan that passed<br/>the guardrails" --> E["Executor<br/>medium model"]
-    E -- "a commit on<br/>its own branch" --> H["Reviewer<br/>dry-run · apply · PR"]
+    A["Alertmanager alert<br/>or <b>Run agent team</b>"] --> SUB
+    subgraph SUB ["Sub-agents · small model, in parallel"]
+        direction TB
+        P["PromQL"] ~~~ R["System resources"] ~~~ AL["Alertmanager"] ~~~ SE["Security"]
+    end
+    SUB -- "findings that cite<br/>collected signals" --> T["<b>Thinker</b><br/>large model"]
+    T -- "a plan that passed<br/>the guardrails" --> E["<b>Executor</b><br/>medium model"]
+    E -- "a commit on<br/>its own branch" --> H["<b>Reviewer</b><br/>dry-run · apply · PR"]
 ```
 
 | agent | model | what it does |
