@@ -1,0 +1,1 @@
+{"namespace": "demo", "mode": "live", "tiers": {"triage": "gpt-oss-120b", "worker": "gpt-oss-120b", "strategist": "gpt-oss-120b"}, "gitops": false, "operation": null}
