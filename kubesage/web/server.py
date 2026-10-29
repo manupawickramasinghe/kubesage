@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import wraps
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -32,6 +31,9 @@ from kubesage.web import shell
 from kubesage.web.team_api import TeamApi
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+DASHBOARD = REPO_ROOT / "dashboard"
+STATIC_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
+                ".js": "text/javascript; charset=utf-8", ".woff2": "font/woff2", ".svg": "image/svg+xml"}
 
 
 @dataclass
@@ -740,12 +742,17 @@ def _short_cmd(cmd: list[str], run: Path) -> str:
                     (a if re.fullmatch(r"[-\w./=:,@]+", a) else "'" + a.replace("'", "'\\''") + "'") for a in args)
 
 
+def _dashboard_file(url_path: str) -> Path | None:
+    """A file under dashboard/, read on every request so an edited page shows up on reload without a restart."""
+    root = DASHBOARD.resolve()
+    file = (root / (url_path.lstrip("/") or "index.html")).resolve()
+    if file.is_relative_to(root) and file.suffix in STATIC_TYPES and file.is_file():
+        return file
+    return None
+
+
 def make_handler(api: Api):
     key_names = _api_key_names()
-    static = resources.files("kubesage.web").joinpath("static")
-    page = static.joinpath("index.html").read_bytes()
-    # Vendored rather than loaded from a CDN, so the page still renders on bad venue Wi-Fi.
-    fonts = {f"/fonts/{f.name}": f.read_bytes() for f in static.joinpath("fonts").iterdir() if f.name.endswith(".woff2")}
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, payload: dict | bytes, content_type: str = "application/json",
@@ -774,15 +781,15 @@ def make_handler(api: Api):
                       "/api/ring/stat": api.team.ring_stat}
             if path.path == "/api/ring/dump":
                 self._dump(query)
-            elif path.path in ("/", "/index.html"):
-                self._send(200, page, "text/html; charset=utf-8")
-            elif path.path in fonts:
-                self._send(200, fonts[path.path], "font/woff2", cache="public, max-age=86400")
             elif path.path in routes:
                 try:
                     self._send(*routes[path.path]())
                 except Exception as exc:
                     self._send(502, {"error": f"{type(exc).__name__}: {exc}"})
+            elif (file := _dashboard_file(path.path)) is not None:
+                # Fonts are vendored, not loaded from a CDN, so the page still renders on bad venue Wi-Fi.
+                self._send(200, file.read_bytes(), STATIC_TYPES[file.suffix],
+                           cache="public, max-age=86400" if file.suffix == ".woff2" else "no-cache")
             else:
                 self._send(404, {"error": "not found"})
 

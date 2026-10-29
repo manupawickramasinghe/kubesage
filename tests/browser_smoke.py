@@ -182,7 +182,7 @@ def traffic_fixture(status="completed", errors=0, *, logs=True):
 
 
 def ready(page, url):
-    page.goto(url)
+    page.goto(url + "#dashboard")
     expect(page.locator("#mode")).to_have_text("Mock LLM")
     expect(page.locator("#cluster-status")).not_to_have_text("Connecting to the cluster…")
     page.wait_for_function("document.fonts.status === 'loaded'")
@@ -201,7 +201,7 @@ def check_layout(page):
 def run(args):
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    handler = partial(QuietHandler, directory=str(ROOT / "kubesage/web/static"))
+    handler = partial(QuietHandler, directory=str(ROOT / "dashboard"))
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{server.server_address[1]}/"
@@ -396,7 +396,7 @@ def run(args):
             scenario("theme-persistence-and-untrusted-text", theme_and_untrusted_text)
 
             def agent_team(page, mock):
-                page.goto(url + "#lab")
+                page.goto(url + "#agents")
                 expect(page.locator("#team-flow .agent")).to_have_count(6)
                 expect(page.locator("#team-detail .diff .add")).to_contain_text("ProcessPoolExecutor")
                 page.locator('[data-agent="promql"]').click()
@@ -409,6 +409,51 @@ def run(args):
                 assert page.locator("img").count() == 0 and not page.evaluate("window.__untrusted_html_executed")
 
             scenario("agent-team-panel", agent_team)
+
+            def demo_guide(page, mock):
+                page.goto(url)
+                expect(page.locator("#demo")).to_be_visible()
+                expect(page.locator("#demo-acts .ds")).to_have_count(9)
+                expect(page.locator("#demo-preflight")).to_contain_text("Mock LLM")
+                expect(page.locator("#demo-figs")).to_contain_text("6 agents")
+                page.locator("#demo-start").click()
+                expect(page.locator("#main")).to_be_visible()
+                expect(page.locator("#dock")).to_be_visible()
+                expect(page.locator("#dk-count")).to_have_text("1 of 9")
+                page.locator("#dk-next").click()
+                expect(page.locator("#dk-title")).to_have_text("Find the waste")
+                page.locator("#dk-actions [data-run]").click()
+                expect(page.locator("#dk-status")).to_contain_text("workloads change")
+                assert any(path == "/api/analyze" for path, _ in mock.requests)
+                page.locator('#dk-dots [data-step="5"]').click()  # step 6, Break something
+                expect(page.locator("#agents")).to_be_visible()
+                expect(page.locator("#dk-tc")).to_have_value("cpu-code")  # the demo's default incident
+                page.locator("#dk-actions [data-run]").click()
+                expect(page.locator("#tc-live")).to_contain_text("cpu-code")
+                assert [b for path, b in mock.requests if path == "/api/testcase"][-1] == {"action": "start", "name": "cpu-code"}
+                page.locator("#dk-next").click()
+                page.locator("#dk-actions [data-run]").click()  # Run agent team
+                expect(page.locator("#team-msg")).to_contain_text("20261028-120000")
+                page.reload()  # the presenter's place survives a reload
+                expect(page.locator("#dk-count")).to_have_text("7 of 9")
+                page.locator("#dk-end").click()
+                expect(page.locator("#demo")).to_be_visible()
+                expect(page.locator("#dock")).to_be_hidden()
+                page.goto(url + "#cluster-card")  # a FinOps section link opens the FinOps view
+                expect(page.locator("#main")).to_be_visible()
+
+            scenario("demo-guide", demo_guide)
+
+            def demo_phone(page, mock):
+                page.goto(url)
+                expect(page.locator("#demo-acts .ds")).to_have_count(9)
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                page.locator('#demo-acts [data-go="5"]').click()
+                expect(page.locator("#dock")).to_be_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                assert page.locator("#dock").bounding_box()["width"] <= 390
+
+            scenario("demo-phone-width", demo_phone, width=390)
 
             def tmux_mirror(page, mock):
                 page.goto(url + "#tmux")

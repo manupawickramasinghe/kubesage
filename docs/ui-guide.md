@@ -1,8 +1,8 @@
 # The AI Control Center, explained
 
-`kubesage serve` opens one page that tells the whole story: **this cluster wastes money, here is the fix, here is
-the proof it still works**. This guide walks through it top to bottom, says what every shape and number means,
-and gives you the demo to run.
+`kubesage serve` opens the AI Control Center. It tells two stories on a real cluster: **this cluster wastes money,
+here is the fix and the proof it still works**, and **something just broke, here is the cause and the fix as a git
+commit**. This guide gives you the demo to run, then walks through each view and what every shape and number means.
 
 ```bash
 set -a; . ./.env; set +a                                   # CEREBRAS_API_KEY, for live LLM calls
@@ -10,9 +10,71 @@ KUBESAGE_MODELS=cerebras .venv/bin/kubesage serve --host 0.0.0.0
 # open http://192.168.1.9:8600 (or http://localhost:8600 on the desktop)
 ```
 
-![The Control Center in the "before" state](images/ui-control-center.png)
+The header has five tabs. Each one has its own address (`#demo`, `#dashboard`, `#agents`, `#lab`, `#tmux`), so a
+reload or a shared link keeps the view.
 
-## The page at a glance
+| tab | what it is for |
+|---|---|
+| **Demo** (opens first) | the pitch, live headline numbers, the checks to run before presenting, and the run of show |
+| **FinOps** | right-sizing: the savings, the live cluster drawing, the evidence and the three steps |
+| **Agent team** | live incidents: test cases, the sub-agents → Thinker → Executor diagram, the diagnosis and the diff |
+| **Under the hood** | the right-sizing pipeline stage by stage, a read-only shell, the journal and the wire |
+| **tmux** | a read-only mirror of every terminal stream, for following the agents as they work |
+
+Below 900 px the tabs shorten to **Demo · FinOps · Agents · Lab · tmux**; on a phone they get a row of their own.
+
+## Presenting the demo
+
+The **Demo** tab is the page to open in front of judges. Its headline says what KubeSage is, and the four numbers
+under it are live: the waste the last analysis found, how long the last incident took from alert to fix, the
+real hardware and the agent team's models.
+
+![The Demo tab](images/ui-demo.png)
+
+**Before you present** runs the checks from the [demo-day checklist](operations.md#demo-day-checklist) live. Each
+chip turns amber with its fix next to it:
+- **Live LLM**: amber means Mock (no API key in the server's environment);
+- **machines ready**: both nodes Ready;
+- **FinOps demo in its 'before' state**: amber with **Reset demo** if a plan is already applied, because Apply then
+  has nothing to show;
+- **No test case running**: amber with **Stop** if one is left over;
+- **Auto-run on alerts**: on or off, with a switch. On, the team starts 45 s after the test case's alert fires;
+  off, you press **Run agent team** yourself, which is easier to time when you are presenting.
+
+**Start the demo** walks through the run of show: nine steps, two acts and a wrap-up, about six minutes. Each
+step opens the view it happens on, scrolls to what the audience should look at and rings it in violet. A
+**caption bar** at the bottom says, in plain words, what the screen shows, so the judges can read along:
+
+![The caption bar on step 7](images/ui-demo-caption.png)
+
+- the step's one button (Analyze, Apply fixes, Send traffic, Start test, Run agent team, Apply to cluster or Stop
+  test case). It presses the same button as the view itself, so busy states, notices and the activity log work as
+  usual;
+- a live status line: what that step has produced so far, or what it is waiting for;
+- **Back** and **Next**, and a dot per step that jumps there. A dot is green when its step is done, violet while
+  it runs and amber when it needs attention;
+- collapse (˅) to keep only one line, and × to end. The bar remembers its step if the page reloads.
+
+| # | step | view | press | what the audience sees |
+|---|---|---|---|---|
+| 1 | A real cluster | FinOps | | the desktop and laptop as slabs, a glass per pod: reserved CPU around a small block of real use |
+| 2 | Find the waste | FinOps | **Analyze** | the savings strip fills in: about $34/mo found for about a cent |
+| 3 | How it decided | FinOps | | the router flow: free statistics, one cheap triage call, a bigger model only where needed, guardrail corrections |
+| 4 | Apply the plan | FinOps | **Apply fixes** | pods restart with smaller glasses and move to the cheaper machine type |
+| 5 | Prove it still scales | FinOps | **Send traffic** | real HTTP load: CPU rises and KEDA adds checkout-web replicas |
+| 6 | Break something | Agent team | **Start test** | a real problem on the laptop, then its alert. The default is *single-threaded code*: its fix is a code change, which more CPU can't buy |
+| 7 | The team investigates | Agent team | **Run agent team** | four sub-agents light up, then the Thinker, then the Executor, with time and cost per agent |
+| 8 | Ship the fix | Agent team | **Apply to cluster** | the diagnosis, the commit and its diff; applying it fixes the test case (for single-threaded code: 1 → 3 cores busy) |
+| 9 | Why it matters | Demo | **Stop test case** | the three reasons KubeSage is different, and the laptop goes quiet |
+
+Rehearse it once, then **Reset demo** and stop the test case before the judges arrive. The **Present** button on
+any row of the run of show starts from that step.
+
+## FinOps
+
+![The FinOps view in the "before" state](images/ui-control-center.png)
+
+### The page at a glance
 
 ```mermaid
 flowchart TB
@@ -34,10 +96,10 @@ Read it in two halves:
 - **Bottom half: why to believe it.** The cluster drawing is live. The charts and the recommendation rows
   show the evidence and the reasoning behind each change.
 
-## The demo in three steps
+### The three steps
 
-The steps strip under the headline is the whole demo. Each step shows a status line, and its number turns
-solid once it's done.
+The steps strip under the headline is act 1 of the demo; the caption bar's buttons press these same buttons. Each
+step shows a status line, and its number turns solid once it's done.
 
 | step | press | what happens on screen | what to say |
 |---|---|---|---|
@@ -63,9 +125,9 @@ The traffic result panel shows successful and failed requests, plus the latest i
 Request errors stay visibly marked even if Kubernetes reports the Job as completed. When logs are missing,
 the panel says results are unavailable. A busy autoscaler does not by itself prove requests are healthy.
 
-## Section by section
+### Section by section
 
-### Header
+#### Header
 
 - **Live LLM / Mock LLM**: whether Analyze calls a real model. Live needs the API key in the environment (green
   dot). Mock uses deterministic stand-ins with estimated token counts (amber dot).
@@ -74,7 +136,7 @@ the panel says results are unavailable. A busy autoscaler does not by itself pro
   instead of applying it.
 - **Sun/moon**: light/dark theme, remembered per browser.
 
-### Analysis runs and downloads
+#### Analysis runs and downloads
 
 The **Analysis run** selector lists completed reports, newest first. Choosing a historical report updates
 the figures, charts, reasoning and recommendations while live cluster polling continues. Apply and GitOps
@@ -84,7 +146,7 @@ analysis; historical views say that they are older rather than displaying its ve
 **Download report** saves the selected JSON snapshot. **Download manifests** saves its workload and migration
 manifests in one YAML bundle. Individual recommendation rows also offer workload manifest downloads.
 
-### Savings strip
+#### Savings strip
 
 The numbers come from the **selected analysis snapshot**, not from the live cluster. The run and observation
 window appear above them; applying changes does not rewrite this evidence.
@@ -107,7 +169,7 @@ excluded from that average. A workload can also cost
 more when safety guardrails require more CPU, memory or replicas. These estimates are potential changes,
 not a measured bill reduction.
 
-### Cluster (the isometric drawing)
+#### Cluster (the isometric drawing)
 
 ![After Apply: pods moved to the laptop](images/ui-after-apply.png)
 
@@ -139,7 +201,7 @@ or a new usage reading. Nothing moves just for decoration.
 
 Click empty space, press **Esc** or use the ✕ to go back to the whole cluster.
 
-### Reserved vs used
+#### Reserved vs used
 
 Two bullet charts, CPU and memory per pod, from the analysis window:
 
@@ -152,7 +214,7 @@ A long light bar with a short dark bar is waste. A dark bar longer than the ligh
 than it reserved (auth-api's memory: it leaks). These charts stay fixed after Apply. Use the cluster inspector
 for current requests and usage.
 
-### How it decided
+#### How it decided
 
 On the left, the **model router** for this run. Each line is a workload:
 
@@ -165,7 +227,7 @@ On the right, the **ledger**: every LLM call with its tier, tokens and cost, and
 two baselines: the same calls all on the top tier, and sending the raw 5-minute series to the top tier
 instead of the Stage 1 statistics.
 
-### Recommendations
+#### Recommendations
 
 One row per workload: status, the tier that handled it, risk, and monthly cost before → after. Open a row for:
 
@@ -180,24 +242,46 @@ One row per workload: status, the tier that handled it, risk, and monthly cost b
 Search by workload name or filter to changes proposed, healthy, routine or complex workloads. A cost increase
 is labelled as an increase; read the guardrail notes and scaling plan to understand the extra capacity.
 
-### Activity
+#### Activity
 
 A log of what you did in this browser session: analysis runs, each apply step's result, spikes, resets, errors.
 Live plan status and active traffic are reconstructed from Kubernetes after a reload; this activity log and
 the browser's last validation result are session information.
 
-## Architecture & CLI lab
+## Agent team
 
-The header's **FinOps dashboard | Architecture & CLI lab | tmux** switch opens the engineering view of the same
-system (`#lab` in the URL, so a reload or a shared link keeps it). It exposes server readings, log lines and
-request traces. Mock LLM mode and synthetic metrics backfill are still supported; check the mode and source
-of each result. “Read from the server” does not mean every value is a live production measurement.
+Live incidents. A test case causes a real problem on the laptop, and the agent team finds the cause and writes the
+fix. [agents.md](agents.md) explains the agents, models and rules behind it.
 
-The page has three parts, in this order; the **Agent team · Pipeline · Terminal** buttons under the title jump to
-each:
-1. the [agent team](#agent-team-top-of-the-lab), for live incidents;
-2. the **right-sizing pipeline**, the five stages behind the dashboard;
-3. the **terminal**: shell, journal and wire panes.
+![The agent team](images/ui-agents.png)
+
+- **Run agent team** (top right, beside the title) runs it now. With **Auto-run on alerts** on, the team runs 45 s after a new lab
+  alert fires.
+- The **test case** box: the dropdown, **Start test** and **Stop** deploy or remove one of the nine live test cases
+  in the `lab` namespace (high memory, CPU throttled, single-threaded code, disk I/O, disk storage, latency,
+  Pending pods, pod density, a hand-made insecure pod). Under them: what the test case does and the fix to expect.
+  On the right, badges show running test cases with their pod phases and restarts, and the lab alerts firing in
+  Alertmanager.
+- The **run bar**: the last run's state, id, how and when it started, how long it took, what it cost, and
+  **Follow in tmux**.
+- The **team diagram**, left to right: *1 · Sub-agents collect* (four cards, small model) → *2 · Thinker decides*
+  (large) → *3 · Executor changes* (medium). Each card shows its model, signals or findings, time and cost, and a
+  light: violet while it works, green when done, red on error. An arrow's dashes move while the next agent works.
+- Under it, **Diagnosis**: the Thinker's summary, then each issue with its severity, confidence and root cause, and
+  its actions (type, target, what to do and why; SKU changes add their monthly cost). Then **Change**: the
+  Executor's commit title, branch and commit, the changed files and a diff split by file. Select a sub-agent card
+  for its own findings and over-threshold signals instead; select it again to go back.
+- Change buttons: **Dry-run apply** (`kubectl apply --dry-run=server`), **Apply to cluster** (asks first; lab
+  namespace intended; deterministic namespace enforcement is pending in PR #16; Terraform is never applied), **Open pull request** (only with `--agent-prs`).
+- **Custom rules**: the `agents/rules/` files the Thinker and Executor follow, read-only here.
+
+## Under the hood
+
+The engineering view exposes server readings, log lines and request traces. Mock LLM mode and synthetic
+metrics backfill are supported; check the mode and source of each result. It has two parts, and the
+**Pipeline · Terminal** buttons under the title jump to each:
+1. the **right-sizing pipeline**, the five stages behind the FinOps view;
+2. the **terminal**: shell, journal and wire panes.
 
 ![The right-sizing pipeline and the terminal](images/ui-lab.png)
 
@@ -244,35 +328,10 @@ each:
   never stored or sent to the browser. Runs from before request tracing show no exchanges.
 
 On a phone the stages stack, and the terminal shows one pane at a time; switch panes from the green status bar.
-Below 380 px the header tabs shorten to **Dashboard · Lab · tmux**.
-
-### Agent team (top of the lab)
-
-![The agent team](images/ui-agents.png)
-
-- **Run agent team** (top right) runs it now. With **Auto-run on alerts** on, the team runs 45 s after a new lab
-  alert fires.
-- The **test case** box: the dropdown, **Start test** and **Stop** deploy or remove one of the nine live test cases
-  in the `lab` namespace (high memory, CPU throttled, single-threaded code, disk I/O, disk storage, latency,
-  Pending pods, pod density, a hand-made insecure pod). Under them: what the test case does and the fix to expect.
-  On the right, badges show running test cases with their pod phases and restarts, and the lab alerts firing in
-  Alertmanager.
-- The **run bar**: the last run's state, id, how and when it started, how long it took, what it cost, and
-  **Follow in tmux**.
-- The **team diagram**, left to right: *1 · Sub-agents collect* (four cards, small model) → *2 · Thinker decides*
-  (large) → *3 · Executor changes* (medium). Each card shows its model, signals or findings, time and cost, and a
-  light: violet while it works, green when done, red on error. An arrow's dashes move while the next agent works.
-- Under it, **Diagnosis**: the Thinker's summary, then each issue with its severity, confidence and root cause, and
-  its actions (type, target, what to do and why; SKU changes add their monthly cost). Then **Change**: the
-  Executor's commit title, branch and commit, the changed files and a diff split by file. Select a sub-agent card
-  for its own findings and over-threshold signals instead; select it again to go back.
-- Change buttons: **Dry-run apply** (`kubectl apply --dry-run=server`), **Apply to cluster** (asks first; lab
-  namespace only; Terraform changes are never applied), **Open pull request** (only with `--agent-prs`).
-- **Custom rules**: the `agents/rules/` files the Thinker and Executor follow, read-only here.
 
 ## tmux
 
-The header's third tab is a read-only mirror of the server's RAM ring, laid out like tmux:
+The header's last tab is a read-only mirror of the server's RAM ring, laid out like tmux:
 - window **0:agents**: one pane per agent, with its signals, findings, model calls and their reasoning, edits
   and the diff, as they happen;
 - **1:testcases**: test-case starts and stops, the test pods' own logs, alerts, and

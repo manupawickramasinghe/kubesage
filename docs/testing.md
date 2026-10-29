@@ -132,7 +132,7 @@ Screenshot without a browser driver: snapshot the page with the API stubbed, the
 
 ```bash
 for e in config report cluster; do curl -s -H 'X-KubeSage: 1' http://127.0.0.1:8600/api/$e > $e.json; done
-# make a copy of index.html: fonts from ./fonts, fetch() answered from the three JSON files, animations off
+# make a copy of dashboard/: fonts from ./fonts, fetch() answered from the three JSON files, animations off
 firefox --headless --screenshot out.png --window-size=1400,2900 file://$PWD/snapshot.html
 ```
 

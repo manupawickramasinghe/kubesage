@@ -6,8 +6,8 @@ other websites can't trigger actions. There's no authentication beyond that.
 
 | method | path | does |
 |---|---|---|
-| GET | `/` | the UI (`kubesage/web/static/index.html`) |
-| GET | `/fonts/<file>.woff2` | vendored fonts, cached for a day; only files in `static/fonts` |
+| GET | `/` | the UI (`dashboard/index.html`) |
+| GET | `/css/…`, `/js/…`, `/fonts/…` | the rest of `dashboard/`, read from disk on each request. Only `.html`, `.css`, `.js`, `.woff2` and `.svg` files inside the folder; fonts are cached for a day |
 | GET | `/api/config` | `{namespace, mode: "live"\|"mock", tiers: {triage: model, …}, gitops: bool, operation}` |
 | GET | `/api/reports` | Up to 50 completed runs, newest first, for the configured namespace: `{runs: [{run, generated_at, mode, namespace, llm_cost_usd, monthly_savings_usd}]}`. Savings can be negative. |
 | GET | `/api/report?run=<id>` | `{run, report}` for a selected run; omit `run` for the latest valid report. 404 before the first analysis. |

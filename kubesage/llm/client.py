@@ -69,8 +69,13 @@ class LLMClient:
                    stage: str, workload: str, unit: str = "router", flow_stage: int | None = None) -> tuple[T, LedgerEntry]:
         cfg = self.models.tiers[tier]
         started = time.perf_counter()
+        flow_stage = flow_stage or (2 if stage == "triage" else 3)
         if self.mode == "live":
-            result, (inp, cached, out), exchanges = self._live(tier, system, user, schema)
+            try:
+                result, (inp, cached, out), exchanges = self._live(tier, system, user, schema)
+            except LLMError as exc:  # keep what the provider sent, so a failed run's trace shows why
+                self._record(getattr(exc, "exchanges", []), flow_stage, stage, workload, tier)
+                raise
         else:
             result = mock()
             inp = estimate_tokens(system) + estimate_tokens(user)
@@ -83,16 +88,19 @@ class LLMClient:
         entry = LedgerEntry(stage=stage, workload=workload, tier=tier, model=cfg.model, input_tokens=inp,
                             cached_tokens=cached, output_tokens=out, cost_usd=cfg.cost(inp, cached, out),
                             latency_ms=int((time.perf_counter() - started) * 1000), mock=self.mode != "live")
-        flow_stage = flow_stage or (2 if stage == "triage" else 3)
+        self._record(exchanges, flow_stage, stage, workload, tier)
+        log(unit, f"{stage} {workload} on {cfg.label or tier} ({cfg.model}{', mock' if entry.mock else ''}): "
+                  f"{inp} in{f' ({cached} cached)' if cached else ''} / {out} out tokens, ${entry.cost_usd:.4f}, "
+                  f"{entry.latency_ms} ms", stage=flow_stage)
+        return result, entry
+
+    def _record(self, exchanges: list[dict], flow_stage: int, stage: str, workload: str, tier: str) -> None:
+        cfg = self.models.tiers[tier]
         with self._lock:
             for attempt, exchange in enumerate(exchanges, 1):
                 self.trace.append({"kind": "llm", "stage": flow_stage, "llm_stage": stage,
                                    "workload": workload, "tier": tier, "label": cfg.label or tier, "model": cfg.model,
                                    "attempt": attempt, **exchange})
-        log(unit, f"{stage} {workload} on {cfg.label or tier} ({cfg.model}{', mock' if entry.mock else ''}): "
-                  f"{inp} in{f' ({cached} cached)' if cached else ''} / {out} out tokens, ${entry.cost_usd:.4f}, "
-                  f"{entry.latency_ms} ms", stage=flow_stage)
-        return result, entry
 
     def _body(self, tier: str, messages: list[dict]) -> dict:
         cfg = self.models.tiers[tier]
@@ -137,8 +145,11 @@ class LLMClient:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         inp = cached = out = 0
         exchanges = []
-        for _ in range(2):  # one retry with the validation error fed back
+        problem = ""
+        for _ in range(2):  # one retry: with the validation error fed back, or with less reasoning
             body = self._body(tier, list(messages))
+            if problem.startswith("no answer") and body.get("reasoning_effort") == "high":
+                body["reasoning_effort"] = "medium"  # it spent the whole budget reasoning; leave room for the answer
             started = time.perf_counter()
             data = self._post(body)
             exchanges.append({"request": self._request(body), "response": {"status": 200, "body": data},
@@ -147,10 +158,18 @@ class LLMClient:
             inp += usage.get("prompt_tokens", 0)
             out += usage.get("completion_tokens", 0)
             cached += (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0
-            content = data["choices"][0]["message"]["content"] or ""
+            choice = (data.get("choices") or [{}])[0]
+            content = (choice.get("message") or {}).get("content") or ""
+            if not content.strip():  # gpt-oss can reason until max_tokens and send no content key at all
+                problem = (f"no answer (finish_reason {choice.get('finish_reason')!r} after "
+                           f"{usage.get('completion_tokens', 0)} output tokens)")
+                continue
             try:
                 return schema.model_validate_json(_strip_fences(content)), (inp, cached, out), exchanges
             except ValidationError as exc:
+                problem = "invalid JSON"
                 messages += [{"role": "assistant", "content": content},
                              {"role": "user", "content": f"That JSON failed validation:\n{exc}\nReply with corrected JSON only."}]
-        raise LLMError(f"{cfg.model} returned invalid JSON twice for {schema.__name__}")
+        error = LLMError(f"{cfg.model} failed twice for {schema.__name__}: {problem}")
+        error.exchanges = exchanges
+        raise error

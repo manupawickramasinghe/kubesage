@@ -26,7 +26,6 @@ kubesage = "kubesage.cli:main"
 include = ["kubesage*"]
 
 [tool.setuptools.package-data]
-"kubesage.web" = ["static/*", "static/fonts/*"]
 "kubesage.lab" = ["*.yaml"]
 
 [tool.pytest.ini_options]
