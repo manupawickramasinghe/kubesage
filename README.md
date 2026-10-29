@@ -1,255 +1,266 @@
+<div align="center">
+
+<img src="docs/images/logo.svg" width="72" height="72" alt="KubeSage logo">
+
 # KubeSage
 
-AI FinOps agent for Kubernetes. It reads weeks of usage history and finds over-provisioned requests,
-idle workloads that can scale to zero, recurring traffic peaks, and memory leaks. For each one it outputs
-right-sized resource patches, proactive KEDA `ScaledObject`s and a cheaper node-pool SKU, with the dollar math.
+**An AI SRE team for Kubernetes.** It finds the capacity you pay for and don't use, diagnoses live incidents, and
+ships every fix as a reviewable git commit.
 
-It also tracks its own LLM bill: a 3-stage router only sends a workload to an expensive model when a
-cheap one says it needs it.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![Kubernetes](https://img.shields.io/badge/kubernetes-k3s%20%C2%B7%20k3d-326CE5?logo=kubernetes&logoColor=white)](docs/cluster.md)
+[![KEDA](https://img.shields.io/badge/autoscaling-KEDA-0b6bcb)](docs/pipeline.md)
+[![LLM](https://img.shields.io/badge/LLM-any%20OpenAI--compatible%20API-6e56cf)](docs/configuration.md)
+[![Tests](https://img.shields.io/badge/tests-141%20unit%20%C2%B7%2037%20browser-2ea44f)](docs/testing.md)
 
-**Docs:** [docs/](docs/README.md). Start with the [UI guide](docs/ui-guide.md). The demo runs on
-[two real machines](docs/cluster.md), and there's a [handover](docs/HANDOVER.md) for reviewers.
-The [29 October project review](docs/REVIEW_REPORT.md) records current validation and unresolved issues.
+[Quickstart](#quickstart) · [How it works](#how-it-works) · [Control Center](#the-ai-control-center) ·
+[Agent team](#the-agent-team) · [Documentation](#documentation)
 
-```
- Prometheus / VictoriaMetrics
-            │  30 days of cAdvisor + kube-state-metrics series
-            ▼
- Stage 1  deterministic stats ─────────────── $0, no LLM: p50/p95/p99, hourly profiles,
-            │                                 recurring peaks, leak slope, restarts
-            ▼
- Stage 2  triage (Muse Glimmer) ──────────── one cheap call for all workloads
-            │   HEALTHY → stop    ROUTINE → Spark    COMPLEX → Wonder
-            ▼
- Stage 3  remediation (Muse Spark / Wonder) ─ returns parameters, not YAML
-            │
-            ▼
- guardrails (observed-usage floors) → YAML renderer → cost model → node-pool plan (Wonder)
-```
+<br>
 
-The FinOps models return structured parameters, which KubeSage renders into YAML. Deterministic guardrails
-apply resource floors from observed usage and report many adjustments. They do not guarantee future capacity
-or freedom from OOMs; review generated plans and the remaining guardrail gaps in the project review.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-demo-dark.png">
+  <img src="docs/images/readme-demo-light.png" alt="The KubeSage AI Control Center: the agent chat on the left, the demo pitch and live figures on the right">
+</picture>
+
+</div>
+
+## Overview
+
+KubeSage tells two stories on a real cluster, a desktop and a laptop joined as one:
+
+1. **This cluster wastes money.** It reads 30 days of usage, right-sizes every workload, adds proactive KEDA
+   autoscaling, picks a cheaper machine type for the node pool and shows the dollar math. Then it proves the
+   right-sized cluster still scales under real traffic.
+2. **Something just broke.** When an alert fires, four small-model sub-agents gather evidence, a large-model
+   Thinker finds the root cause, and an Executor writes the fix as a git commit on its own branch, ready to dry-run,
+   apply or open as a pull request.
+
+It also accounts for its own bill. Every model call is metered in tokens and dollars, and a cost-aware router only
+sends a workload to an expensive model when a cheap one says it needs to.
+
+### Measured on the real cluster
+
+| scenario | result |
+|---|---|
+| **Right-sizing analysis** | Node pool `D8s_v5` → `F8s_v2`: **$280.32 → $246.74 a month**, 4 of 5 workloads changed. The analysis cost **$0.0111** in model calls |
+| **Live incident** (`ContainerOOMKilled`) | Alert to diagnosis and commit in **16 s** for **$0.0200**: 4 issues, 4 actions, 3 files changed |
+| **Scaling under load** | `checkout-web` scaled 2 → 7 pods, and p95 latency fell from **377 ms to ~110 ms** with zero errors |
+
+Prices are Azure list prices: each real machine stands in for the cloud VM its `kubesage.io/sku` label names.
+
+## Why it's different
+
+| | |
+|---|---|
+| **Evidence, or it's dropped** | Every finding must cite a signal an agent actually collected. Guardrails reject actions with no evidence, unknown targets, machine types outside the catalog and requests bigger than a real node. The model gets one retry, with the reasons. |
+| **Small models do the legwork** | Statistics are computed without an LLM. Cheap models triage and gather evidence; only the hard cases reach the large model. An incident run costs a few cents, and a full right-sizing analysis about one cent. |
+| **People stay in charge** | Models return structured parameters, never raw YAML. Every change is a git commit on its own branch. The web shell is read-only, the terminal views are mirrors, and nothing reaches the cluster until someone presses **Apply**. |
 
 ## Quickstart
 
-Requirements: Docker, Python 3.11+.
+Requirements: Docker and Python 3.11+. No API key is needed: without one, every model call runs in a labelled,
+deterministic mock mode.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-docker compose up -d                 # VictoriaMetrics :8428, Grafana :3300
-.venv/bin/kubesage simulate          # backfill 30 days of synthetic history (~1.4M samples, ~2 s)
-.venv/bin/kubesage stats             # Stage 1 only, no LLM
-.venv/bin/kubesage analyze           # full pipeline; mock mode unless MODEL_API_KEY is set
+docker compose up -d                  # VictoriaMetrics :8428, Grafana :3300, vmalert + Alertmanager :9193
+.venv/bin/kubesage simulate           # backfill 30 days of realistic history (~1.4M samples, ~2 s)
+.venv/bin/kubesage analyze            # full pipeline; writes out/<run>/report.json and manifests/
+.venv/bin/kubesage serve              # the AI Control Center on http://127.0.0.1:8600
 ```
 
-Grafana: http://localhost:3300 (anonymous view, admin/admin to edit) opens the "requested vs used" dashboard.
-
-`analyze` writes `out/<timestamp>/report.json` and `out/<timestamp>/manifests/*.yaml`.
-
-### Local cluster + apply
-
-A [k3d](https://k3d.io) cluster with KEDA, running the five demo Deployments in their oversized "before"
-state: a tiny Python app per workload with requests far above what it uses. Adds ~600 MiB RAM.
+To call a real model, put a key in `.env` (gitignored) and pick a provider profile:
 
 ```bash
-scripts/cluster-up.sh                # downloads pinned k3d + kubectl into .bin/, creates cluster, installs KEDA
-.venv/bin/kubesage apply --dry-run   # server-side dry run of the latest analysis run
-.venv/bin/kubesage apply             # Deployment patches first, then ScaledObjects
-scripts/demo-reset.sh                # back to the "before" state, to run the demo again
-scripts/cleanup.sh --check           # what is still installed, on this machine and joined ones
-scripts/cleanup.sh                   # delete the clusters (both machines); --all also wipes metrics, images, tools
-```
-
-[docs/cleanup.md](docs/cleanup.md) lists exactly what each level removes and what it never touches.
-
-**Two real machines.** The demo cluster is the Ryzen 5 8600G desktop (k3s server in k3d) plus the Ryzen 5
-3500U laptop, joined over SSH as a native k3s agent:
-
-```bash
-NODE_IP=192.168.1.9 scripts/cluster-up.sh             # publish API, kubelet and VXLAN on the desktop's LAN IP
-scripts/live-up.sh
-scripts/join-node.sh manupa@192.168.1.92              # laptop joins as a worker labelled F8s_v2
-```
-
-The desktop node is labelled `kubesage.io/sku=D8s_v5` (the current pool) and the laptop `F8s_v2`. The demo pods
-start pinned to the desktop. When the node-pool step picks the laptop's SKU, `analyze` writes `*.migrate.yaml`
-nodeSelector patches and `apply` moves every pod onto the laptop live. Migrations are skipped when no node
-carries the target label. Networking details, the VXLAN-through-NAT checksum trap, and how to undo it are in
-[docs/cluster.md](docs/cluster.md). `TWO_NODE=1 scripts/cluster-up.sh` is the one-machine alternative: a second
-k3d container on the same host.
-
-### Live mode + traffic spike
-
-The demo pods run a tiny stdlib Python app (`deploy/k8s/demo/app.py`) with a small baseline CPU burn and a
-`/work?ms=N` endpoint that burns N ms of CPU per request. `scripts/live-up.sh` deploys kube-state-metrics
-and vmagent, which scrape the cluster every 15 s and remote-write into the same VictoriaMetrics that holds the
-30-day backfill. Grafana and `kubesage analyze` then see history plus a live tail.
-
-```bash
-.venv/bin/kubesage simulate          # history first: simulate deletes the namespace's old series
-scripts/cluster-up.sh && scripts/live-up.sh
-.venv/bin/kubesage analyze && .venv/bin/kubesage apply
-.venv/bin/kubesage spike             # 40 rps x 50 ms = ~2 cores on checkout-web for 3 minutes
-kubectl -n demo get hpa,pods -w      # KEDA's CPU trigger scales checkout-web out
-```
-
-Measured on the 8600G after `apply`: checkout-web went 2 → 7 pods, and loadgen p95 latency fell from 377 ms
-to ~110 ms with zero errors (`kubectl -n demo logs job/<spike-job>`). The spike really burns CPU on the
-host; `--rps`/`--work-ms`/`--seconds` control how much.
-
-The kubeconfig goes to `.bin/kubeconfig` and `~/.kube/config` is left alone. Use
-`export KUBECONFIG=$PWD/.bin/kubeconfig PATH=$PWD/.bin:$PATH` to run kubectl yourself.
-`kubesage apply` uses `$KUBECONFIG` when set, so it can target any cluster.
-
-### Web UI: the AI Control Center
-
-```bash
-.venv/bin/kubesage serve             # http://127.0.0.1:8600
-.venv/bin/kubesage serve --host 0.0.0.0 --gitops-repo ~/src/my-gitops --gitops-base ../base   # present from the laptop
-```
-
-![KubeSage AI Control Center](docs/images/ui-control-center.png)
-
-One page for the whole pitch, top to bottom. Every part is explained in the [UI guide](docs/ui-guide.md).
-- **Steps**: ① **Analyze** (find the waste), ② **Apply fixes** (with a Validate only switch), ③ **Send traffic**
-  (watch CPU, scaling and request health). Applied status comes from live Kubernetes specs and survives reloads.
-- **Savings**: what the node pool saves per month (billing view) with a before/after bar, the requested-capacity
-  cost (allocation view), what the LLM calls of the run cost, and the triage counts.
-- **Cluster**: an isometric drawing of the live cluster, polled every 3 s. Each slab is a real machine, labelled
-  with its hostname, CPU model, threads, RAM and live usage. Ten lights on its front show its CPU right now.
-  Each pod is a glass box as tall as its CPU request, with a glowing core as tall as the CPU it uses right now
-  (metrics-server), easing to each new reading. Tall glass around a small core is money left on the table.
-  Click a machine for its hardware, OS, meters and cost-model label, or a pod or legend chip for that
-  workload's scaling, pods and recommendation. Every motion is a real event: pods dropping in, fading out or
-  moving machines.
-- **Reserved vs used**: bullet charts per workload, CPU and memory: reserved at analysis, used (p95 / p99) and the
-  recommended request.
-- **How it decided**: the model-router flow for the run (stats → triage → which tier, or stopped at triage) next
-  to every LLM call with its tokens and cost, and the all-on-the-strategist and raw-series baselines.
-- **Recommendations**: one row per workload with status, tier and before → after cost. Open it for the diagnosis,
-  guardrail clamps, follow-ups, the router trace and the manifests.
-
-Choose older analyses, download reports and manifests, search/filter recommendations and inspect live
-field differences from the latest plan. Traffic results include successful/failed requests and p50/p95
-latency; reaching a replica limit can produce errors even when scaling works. See the [review and live
-verification results](docs/ui-review.md).
-
-The header has **Reset demo**, a light/dark toggle, and **GitOps PR** when a GitOps repo is configured. Selecting a
-workload anywhere highlights it in every diagram.
-
-Stdlib HTTP server and the `dashboard/` folder: plain HTML, CSS and JavaScript with no build step. The fonts (Inter
-and Instrument Serif, SIL OFL) are vendored in `dashboard/fonts` and served by `kubesage serve`, so there is no CDN
-and it still works on bad venue Wi-Fi. It binds to 127.0.0.1 by default. POSTs require an `X-KubeSage` header, so another website open in the same
-browser can't trigger actions. With `--host 0.0.0.0`, anyone who can reach the port can apply changes. Keep that
-to Tailscale or a network you trust.
-
-### GitOps: open a PR instead of applying
-
-`kubesage gitops` writes a run into a local clone of your GitOps repo as a kustomize overlay
-(`<path>/kustomization.yaml` over your base, plus the patches, ScaledObjects and a `REPORT.md`). It commits
-on a new branch `kubesage/rightsize-<run>`, optionally pushes it and opens a PR whose body is the report,
-then switches the repo back to the branch it was on. Argo CD / Flux then roll it out like any other change.
-
-```bash
-.venv/bin/kubesage gitops --repo ~/src/my-gitops --kustomize-base ../base --path apps/demo-kubesage   # commit only
-.venv/bin/kubesage gitops --repo ~/src/my-gitops --kustomize-base ../base --path apps/demo-kubesage --open-pr
-```
-
-Workloads that get a ScaledObject also get `spec.replicas: null` in their patch, so Git stops pinning the
-replica count and the GitOps controller doesn't fight the HPA. Commits use the GitOps repo's own git identity.
-It refuses to run on a dirty working tree or an existing branch name.
-
-### Live LLM mode
-
-```bash
-export MODEL_API_KEY=...             # Meta Model API key
-.venv/bin/kubesage analyze --mode live
-```
-
-Tiers, model IDs, prices and provider knobs are in [`config/models.yaml`](config/models.yaml).
-**Verify the model IDs and prices there before demo day.** Glimmer/Wonder IDs and prices are unverified
-placeholders.
-
-**Provider profiles.** `KUBESAGE_MODELS=<name>` loads `config/models.<name>.yaml` instead, for `analyze` and
-`serve` alike. Any OpenAI-compatible endpoint works. A Cerebras profile ships with the repo:
-
-```bash
-echo 'CEREBRAS_API_KEY=...' > .env   # .env is gitignored
+echo 'CEREBRAS_API_KEY=...' > .env
 set -a; . ./.env; set +a
-KUBESAGE_MODELS=cerebras .venv/bin/kubesage analyze --mode live
+KUBESAGE_MODELS=cerebras .venv/bin/kubesage serve
 ```
 
-Cerebras' shared endpoint serves `gpt-oss-120b` ($0.35 / $0.75 per 1M tokens) and `qwen-3.8-27b`
-($0.99 / $1.49). The biggest model is also the cheapest, so all three tiers use `gpt-oss-120b`, at
-`reasoning_effort` low / medium / high. A full run (6 calls) takes ~4 s and costs ~$0.01. Because every tier has
-the same price, the "all calls on the strategist" baseline equals the routed cost in this profile.
-
-Live runs are where the guardrails matter. In the first Cerebras run the model put checkout-web (a web frontend)
-on `minReplicaCount: 0`, which would have taken it offline outside the 09:00 rush. The guardrail now allows
-scale-to-zero only for workloads Stage 1 flags as `batch-pattern`.
-
-## The demo scenarios
-
-`kubesage simulate` generates five workloads in namespace `demo`, each with a real-world anti-pattern:
-
-| workload | story | expected outcome |
-|---|---|---|
-| `payment-service` | requests 2 CPU / 4 GiB, uses ~0.2 CPU / 470 MiB | ROUTINE → right-size |
-| `report-worker` | idles all day, 45-min batch at 02:00, holds 2 cores 24/7 | ROUTINE → scale to zero + cron pre-warm |
-| `checkout-web` | Mon–Fri 09:00 rush pins pods at their CPU limit | ROUTINE → cron pre-scale + CPU trigger |
-| `auth-api` | leaks ~110 MiB/day, OOM-killed every ~6 days | COMPLEX → root cause, stopgap, follow-ups |
-| `catalog-api` | requests match usage | HEALTHY → no tokens spent |
-
-Series use real metric names (`container_cpu_usage_seconds_total`, `container_memory_working_set_bytes`,
-`kube_pod_container_resource_requests`, ...), so the analyzer works unchanged against a real cluster's TSDB.
-The "before" node pool (1× D8s_v5, the desktop) is set in [`config/skus.yaml`](config/skus.yaml). Prices are
-Azure list prices: each real machine stands in for the cloud VM its `kubesage.io/sku` label names.
-
-### Agent team and live test cases
+### Run it on a cluster
 
 ```bash
-docker compose up -d                      # also starts vmalert + Alertmanager (:9193)
-kubectl apply -f deploy/k8s/monitoring/   # vmagent/KSM keep the extra series the agents read
-KUBESAGE_MODELS=cerebras kubesage serve --host 0.0.0.0 --agent-prs
-kubesage testcase start cpu-code          # or the Lab's dropdown
-kubesage agents run                       # or wait for the alert to trigger it
-kubesage tmux                             # tmux over the RAM ring
+scripts/cluster-up.sh                 # pinned k3d + kubectl into .bin/, a k3d cluster with KEDA and the demo apps
+scripts/live-up.sh                    # kube-state-metrics + vmagent: live metrics on top of the 30-day history
+scripts/join-node.sh user@laptop      # optional: a second real machine joins over SSH as a k3s agent
+.venv/bin/kubesage apply --dry-run    # server-side dry run of the latest analysis
+.venv/bin/kubesage apply              # Deployment patches first, then ScaledObjects
+.venv/bin/kubesage spike              # real CPU-heavy traffic; watch KEDA scale checkout-web out
 ```
 
-Four sub-agents (PromQL, system resources, Alertmanager, security) on a small model compact the live data; the
-Thinker (large model) finds the cause; the Executor (medium model) writes the fix as a branch under `gitops/` and,
-on request, a pull request. Agents, models and custom rules are files in `agents/`. See
-[docs/agents.md](docs/agents.md).
+Tools go to `.bin/` and the kubeconfig to `.bin/kubeconfig`; `~/.kube/config` is never touched.
+`scripts/demo-reset.sh` puts the demo back in its oversized "before" state, and `scripts/cleanup.sh --check` lists
+everything that's installed. [docs/cluster.md](docs/cluster.md) covers the two-machine setup and its networking,
+and [docs/operations.md](docs/operations.md) is the runbook and demo-day checklist.
 
-## Layout
+## How it works
 
-```
-kubesage/
-  simulate/   scenario curves + VictoriaMetrics backfill
-  metrics/    PromQL client, collection, Stage 1 stats
-  llm/        schemas, prompts, OpenAI-compatible client with cost ledger, mock tiers
-  recommend/  guardrails, cron subset, cost model, manifest renderer
-  pipeline.py the router
-  apply.py    kubectl apply of a run's manifests
-  live.py     `kubesage spike` load-generator Job
-  gitops.py   kustomize overlay -> branch -> commit -> push -> PR
-  summary.py  markdown report (PR body, REPORT.md)
-  service.py  collect + analyze + persist, shared by CLI and web
-  web/        `kubesage serve`: stdlib server + single-file UI + vendored fonts
-config/       model tiers + SKU catalog
-deploy/       Grafana provisioning + dashboard, demo k8s manifests
-scripts/      pinned tool install, cluster up/reset, live metrics, join/leave a machine, cleanup
-docs/         guides, diagrams, screenshots, handover
-agents/       the agent team: one folder per agent, models.yaml, rules/
-gitops/       what the test cases deploy and the Executor edits
+### Right-sizing: a three-stage, cost-aware router
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 320}}}%%
+flowchart TB
+    M[("<b>VictoriaMetrics</b><br/>30 days of usage per container")] --> S1["<b>Stage 1 · statistics</b><br/>percentiles, hourly peaks, leak slope · no LLM"]
+    S1 --> S2{"<b>Stage 2 · triage</b><br/>one cheap call"}
+    S2 -- HEALTHY --> STOP["stop: no more tokens"]
+    S2 -- ROUTINE --> W["<b>Stage 3 · worker</b><br/>right-size, KEDA rules"]
+    S2 -- COMPLEX --> ST["<b>Stage 3 · strategist</b><br/>root cause, node pool"]
+    W --> G["<b>Guardrails</b> · never below observed usage"]
+    ST --> G
+    G --> OUT["patches · ScaledObjects · node-pool plan · dollar math"]
 ```
 
-## Roadmap
+Models return parameters, never YAML. Deterministic guardrails clamp anything below observed usage, and every
+clamp is reported, so a bad answer can't OOM-kill a pod. Scale-to-zero is allowed only for workloads that the
+statistics flag as batch jobs. The output can be applied directly or committed to your GitOps repo as a kustomize
+overlay with a pull request (`kubesage gitops`). [docs/pipeline.md](docs/pipeline.md) has the details.
 
-- [x] k3d cluster + KEDA + demo Deployments matching the scenarios; `kubesage apply`
-- [x] Live mode: vmagent scraping the cluster, plus a load spike for the demo
-- [x] Web UI ("AI Control Center") on top of `report.json`, with the router-trace badges
-- [x] GitOps: open a PR with the manifests instead of applying directly
-- [x] Two-node mode: label nodes as SKUs and migrate pods to the cheap node live
-- [x] Real two-machine cluster (8600G + 3500U) with real hardware and live usage in the UI
+### Incident response: the agent team
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 320}}}%%
+flowchart TB
+    A["<b>Alertmanager alert</b> or <b>Run agent team</b>"] --> SUB
+    subgraph SUB ["Sub-agents · small model, in parallel"]
+        direction LR
+        P["PromQL"] ~~~ R["System resources"] ~~~ AL["Alertmanager"] ~~~ SE["Security"]
+    end
+    SUB -- "findings that cite collected signals" --> T["<b>Thinker</b> · large model<br/>root cause and plan"]
+    T -- "actions that passed the guardrails" --> E["<b>Executor</b> · medium model<br/>exact edits under gitops/"]
+    E -- "a commit on its own branch" --> H["<b>Reviewer</b><br/>dry-run · apply · pull request"]
+```
+
+| agent | model | what it does |
+|---|---|---|
+| **PromQL** | small | Container CPU, throttling, threads, memory, OOM kills, disk I/O and latency, from VictoriaMetrics |
+| **System resources** | small | Nodes, pod scheduling, disk and volume usage and warning events, from the Kubernetes API and kubelet |
+| **Alertmanager** | small | What is firing in Alertmanager right now |
+| **Security** | small | Pod security posture, workloads created outside GitOps, RBAC, and probes against the Control Center |
+| **Thinker** | large | Reads every finding plus the custom rules, finds the root causes and decides what to do |
+| **Executor** | medium | Turns the plan into exact edits under `gitops/`, checked against policy before it commits |
+
+Agents, models and plain-English platform rules are files in [`agents/`](agents/README.md): changing an agent's
+model is a one-line edit. Nine live **test cases** break the lab namespace on purpose so the team has something
+real to fix: high memory, CPU throttling, single-threaded code, disk I/O, a full disk, latency, Pending pods, pod
+density and a hand-made insecure pod. [docs/agents.md](docs/agents.md) walks through all of it.
+
+## The AI Control Center
+
+`kubesage serve` opens a single-page app built for presenting live. It's plain HTML, CSS and JavaScript with no build
+step and no CDN, and its fonts are vendored, so it works on venue Wi-Fi.
+
+| view | what it shows |
+|---|---|
+| **Demo** | The pitch, live headline numbers, pre-flight checks and a nine-step run of show with a caption bar |
+| **FinOps** | Savings, an isometric drawing of the live cluster, reserved-vs-used evidence, the router's decisions and the three steps: Analyze, Apply, Send traffic |
+| **Agent team** | Test cases, the sub-agents → Thinker → Executor diagram, the diagnosis and the diff |
+| **Under the hood** | The pipeline stage by stage, a read-only shell, the journal, and every PromQL, LLM and `kubectl` call of a run |
+| **tmux** | A read-only mirror of every terminal stream, laid out like tmux |
+| **Agent chat** (left sidebar) | Each team run as the messages the agents hand each other, with each model's reasoning |
+| **tmux panel** (right sidebar) | The same terminal mirror, beside any view |
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/readme-agents.png" alt="The Agent team view with the agent chat"></td>
+    <td width="50%"><img src="docs/images/readme-cluster.png" alt="The live cluster: each pod a glass box as tall as its CPU request"></td>
+  </tr>
+  <tr>
+    <td><b>Agent team.</b> The agent chat on the left shows each sub-agent's report to the Thinker, the Thinker's plan and the Executor's commit.</td>
+    <td><b>Live cluster.</b> Each pod is a glass box as tall as its CPU request, with a core as tall as the CPU it uses right now.</td>
+  </tr>
+</table>
+
+Every part of every view is explained in the [UI guide](docs/ui-guide.md).
+
+## Security model
+
+- **Read-only by default.** The web shell runs a fixed allow-list of read-only commands. The RAM ring behind the
+  terminal views has no write endpoint, and nothing typed in a browser reaches a terminal.
+- **Guarded writes.** Every agent edit must apply exactly, parse, stay inside its action's files and pass the
+  policy: only the lab namespace, only known kinds, and requests that fit a real node. Apply re-checks the rendered
+  objects before it sends them.
+- **A person decides.** Changes are commits on their own branches. Apply asks first; pull requests need
+  `--agent-prs`.
+- **Local first.** The server binds to `127.0.0.1`, and POSTs need an `X-KubeSage` header, so another site in the
+  same browser can't trigger actions. Use `--host 0.0.0.0` only on a network you trust.
+- **No secrets in the repo.** API keys come from the environment (`.env` is gitignored), and traces and ring dumps
+  redact them.
+
+## Configuration
+
+| what | where |
+|---|---|
+| Model tiers, prices and provider | [`config/models.yaml`](config/models.yaml), or a profile `config/models.<name>.yaml` selected with `KUBESAGE_MODELS=<name>` |
+| Agent team models | [`agents/models.yaml`](agents/models.yaml), one size (`small`, `medium`, `large`) per agent |
+| Machine catalog and prices | [`config/skus.yaml`](config/skus.yaml) |
+| Platform rules for the agents | [`agents/rules/`](agents/rules/), plain English |
+
+Any OpenAI-compatible endpoint works. Two profiles ship: Cerebras (`gpt-oss-120b`, `qwen-3.8-27b`) and the Meta
+Model API. Model IDs and prices change, so check them before relying on the cost figures. Some of the Meta
+profile's are marked unverified in the file. [docs/configuration.md](docs/configuration.md) lists every
+environment variable.
+
+## Command line
+
+| command | what it does |
+|---|---|
+| `kubesage simulate` | Generate N days of synthetic demo metrics and backfill them |
+| `kubesage stats` | Stage 1 only: deterministic statistics, no LLM calls |
+| `kubesage analyze` | The full pipeline: stats → triage → recommendations → node pool |
+| `kubesage apply` | Apply a run's manifests (the latest by default; `--dry-run` for a server-side check) |
+| `kubesage gitops` | Commit a run to a GitOps repo as a kustomize overlay, optionally opening a PR |
+| `kubesage serve` | The AI Control Center |
+| `kubesage spike` | Send a burst of CPU-heavy traffic to a demo Service |
+| `kubesage agents` | List the agent team, or run it once |
+| `kubesage testcase` | Start or stop the live test cases in the `lab` namespace |
+| `kubesage ring` | Read, tail or write the RAM ring that every terminal stream goes through |
+| `kubesage tmux` | Open a tmux session over the ring: agents, test cases, journal and a piped ops shell |
+
+## Repository layout
+
+```
+kubesage/            the Python package
+  metrics/           PromQL client, collection, Stage 1 statistics
+  llm/               schemas, prompts, OpenAI-compatible client with a cost ledger, mock tiers
+  recommend/         guardrails, cost model, manifest renderer
+  agents/            the team runner, guardrails, edit and policy checks
+  lab/               the live test cases
+  web/               the HTTP server and its API
+  pipeline.py        the three-stage router
+agents/              one folder per agent (prompt, collector, model size), models.yaml, rules/
+dashboard/           the Control Center: HTML, CSS and JavaScript, no build step
+gitops/              the lab apps and node pools the test cases deploy and the Executor edits
+config/              model profiles and the machine catalog
+deploy/              Grafana, alert rules, monitoring and demo manifests
+scripts/             cluster up/down, joining a machine, live metrics, demo reset, cleanup
+docs/                guides, architecture, runbook, test results
+tests/               pytest suite and browser checks
+```
+
+## Documentation
+
+| guide | read it for |
+|---|---|
+| [UI guide](docs/ui-guide.md) | **Start here.** Every view, what each shape and number means, and how to present the demo |
+| [Agent team](docs/agents.md) | Sub-agents → Thinker → Executor, test cases, alerts, the RAM ring, tmux and PRs |
+| [Architecture](docs/architecture.md) | Components, data flow, design decisions and a code map |
+| [Pipeline](docs/pipeline.md) | Statistics, triage and routing, guardrails, manifests and the cost model |
+| [Cluster](docs/cluster.md) | The real two-machine cluster: setup, networking and what gets installed |
+| [Operations](docs/operations.md) | Runbook, after a reboot, the demo-day checklist |
+| [API](docs/api.md) | The HTTP API and `report.json` |
+| [Testing](docs/testing.md) | The test suite, browser checks and manual checks with their last results |
+| [Cleanup](docs/cleanup.md) | What `scripts/cleanup.sh` removes on each machine, and what it never touches |
+| [Project review](docs/REVIEW_REPORT.md) | The 29 October review: validation results, the findings and their status |
+
+## Testing
+
+```bash
+.venv/bin/python -m pytest -q                                          # 141 tests, no cluster or API key needed
+.venv/bin/pip install playwright && .venv/bin/python -m playwright install chromium
+.venv/bin/python tests/browser_smoke.py --output-dir /tmp/kubesage-browser   # 37 UI checks against a mocked API
+```
+
+The browser checks drive the FinOps steps, the agent team, the tmux mirror, the agent chat and the demo guide,
+check layouts in light and dark mode at phone, tablet and desktop widths, and confirm that untrusted model text is
+always rendered as text.
