@@ -159,9 +159,10 @@ h2 { margin: 0; font: 400 28px/1.1 var(--serif); letter-spacing: -.01em; }
 .viewtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .vt-short { display: none; }
 @media (max-width: 900px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
-  .actions { gap: 4px; } .actions .btn-icon { width: 32px; } }
+  .top-inner { column-gap: 8px; } .actions { gap: 4px; } .actions .btn-icon, #btn-side { width: 32px; padding: 0; } }
 /* The header's own width decides too: the tmux side panel narrows the page without narrowing the window. */
-@container (max-width: 1000px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; } }
+@container (max-width: 1080px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
+  #btn-side { padding: 0 8px; } #btn-side span { display: none; } }
 @media (max-width: 600px) {
   .brand span { display: none; }
   .top-inner { gap: 8px; }

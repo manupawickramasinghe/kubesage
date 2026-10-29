@@ -2,7 +2,7 @@
 // tmux view: a read-only mirror of the RAM ring, full size in its own view and as a panel beside the others.
 
 const tx = {last: 0, recs: [], paused: false, polling: false, stat: null, timers: [], loaded: false,
-  side: false, sideW: 480, shown: new Set(), at: {main: {win: 0, zoom: null}, side: {win: 0, zoom: null}}};
+  side: false, sideW: 480, back: "agents", shown: new Set(), at: {main: {win: 0, zoom: null}, side: {win: 0, zoom: null}}};
 // The two places the mirror draws into. Each keeps its own window and zoomed pane.
 const TX_EL = {main: {panel: "#tmuxview", tabs: "#tx-windows", box: "#tx-win", clock: "#tx-clock"},
   side: {panel: "#txside", tabs: "#txs-windows", box: "#txs-win", clock: "#txs-clock"}};
@@ -160,6 +160,7 @@ function stopTx() { tx.timers.forEach(clearInterval); tx.timers = []; }
 /* The side panel: the same mirror beside every other view (never over the tmux view itself) */
 // On every view change and side toggle: polls while the mirror is on screen anywhere, and draws what just appeared.
 function syncTx() {
+  if (view !== "tmux") tx.back = view;
   $("#txside").hidden = !(tx.side && view !== "tmux");
   document.body.classList.toggle("side-open", !$("#txside").hidden);
   $$("#btn-side, #tx-side").forEach((b) => b.setAttribute("aria-pressed", String(tx.side)));
@@ -168,7 +169,10 @@ function syncTx() {
   if (tx.loaded) shown.filter((k) => !tx.shown.has(k)).forEach((k) => renderTx(k));
   tx.shown = new Set(shown);
 }
-function setSide(on) { tx.side = on; saveSide(); syncTx(); }
+function setSide(on) {
+  tx.side = on; saveSide(); syncTx();
+  if (on && view === "tmux") location.hash = tx.back;  // the panel never shows over the tmux view: go where it does
+}
 function saveSide() {
   try { localStorage.setItem("kubesage-txside", JSON.stringify({open: tx.side, w: tx.sideW, win: tx.at.side.win})); } catch (e) { /* storage blocked */ }
 }
@@ -188,7 +192,7 @@ function initTx() {
     if (Number.isInteger(saved.win) && saved.win >= 0) tx.at.side.win = saved.win;
   } catch (e) { /* storage blocked */ }
   sizeSide(tx.sideW);
-  $("#btn-side").innerHTML = icon("side");
+  $("#btn-side").innerHTML = `${icon("side")}<span>tmux panel</span>`;
   $("#btn-side").onclick = $("#tx-side").onclick = () => setSide(!tx.side);
   $("#txs-x").onclick = () => setSide(false);
   $("#txs-full").onclick = () => (location.hash = "tmux");

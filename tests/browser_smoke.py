@@ -532,6 +532,18 @@ def run(args):
 
             scenario("tmux-beside-other-views", tmux_beside)
 
+            def tmux_panel_from_the_tmux_tab(page, mock):
+                # The panel hides over the tmux tab, so turning it on there must take you somewhere it shows.
+                page.goto(url + "#lab")
+                expect(page.locator("#btn-side")).to_contain_text("tmux panel")  # labelled, not a bare icon
+                page.goto(url + "#tmux")
+                page.locator("#tx-side").click()
+                expect(page.locator("#lab")).to_be_visible()
+                expect(page.locator("#txside")).to_be_visible()
+                expect(page.locator("#txs-win .pane")).to_have_count(6)
+
+            scenario("tmux-panel-from-the-tmux-tab", tmux_panel_from_the_tmux_tab)
+
             def quiet_panes_keep_their_lines(page, mock):
                 # Live: hours of kubectl -w after a team run left every agent pane "nothing in the ring" on first load.
                 mock.ring = ring_fixture()[:4] + [{"seq": 10 + i, "ts": 1.79e9 + 10 + i, "stream": "watch/pods",
@@ -563,6 +575,7 @@ def run(args):
                     page.set_viewport_size({"width": width, "height": 900})
                     page.goto(url + "#agents")
                     expect(page.locator("#team-flow .agent")).to_have_count(6)
+                    page.wait_for_function("document.fonts.status === 'loaded'")
                     closed = height()
                     page.evaluate("document.querySelector('#btn-side').style.display = 'none'")
                     assert height() == closed, (width, "the button adds a row", closed, height())
