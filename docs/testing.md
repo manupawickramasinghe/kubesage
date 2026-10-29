@@ -36,7 +36,9 @@ It checks selection, validation/apply/reload, traffic/reset, history-pinned acti
 failure states, measured traffic success/errors/latency, the agent team panel (untrusted model text stays text),
 the tmux mirror (no input elements, never POSTs, panes visible at phone width, quiet panes keep their lines on first
 load), the tmux panel beside the other views (beside, not over, the view; own window and zoom; remembered after a
-reload; a sheet on a tablet; the header keeps its rows), the demo guide, the plan on screen
+reload; a sheet on a tablet; the header keeps its rows), the agent chat (every hand-off in order, guardrail refusals,
+reasoning from this run's window only, kept polled on FinOps, an earlier run, a live run's typing line, closed state
+remembered, a drawer on a tablet, opened from the run bar on a phone), the demo guide, the plan on screen
 being the plan Apply sends, errors reaching whichever view is open, keyboard focus and shell Tab, the Wire
 reloading after operations, unknown usage shown as unknown, and responsive layouts in both themes at 390, 768 and
 1400 px. Screenshots and `results.json`

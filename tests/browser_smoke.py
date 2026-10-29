@@ -129,6 +129,8 @@ class MockApi:
                                               {"name": "cpu-code", "title": "High CPU: single-threaded code", "summary": "GIL", "expect": "processes"}],
                                   "active": self.active, "alerts": [{"name": "ContainerCPUBusy", "severity": "warning", "pod": "risk-scorer-1"}],
                                   "cluster": True}
+        elif url.path == "/api/agents/run" and request.method == "GET":  # an earlier run, picked in the agent chat
+            status, value = 200, older_run_fixture()
         elif url.path in ("/api/testcase", "/api/agents/run"):
             if body.get("action") == "start":
                 self.active[body["name"]] = {"pods": 1, "phases": {"Running": 1}, "restarts": 0, "since": "x", "stopping": False}
@@ -150,17 +152,24 @@ class MockApi:
 UNSAFE = '<img src=x onerror="window.__untrusted_html_executed=1">'
 
 
+RUN_AT = datetime(2026, 10, 28, 11, 57, 9, tzinfo=timezone.utc)  # the fixture run: sub-agents, then Thinker, then Executor
+
+
 def team_fixture():
-    agent = lambda title, role, size, model, **kw: {"title": title, "role": role, "size": size, "label": model, "model": model,
-                                                     "state": "done", "ms": 1500, "signals": 5, "findings": 1, "cost_usd": 0.003, **kw}
+    at = lambda s: (RUN_AT + timedelta(seconds=s)).isoformat()
+    agent = lambda title, role, size, model, start=0, **kw: {"title": title, "role": role, "size": size, "label": model, "model": model,
+                                                             "state": "done", "started": at(start), "ms": 1500, "signals": 5,
+                                                             "findings": 1, "cost_usd": 0.003, **kw}
     agents = {"promql": agent("PromQL", "subagent", "small", "qwen-3.8-27b", summary=UNSAFE),
               "resources": agent("System resources", "subagent", "small", "qwen-3.8-27b"),
               "alerts": agent("Alertmanager", "subagent", "small", "qwen-3.8-27b"),
               "security": agent("Security", "subagent", "small", "qwen-3.8-27b"),
-              "thinker": agent("Thinker", "thinker", "large", "gpt-oss-120b"),
-              "executor": agent("Executor", "executor", "medium", "gpt-oss-120b")}
+              "thinker": agent("Thinker", "thinker", "large", "gpt-oss-120b", 2),
+              "executor": agent("Executor", "executor", "medium", "gpt-oss-120b", 4)}
     run = {"id": "20261028-115709", "trigger": "alert:ContainerCPUBusy", "mode": "live", "profile": "cerebras", "state": "done",
-           "cost_usd": 0.018, "agents": agents, "rejected": [], "signals": {"promql": [{"id": "promql:risk-scorer.cpu_flat",
+           "started_at": at(0), "finished_at": at(6), "cost_usd": 0.018, "agents": agents,
+           "rejected": [{"agent": "thinker", "what": "action A2 change_node_sku nodepool/lab", "reason": "SKU 'X99' is not in the catalog"}],
+           "signals": {"promql": [{"id": "promql:risk-scorer.cpu_flat",
            "kind": "cpu_flat", "value": 0.96, "unit": "cores", "detail": "flat", "severity": "warning"}]},
            "reports": {"promql": {"summary": UNSAFE, "findings": [{"title": "near one core", "severity": "warning", "category": "cpu",
                                                                      "target": "deployment/lab/risk-scorer", "summary": UNSAFE,
@@ -177,7 +186,18 @@ def team_fixture():
     return {"team": {"profile": "cerebras", "error": None, "agents": [{"name": n, **{k: a[k] for k in ("title", "role", "size", "label", "model")}}
                                                                        for n, a in agents.items()],
                      "rules": [{"file": "agents/rules/platform.txt", "text": "- risk-scorer needs all 3 cores"}]},
-            "run": run, "runs": [], "auto": True, "prs": True, "pending": None}
+            "run": run, "runs": [{"id": run["id"], "trigger": run["trigger"], "state": "done", "started_at": at(0)},
+                                 {"id": "20261027-090000", "trigger": "manual", "state": "done", "started_at": "2026-10-27T09:00:00+00:00"}],
+            "auto": True, "prs": True, "pending": None}
+
+
+def older_run_fixture():
+    run = copy.deepcopy(team_fixture()["run"])
+    run.update(id="20261027-090000", trigger="manual", started_at="2026-10-27T09:00:00+00:00", finished_at="2026-10-27T09:00:20+00:00",
+               rejected=[], diagnosis=None, executor=None, state="failed", error="Thinker: the model call failed")
+    run["agents"]["thinker"].update(state="failed", error="HTTP 503")
+    run["agents"]["executor"].update(state="queued")
+    return run
 
 
 def ring_fixture():
@@ -577,16 +597,129 @@ def run(args):
                     expect(page.locator("#team-flow .agent")).to_have_count(6)
                     page.wait_for_function("document.fonts.status === 'loaded'")
                     closed = height()
-                    page.evaluate("document.querySelector('#btn-side').style.display = 'none'")
-                    assert height() == closed, (width, "the button adds a row", closed, height())
-                    page.evaluate("document.querySelector('#btn-side').removeAttribute('style')")
+                    page.evaluate("document.querySelectorAll('#btn-side, #btn-chat').forEach(b => b.style.display = 'none')")
+                    assert height() == closed, (width, "the panel buttons add a row", closed, height())
+                    page.evaluate("document.querySelectorAll('#btn-side, #btn-chat').forEach(b => b.removeAttribute('style'))")
                     if width > 600:
                         page.locator("#btn-side").click()
+                        if page.locator("#chat").is_hidden():
+                            page.locator("#btn-chat").click()
                         expect(page.locator("#txside")).to_be_visible()
-                        assert height() == closed, (width, "the open panel wraps the header", closed, height())
+                        expect(page.locator("#chat")).to_be_visible()
+                        assert height() == closed, (width, "the open panels wrap the header", closed, height())
                         page.locator("#txs-x").click()
+                        page.locator("#chat-x").click()
 
             scenario("header-keeps-its-rows", header_keeps_its_rows)
+
+            def agent_chat(page, mock):
+                # The left sidebar: what each agent handed the next in the run, beside every view, open by default when wide.
+                think = (RUN_AT + timedelta(seconds=3)).timestamp()
+                mock.ring = ring_fixture() + [{"seq": 10, "ts": think, "stream": "agent/thinker", "text": "  ⋯ Only one core is busy: the GIL."},
+                                              {"seq": 11, "ts": think - 3600, "stream": "agent/thinker", "text": "  ⋯ an older run's thought"}]
+                page.goto(url + "#demo")
+                log = page.locator("#chat-log")
+                expect(page.locator("#chat")).to_be_visible()
+                expect(page.locator("#btn-chat")).to_have_attribute("aria-pressed", "true")
+                expect(log.locator(".msg").first).to_contain_text("Alert ContainerCPUBusy fired")
+                promql = log.locator('[data-msg="sub:promql"]')
+                expect(promql).to_contain_text("to Thinker")
+                expect(promql).to_contain_text("near one core")
+                expect(promql).to_contain_text(UNSAFE)  # model text is shown as text
+                expect(log.locator('[data-msg="guard:think"]')).to_contain_text("SKU 'X99' is not in the catalog")
+                expect(log.locator('[data-msg="think"]')).to_contain_text("to Executor")
+                expect(log.locator('[data-msg="think"]')).to_contain_text("code change deployment/lab/risk-scorer")
+                expect(log.locator('[data-msg="exec"]')).to_contain_text("Committed “Use processes”")
+                expect(log.locator('[data-msg="exec"]')).to_contain_text("agents/20261028-115709-risk-scorer-cpu")
+                expect(log.locator(".msg").last).to_contain_text("Run done in 6 s")
+                order = log.locator(".msg").evaluate_all("els => els.map(e => e.dataset.msg)")
+                assert order.index("guard:think") < order.index("think") < order.index("exec") < order.index("end"), order
+                why = log.locator('[data-msg="think"] .msg-why')
+                why.locator("summary").click()
+                expect(why.locator("pre")).to_have_text("Only one core is busy: the GIL.")  # this run's window only
+                chat, demo = page.locator("#chat").bounding_box(), page.locator("#demo").bounding_box()
+                assert chat["x"] + chat["width"] <= demo["x"] + 1, (chat, demo)  # beside the view, not over it
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                assert page.locator("img").count() == 0 and not page.evaluate("window.__untrusted_html_executed")
+                page.goto(url + "#dashboard")  # the chat keeps the team's state polled on FinOps too
+                n = sum(1 for path, _ in mock.requests if path == "/api/agents")
+                page.wait_for_timeout(6500)
+                assert sum(1 for path, _ in mock.requests if path == "/api/agents") > n, "the chat went stale on FinOps"
+                log.locator('[data-msg="sub:promql"] .msg-who').click()  # the sender opens its own report
+                expect(page.locator("#agents")).to_be_visible()
+                expect(page.locator('#team-flow [data-agent="promql"]')).to_have_attribute("aria-pressed", "true")
+                page.locator("#chat-pick").select_option("20261027-090000")
+                expect(log.locator('[data-msg="think"]')).to_contain_text("I couldn't decide: HTTP 503")
+                expect(log.locator(".msg").last).to_contain_text("Run failed")
+                page.locator("#chat-pick").select_option("")
+                expect(log.locator('[data-msg="exec"]')).to_be_visible()
+                page.locator("#chat-x").click()
+                expect(page.locator("#chat")).to_be_hidden()
+                assert page.evaluate("getComputedStyle(document.body).paddingLeft") == "0px"
+                page.reload()  # closing it is remembered
+                expect(page.locator("#team-flow .agent")).to_have_count(6)
+                expect(page.locator("#chat")).to_be_hidden()
+                page.locator("#btn-chat").click()
+                expect(page.locator("#chat")).to_be_visible()
+                assert page.locator("#chat input, #chat textarea, #chat [contenteditable]").count() == 0
+
+            scenario("agent-chat-beside-every-view", agent_chat)
+
+            def agent_chat_live(page, mock):
+                run = mock.team["run"]
+                run.update(state="running", finished_at=None, diagnosis=None, executor=None, rejected=[])
+                run["agents"]["thinker"].update(state="running", ms=None)
+                run["agents"]["executor"].update(state="queued", ms=None)
+                mock.team["pending"] = None
+                page.goto(url + "#lab")
+                log = page.locator("#chat-log")
+                expect(log.locator('[data-msg="typing:thinker"]')).to_contain_text("Thinker is deciding what to do")
+                expect(log.locator('[data-msg="sub:security"]')).to_be_visible()
+                assert log.locator('[data-msg="think"], [data-msg="end"]').count() == 0
+                run["agents"]["thinker"].update(state="done", ms=1500)
+                run["diagnosis"] = team_fixture()["run"]["diagnosis"]
+                run["agents"]["executor"].update(state="running")
+                expect(log.locator('[data-msg="typing:executor"]')).to_contain_text("Executor is writing the change", timeout=10000)
+                expect(log.locator('[data-msg="think"]')).to_be_visible()
+                assert log.evaluate("el => el.scrollHeight - el.scrollTop - el.clientHeight") < 48, "a new message is out of view"
+
+            scenario("agent-chat-live-run", agent_chat_live)
+
+            def agent_chat_tablet(page, mock):
+                page.goto(url + "#agents")
+                expect(page.locator("#team-flow .agent")).to_have_count(6)
+                expect(page.locator("#chat")).to_be_hidden()  # closed by default when there's no room beside the view
+                page.locator("#btn-chat").click()
+                expect(page.locator('#chat-log [data-msg="exec"]')).to_be_visible()
+                assert page.evaluate("getComputedStyle(document.body).paddingLeft") == "0px"  # over the view, not beside it
+                page.locator("#chat-log").focus()
+                page.keyboard.press("Escape")
+                expect(page.locator("#chat")).to_be_hidden()
+                expect(page.locator("#btn-chat")).to_be_focused()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+            scenario("agent-chat-tablet-width", agent_chat_tablet, width=768)
+
+            def agent_chat_phone(page, mock):
+                page.goto(url + "#agents")
+                expect(page.locator("#btn-chat")).to_be_hidden()  # the phone header has no room for it
+                page.locator("#team-runbar [data-chat]").click()
+                expect(page.locator('#chat-log [data-msg="exec"]')).to_be_visible()
+                assert page.locator("#chat").bounding_box()["width"] <= 390 - 40
+                page.locator("#chat-x").click()
+                expect(page.locator("#chat")).to_be_hidden()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+            scenario("agent-chat-phone-width", agent_chat_phone, width=390)
+
+            def agent_chat_empty(page, mock):
+                mock.team.update(run=None, runs=[])
+                page.goto(url + "#demo")
+                expect(page.locator("#chat-log")).to_contain_text("No team run yet")
+                page.locator("#chat-run").click()
+                assert [b for path, b in mock.requests if path == "/api/agents/run" and b] == [{"trigger": "manual"}]
+
+            scenario("agent-chat-empty", agent_chat_empty)
 
             def plan_shown_is_plan_applied(page, mock):
                 # Review F02: a failed history refresh after Analyze left the old plan on screen while Apply sent the new run.

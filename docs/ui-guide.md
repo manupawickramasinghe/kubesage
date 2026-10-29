@@ -22,6 +22,8 @@ reload or a shared link keeps the view.
 | **tmux** | a read-only mirror of every terminal stream, for following the agents as they work |
 
 Below 900 px the tabs shorten to **Demo · FinOps · Agents · Lab · tmux**; on a phone they get a row of their own.
+Two panels can sit beside any view: the **Agent chat** on the left (see [Agent chat](#agent-chat)) and the **tmux
+panel** on the right (see [tmux](#tmux)). The header buttons with those names open and close them.
 
 ## Presenting the demo
 
@@ -261,7 +263,7 @@ fix. [agents.md](agents.md) explains the agents, models and rules behind it.
   On the right, badges show running test cases with their pod phases and restarts, and the lab alerts firing in
   Alertmanager.
 - The **run bar**: the last run's state, id, how and when it started, how long it took, what it cost, and
-  **Follow in tmux**.
+  **Agent chat** (opens the sidebar) and **Follow in tmux**.
 - The **team diagram**, left to right: *1 · Sub-agents collect* (four cards, small model) → *2 · Thinker decides*
   (large) → *3 · Executor changes* (medium). Each card shows its model, signals or findings, time and cost, and a
   light: violet while it works, green when done, red on error. An arrow's dashes move while the next agent works.
@@ -272,6 +274,30 @@ fix. [agents.md](agents.md) explains the agents, models and rules behind it.
 - Change buttons: **Dry-run apply** (`kubectl apply --dry-run=server`), **Apply to cluster** (asks first; lab
   namespace only; Terraform changes are never applied), **Open pull request** (only with `--agent-prs`).
 - **Custom rules**: the `agents/rules/` files the Thinker and Executor follow, read-only here.
+
+### Agent chat
+
+The sidebar on the left tells a team run as the messages its agents hand each other, in the order they happened:
+- **KubeSage → the sub-agents**: why the run started (the alert, or by hand) and who collects evidence.
+- **Each sub-agent → Thinker**: its report summary and findings (severity, title, target), with the signals it
+  collected, its model, time and cost.
+- **KubeSage → an agent**, in an amber outline: what the guardrails refused. A finding that cites no signal is
+  dropped before the Thinker sees it; a Thinker action that fails a check is refused, and in live mode sent back to
+  the Thinker once with the reasons; an Executor edit that breaks the policy is left out of the commit.
+- **Thinker → Executor**: the diagnosis, its issues with severity and confidence, and the plan (each action's id,
+  type and target).
+- **Executor → Reviewer**: the commit title, branch and changed files, and what it left for a person.
+  **Review the change** opens it on the Agent team view.
+- **Reviewer → the cluster**: an Apply, when someone pressed it. A grey pill ends the run with its time and cost.
+
+While a run is going, *Thinker is deciding what to do…* (and the like) shows who is working. **How it reasoned**
+under a message opens that agent's reasoning as the model returned it: the last 40 lines, taken from the agent's
+lines in the RAM ring, so it is missing once the ring has wrapped past that run. Select an agent's name to open its
+report on the Agent team view. The dropdown at the top picks an earlier run; **Latest** follows new runs.
+
+The chat opens by default on screens at least 1280 px wide; the browser remembers when you close it. Drag its right
+edge to make it wider (or focus the edge and use ← →). On a tablet it slides over the view (Esc closes it); on a phone,
+open it with **Agent chat** in the Agent team view's run bar. It is read-only, like the tmux mirror: it has no input.
 
 ## Under the hood
 

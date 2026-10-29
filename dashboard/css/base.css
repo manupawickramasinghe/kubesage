@@ -50,7 +50,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--
 /* Header */
 header.top { position: sticky; top: 0; z-index: 10; container-type: inline-size; border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.top-inner { max-width: 1200px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.top-inner { max-width: 1280px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -.01em; margin-right: 4px; }
 .brand .ic { width: 22px; height: 22px; }
 .brand span { color: var(--muted); font-weight: 400; }
@@ -94,6 +94,13 @@ body.busy .progress { opacity: 1; animation: pan 1.3s linear infinite; }
 
 /* Layout */
 main { max-width: 1200px; margin: 0 auto; padding: 0 16px 72px; }
+/* The panels beside the views (agent chat on the left, tmux on the right) hang under the header, which keeps the
+   window's full width. On a wide screen the views make room for them: --pl and --pr are their widths. */
+:root { --top: 59px; --pl: 0px; --pr: 0px; }
+@media (min-width: 901px) {
+  body { padding-left: var(--pl); padding-right: var(--pr); }
+  header.top { margin-left: calc(-1 * var(--pl)); margin-right: calc(-1 * var(--pr)); }
+}
 [data-panel]:focus { outline: none; }  /* a view is focused when the URL names it; the ring would frame the whole page */
 .hero { padding: 52px 0 8px; }
 .eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; font-size: 12.5px; color: var(--muted); }
@@ -159,10 +166,11 @@ h2 { margin: 0; font: 400 28px/1.1 var(--serif); letter-spacing: -.01em; }
 .viewtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .vt-short { display: none; }
 @media (max-width: 900px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
-  .top-inner { column-gap: 8px; } .actions { gap: 4px; } .actions .btn-icon, #btn-side { width: 32px; padding: 0; } }
-/* The header's own width decides too: the tmux side panel narrows the page without narrowing the window. */
-@container (max-width: 1080px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
-  #btn-side { padding: 0 8px; } #btn-side span { display: none; } }
+  .top-inner { column-gap: 8px; } .actions { gap: 4px; } .actions .btn-icon, #btn-side, #btn-chat { width: 32px; padding: 0; }
+  .mode-llm { display: none; } .viewtab { padding: 0 9px; } }
+/* The header's own width decides too, so it stays one row with every button in it. */
+@container (max-width: 1240px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
+  #btn-side, #btn-chat { padding: 0 8px; } #btn-side span, #btn-chat span { display: none; } }
 @media (max-width: 600px) {
   .brand span { display: none; }
   .top-inner { gap: 8px; }
@@ -176,7 +184,7 @@ h2 { margin: 0; font: 400 28px/1.1 var(--serif); letter-spacing: -.01em; }
 }
 
 /* Toast: the message of an action whose own message area is in a view that isn't open */
-.toast { position: fixed; z-index: 45; top: 72px; right: 16px; display: flex; align-items: start; gap: 10px;
+.toast { position: fixed; z-index: 45; top: calc(var(--top) + 12px); right: calc(var(--pr) + 16px); display: flex; align-items: start; gap: 10px;
   width: min(440px, calc(100% - 32px)); padding: 12px 12px 12px 14px; border: 1px solid var(--border); border-radius: 10px;
   background: var(--card); box-shadow: 0 12px 32px rgba(16, 16, 14, .16); font-size: 13.5px; overflow-wrap: anywhere; }
 .toast[data-kind="err"] { border-color: var(--crit); }

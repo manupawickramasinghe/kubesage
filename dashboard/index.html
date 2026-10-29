@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="css/lab.css">
 <link rel="stylesheet" href="css/agents.css">
 <link rel="stylesheet" href="css/tmux.css">
+<link rel="stylesheet" href="css/chat.css">
 <link rel="stylesheet" href="css/demo.css">
 </head>
 <body>
@@ -30,6 +31,8 @@
       <button id="btn-gitops" class="btn btn-outline" data-act hidden></button>
       <button id="btn-reset" class="btn btn-ghost" data-act
         title="Put the demo back in its oversized 'before' state: big requests, every workload on the 8600G"></button>
+      <button id="btn-chat" class="btn btn-ghost" aria-controls="chat" aria-pressed="false"
+        aria-label="Agent chat beside every view" title="Show what the agents tell each other"></button>
       <button id="btn-side" class="btn btn-ghost" aria-controls="txside" aria-pressed="false"
         aria-label="tmux panel beside every view" title="Show tmux beside every view"></button>
       <button id="btn-theme" class="btn btn-ghost btn-icon" aria-label="Toggle dark mode"></button>
@@ -283,6 +286,17 @@
       <span id="tx-clock"></span></div>
   </section>
 </div>
+<!-- What the agents hand each other in a team run, as a conversation; drag its right edge to resize. -->
+<aside class="chat" id="chat" aria-labelledby="chat-title" hidden>
+  <div class="chat-grip" id="chat-grip" role="separator" aria-orientation="vertical" aria-label="Resize the agent chat"
+    aria-valuemin="280" tabindex="0"></div>
+  <div class="chat-top">
+    <div><h2 id="chat-title">Agent chat</h2><p>What the agents tell each other in a team run</p></div>
+    <button class="btn btn-ghost btn-icon btn-sm" id="chat-x" aria-label="Close the agent chat"></button>
+  </div>
+  <div class="chat-run"><select id="chat-pick" aria-label="Team run to show"></select><span id="chat-stat"></span></div>
+  <ol class="chat-log" id="chat-log" tabindex="0" aria-label="Messages"></ol>
+</aside>
 <!-- The same mirror beside the other views, one window at a time; drag its left edge to resize. -->
 <aside class="tmux txside" id="txside" aria-label="tmux beside this view" hidden>
   <div class="txs-grip" id="txs-grip" role="separator" aria-orientation="vertical" aria-label="Resize the tmux panel"
@@ -323,6 +337,7 @@
 <script src="js/lab.js"></script>
 <script src="js/agents.js"></script>
 <script src="js/tmux.js"></script>
+<script src="js/chat.js"></script>
 <script src="js/demo.js"></script>
 <script src="js/main.js"></script>
 </body>
