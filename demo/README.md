@@ -5,7 +5,7 @@ rebuild the video.
 
 <a href="video/kubesage-demo.mp4"><img src="video/poster.png" alt="Play the KubeSage demo video: the agent team after its run, with the agent chat and the tmux panel" width="100%"></a>
 
-**[▶ Watch the demo video](video/kubesage-demo.mp4)**: 4 min 22 s, 1600×900, narrated, with English subtitles
+**[▶ Watch the demo video](video/kubesage-demo.mp4)**: 4 min 16 s, 1600×900, narrated (Kokoro voice), with English subtitles
 ([`kubesage-demo.srt`](video/kubesage-demo.srt)).
 
 ## What the video shows
@@ -16,17 +16,17 @@ the step; the voice-over explains what the numbers mean.
 | time | chapter | what happens |
 |---|---|---|
 | 0:00 | Title | KubeSage, and what this video is |
-| 0:15 | The pitch | Two stories: wasted capacity, and something that breaks |
+| 0:16 | The pitch | Two stories: wasted capacity, and something that breaks |
 | 0:35 | 1 · A real cluster | The desktop and the laptop; every pod a glass box as tall as its CPU request |
 | 0:57 | 2 · Find the waste | Analyze: $280.32 → $246.74 a month at list prices, found for $0.0111 of model calls |
-| 1:21 | 3 · How it decided | The cost-aware router and the guardrails |
-| 1:39 | 4 · Apply the plan | Right-sized pods move to the laptop; report-worker scales to zero |
-| 1:59 | 5 · Prove it still scales | 60 requests/s at checkout-web; KEDA scales it out to six pods |
-| 2:35 | 6 · Break something | The memory test case: ledger-cache is OOM-killed and `ContainerOOMKilled` fires |
-| 3:04 | 7 · The team investigates | Four sub-agents, the Thinker and the Executor, with the agent chat and the tmux panel |
-| 3:32 | 8 · Ship the fix | The commit and its diff, then a dry-run apply |
-| 4:00 | 9 · Why it matters | Cost, evidence and a person in charge |
-| 4:15 | End | The repository |
+| 1:20 | 3 · How it decided | The cost-aware router and the guardrails |
+| 1:38 | 4 · Apply the plan | Right-sized pods move to the laptop; report-worker scales to zero |
+| 1:58 | 5 · Prove it still scales | 60 requests/s at checkout-web; KEDA scales it out to six pods |
+| 2:34 | 6 · Break something | The memory test case: ledger-cache is OOM-killed and `ContainerOOMKilled` fires |
+| 3:01 | 7 · The team investigates | Four sub-agents, the Thinker and the Executor, with the agent chat and the tmux panel |
+| 3:27 | 8 · Ship the fix | The commit and its diff, then a dry-run apply |
+| 3:54 | 9 · Why it matters | Cost, evidence and a person in charge |
+| 4:09 | End | The repository |
 
 ## What is real, and what is replayed
 
@@ -65,8 +65,8 @@ read-only against the repository by **Codex**. Its corrections are in the voice-
 demo/tools/make_video.sh                  # ~5 minutes: voice-over, recording, encoding
 ```
 
-`make_video.sh` installs [Piper](https://github.com/OHF-Voice/piper1-gpl) (offline text-to-speech) into
-`demo/tools/build/`, which git ignores. It then synthesises [`tools/narration.json`](tools/narration.json), records
+`make_video.sh` installs [Kokoro](https://github.com/thewh1teagle/kokoro-onnx), an open text-to-speech model that
+runs locally (voice `af_heart`), into `demo/tools/build/`, which git ignores. It then synthesises [`tools/narration.json`](tools/narration.json), records
 the dashboard against [`tools/sim_server.py`](tools/sim_server.py) with Chrome's screencast, and encodes H.264 with
 the voice and subtitles. To change what is said, edit `narration.json`; each scene is held for as long as its
 narration takes. To record against new data, replace the files in [`tools/data/`](tools/data) with fresh GETs from

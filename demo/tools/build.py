@@ -33,7 +33,8 @@ lines.append(f"file '{WORK / 'frames' / fr[-1][1]}'")
 (WORK / "concat.txt").write_text("\n".join(lines) + "\n")
 
 # Audio: one track, each scene's clip at its scene's start.
-rate = 22050
+with wave.open(str(WORK / "audio" / f"{rec['scenes'][0]['id']}.wav")) as w:
+    rate = w.getframerate()  # the voice's own rate: Kokoro 24 kHz
 track = bytearray(int((total + 1) * rate) * 2)
 for s in rec["scenes"]:
     clip = WORK / "audio" / f"{s['id']}.wav"
@@ -71,6 +72,7 @@ subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "
                 "-i", str(WORK / "voice.wav"), "-i", str(OUT.with_suffix(".srt")),
                 "-map", "0:v", "-map", "1:a", "-map", "2:s",
                 "-vf", "fps=30,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-tune", "stillimage",
+                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",  # online-video speech level, whatever the voice's own
                 "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-c:s", "mov_text", "-metadata:s:s:0", "language=eng",
                 "-metadata", "title=KubeSage: a replay of the demo on a two-machine cluster",
                 "-movflags", "+faststart", "-t", f"{total:.2f}", str(OUT)], check=True)
