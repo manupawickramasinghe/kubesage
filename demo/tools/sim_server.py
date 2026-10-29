@@ -1,10 +1,10 @@
 """Replay server for the KubeSage demo video.
 
-Serves the real dashboard/ and answers its API from data recorded on the live cluster on 29 October 2026: the latest
-FinOps analysis and its trace, the cluster as it was, team run 20261029-034845 and the ring lines it wrote. The state
-moves on as the page presses its buttons (Analyze, Apply, Send traffic, Start test, Dry-run apply). Nothing here
-talks to a cluster or a model. Traffic replays the recorded 60 req/s run of 2026-10-27 (docs/testing.md) six times
-faster.
+Serves the real dashboard/ (and the video's slides under /demo/) and answers the dashboard's API from data recorded on
+the lab cluster on 29 October 2026: the latest FinOps analysis and its trace, the cluster as it was, team run
+20261029-034845 and the ring lines it wrote, shown on the hypothetical cluster of scenario.py. The state moves on as the
+page presses its buttons (Analyze, Apply, Send traffic, Start test, Dry-run apply). Nothing here talks to a cluster or
+a model. Traffic replays the recorded 60 req/s run of 2026-10-27 (docs/testing.md) six times faster.
 """
 from __future__ import annotations
 
@@ -15,16 +15,23 @@ import time
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
+
+import scenario
 
 DATA = Path(__file__).parent / "data"
-DASHBOARD = Path(__file__).resolve().parents[2] / "dashboard"
+REPO = Path(__file__).resolve().parents[2]
+DASHBOARD, DEMO = REPO / "dashboard", REPO / "demo"
 TRAFFIC_S = 30          # the recorded 180 s run, shown in 30 s
 SPEED = 180 / TRAFFIC_S
+ANALYZE_S = 3           # a live analysis takes a few seconds: statistics, one triage call, then more reasoning
+ALERT_S = 1             # on the cluster the alert takes about a minute
+TEAM_WAIT_S = 0.5       # and the team then waits 45 s for related alerts
+APPLY_SPEED = 2         # Apply's rollout, twice as fast as the recorded one
 
 
 def load(name):
-    return json.loads((DATA / name).read_text())
+    return scenario.apply(json.loads((DATA / name).read_text()))
 
 
 def iso(t: float) -> str:
@@ -47,7 +54,7 @@ class Sim:
         self.team_info, self.final = agents["team"], agents["run"]
         self.t0 = epoch(self.final["started_at"])
         self.tcs = load("testcases.json")
-        self.run_lines = load("run_lines.json")
+        self.run_lines = [x for x in load("run_lines.json") if scenario.keep(x)]
         tc = load("ring_testcase_memory.json")["records"]
         self.ledger_lines = [x["text"] for x in tc if "ledger resident" in x["text"]][:5]
         self.alert_text = next(x["text"] for x in load("ring_alerts.json")["records"] if "ContainerOOMKilled" in x["text"])
@@ -105,7 +112,7 @@ class Sim:
         plan.update(state="pending", matched=0, ready=False)
         if self.apply_at is None:
             return c
-        t = now - self.apply_at
+        t = (now - self.apply_at) * APPLY_SPEED
         old = desk["pods"]
         desk["pods"] = [] if t >= 7 else [dict(p, phase="Terminating") for p in old] if t >= 3 else old
         tr = self.traffic_state(now)
@@ -158,10 +165,12 @@ class Sim:
 
     # ---- the agent team ----
     def tick(self, now):
-        if self.tc_at is not None and self.alert_at is None and now - self.tc_at >= 6:
+        if self.tc_at is not None and self.alert_at is None and now - self.tc_at >= ALERT_S:
             self.alert_at = now
             self.emit(now, "alerts", self.alert_text)
-            self.emit(now, "agent/team", "alert ContainerOOMKilled fired: the team runs in 45 s")
+            self.emit(now, "agent/team", f"alert ContainerOOMKilled fired: the team runs in {TEAM_WAIT_S:g} s (45 s on the cluster)")
+            if self.auto:
+                self.pending_until = now + TEAM_WAIT_S
         if self.pending_until is not None and now >= self.pending_until and self.run_at is None:
             self.start_run(now)
 
@@ -275,7 +284,7 @@ class Sim:
     def post(self, path, body):
         now = time.time()
         if path == "/api/analyze":
-            time.sleep(6)  # a live analysis takes a few seconds: statistics, one triage call, then the bigger models
+            time.sleep(ANALYZE_S)
             with self.lock:
                 self.analyzed = True
             return 200, self.report
@@ -322,7 +331,7 @@ class Sim:
                     {"cmd": f"kubectl apply -f gitops/apps/namespace.yaml{' --dry-run=server' if dry else ''}", "ok": True,
                      "output": "namespace/lab configured (server dry run)"}],
                     "skipped": [{"path": "gitops/infra/nodepools.tf",
-                                 "reason": "Terraform: needs `terraform apply` against Azure; the home lab can't change hardware"}]}
+                                 "reason": "Terraform: a node-pool proposal; it needs a separate `terraform apply`"}]}
         return 404, {"error": f"not in the replay: {path}"}
 
 
@@ -332,6 +341,13 @@ SIM = Sim()
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(DASHBOARD), **kw)
+
+    def translate_path(self, path):
+        url = unquote(urlsplit(path).path)
+        if url.startswith("/demo/"):  # the slides and their pictures
+            target = (REPO / url.lstrip("/")).resolve()
+            return str(target) if target.is_relative_to(DEMO) else str(DEMO / "missing")
+        return super().translate_path(path)
 
     def log_message(self, *a):
         pass

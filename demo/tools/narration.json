@@ -1,13 +1,50 @@
 [
- {"id": "title", "narration": "This is KubeSage, an AI SRE team for Kubernetes. It runs on a real two-machine cluster: a desktop and a laptop. This video replays runs recorded on that cluster, step by step, without changing anything."},
- {"id": "pitch", "narration": "KubeSage tells two stories. First, the cluster wastes money. KubeSage finds the waste and fixes it. Second, something breaks. A team of AI agents finds the cause and writes the fix as a git commit. The agent chat on the left shows how the agents hand their work to each other."},
- {"id": "cluster", "narration": "Each slab is a real machine, standing in for a priced cloud VM. Each glass box is a pod, as tall as the CPU it reserves. The glowing core inside is the CPU it actually uses. Tall glass around a small core means paying for capacity nobody uses. Right now, every demo pod sits on the desktop."},
- {"id": "analyze", "narration": "Analyze reads thirty days of history: a synthetic backfill, plus live samples from this cluster. Statistics cost nothing. One low-effort model call triages every workload, and only the harder ones get more reasoning. This analysis found thirty-three dollars a month in node-pool savings, at list prices, for about one cent of model calls."},
- {"id": "decided", "narration": "This is the router at work. Healthy workloads stop after triage. Routine ones get medium reasoning, and complex ones, like a memory leak, get high reasoning. Guardrails then hold every request above the usage that was measured, and keep the scaling settings within bounds."},
- {"id": "apply", "narration": "Apply sends the plan to the cluster. Requests are right-sized, and KEDA autoscaling is added. The pods move to the laptop, which stands in for a cheaper machine type, as a real Apply did on the twenty-eighth of October. Meanwhile, report-worker scales to zero until its nightly batch window."},
- {"id": "traffic", "narration": "Now, real traffic: sixty requests a second at checkout-web. These numbers come from a run recorded on the twenty-seventh of October, shown six times faster. CPU climbs past the seventy percent target, and KEDA scales checkout-web out to six pods. While new pods started, the sampled intervals showed twenty-three failed requests. After that: zero errors, and a p ninety-five of one hundred seventy to two hundred forty milliseconds."},
- {"id": "break", "narration": "Act two: something breaks. The memory test case starts ledger-cache on the laptop. It tries to hold seven hundred megabytes under a five hundred and twelve megabyte limit, so it is killed, and restarts. The alert rule fires ContainerOOMKilled. With auto-run on, the agent team starts by itself. On the live cluster it first waits forty-five seconds for related alerts. The run that follows is the real one, recorded for this alert."},
- {"id": "investigate", "narration": "Four sub-agents on a small model gather evidence in parallel: metrics, the Kubernetes API, Alertmanager, and security posture. Every finding must cite a signal they collected, or it is dropped. Then the Thinker, a large model, reads the findings and the platform rules. It finds the root cause, and plans four actions. The chat on the left rebuilds this run's reports and plan as hand-offs between the agents."},
- {"id": "ship", "narration": "The Executor writes the fix as a git commit on its own branch: a bigger memory limit, two security fixes, and a proposal for a memory-optimised node pool, which needs a separate Terraform apply. Its edits are bound to their actions, and the Kubernetes changes pass policy checks. Sixteen seconds and two cents, from the start of the run to this commit. A person reads the diff, dry-runs it, and decides whether to apply it, or open a pull request."},
- {"id": "why", "narration": "This incident cost about two cents in model calls. Every finding must cite collected evidence, and agent fixes become commits that a person reviews. A person decides what reaches the cluster. That is KubeSage."}
+ {
+  "id": "title",
+  "narration": "This is KubeSage, an AI SRE team for Kubernetes. Here is how it works, in under three minutes."
+ },
+ {
+  "id": "summary",
+  "narration": "First, the summary. KubeSage finds capacity you pay for but never use, and right-sizes it within guardrails. When something breaks, a team of AI agents gathers evidence, finds the cause, and writes the fix. Agent fixes become git commits that a person reviews before applying."
+ },
+ {
+  "id": "server",
+  "narration": "Picture a hypothetical online store on Azure Kubernetes. Five services share one general-purpose node at two hundred eighty dollars a month. Some requests were set high, just in case: two services reserve two cores each and use almost none. A cheaper compute-optimised node stands ready. Tonight, a ledger cache ships with too little memory."
+ },
+ {
+  "id": "finops",
+  "narration": "To find waste, KubeSage reads thirty days of usage. Statistics are free, and healthy workloads stop after a quick triage. Only harder cases get more model reasoning. Guardrails floor requests from history and keep scaling within bounds. The result is a plan for requests, autoscaling, and the node pool."
+ },
+ {
+  "id": "team",
+  "narration": "When an alert fires, four small agents gather evidence in parallel: metrics, system resources, alerts, and security. A larger Thinker model reads their findings and your team's plain English rules to find the root cause. An Executor writes the fix. Policy checks limit each edit's scope and type, before the commit."
+ },
+ {
+  "id": "d-cluster",
+  "narration": "Here is the KubeSage dashboard on that simulated cluster. Each glass box is a pod, as tall as the CPU it reserves, filled as far as it is used."
+ },
+ {
+  "id": "d-analyze",
+  "narration": "Analyze finds that a cheaper node would save about thirty-four dollars a month, twelve percent. The model calls to find it cost about one cent."
+ },
+ {
+  "id": "d-apply",
+  "narration": "Apply moves the right-sized services to the cheaper node. Report-worker scales to zero outside its nightly window."
+ },
+ {
+  "id": "d-incident",
+  "narration": "Now the bad release ships. Ledger-cache needs more memory than its limit, so it is killed. The ContainerOOMKilled alert fires."
+ },
+ {
+  "id": "d-team",
+  "narration": "The team starts on its own. The four sub-agents report, the Thinker finds the cause, and the Executor writes the fix. The chat on the left shows each hand-off."
+ },
+ {
+  "id": "d-fix",
+  "narration": "The commit raises ledger-cache's memory, proposes a memory-optimised node pool, and adds two security fixes. Sixteen seconds, two cents. A person decides what ships."
+ },
+ {
+  "id": "close",
+  "narration": "That is KubeSage. It finds the waste, fixes what breaks, and leaves the decision to a person."
+ }
 ]

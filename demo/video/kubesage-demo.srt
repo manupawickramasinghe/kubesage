@@ -1,231 +1,155 @@
 1
-00:00:00,400 --> 00:00:03,972
+00:00:00,400 --> 00:00:03,811
 This is KubeSage, an AI SRE team for Kubernetes.
 
 2
-00:00:03,972 --> 00:00:06,800
-It runs on a real two-machine cluster:
+00:00:03,811 --> 00:00:07,010
+Here is how it works, in under three minutes.
 
 3
-00:00:06,800 --> 00:00:08,512
-a desktop and a laptop.
+00:00:08,413 --> 00:00:09,692
+First, the summary.
 
 4
-00:00:08,512 --> 00:00:15,210
-This video replays runs recorded on that cluster, step by step, without changing anything.
+00:00:09,692 --> 00:00:15,613
+KubeSage finds capacity you pay for but never use, and right-sizes it within guardrails.
 
 5
-00:00:16,513 --> 00:00:18,281
-KubeSage tells two stories.
+00:00:15,613 --> 00:00:22,140
+When something breaks, a team of AI agents gathers evidence, finds the cause, and writes the fix.
 
 6
-00:00:18,281 --> 00:00:20,377
-First, the cluster wastes money.
+00:00:22,140 --> 00:00:26,783
+Agent fixes become git commits that a person reviews before applying.
 
 7
-00:00:20,377 --> 00:00:22,866
-KubeSage finds the waste and fixes it.
+00:00:28,187 --> 00:00:31,750
+Picture a hypothetical online store on Azure Kubernetes.
 
 8
-00:00:22,866 --> 00:00:24,504
-Second, something breaks.
+00:00:31,750 --> 00:00:37,032
+Five services share one general-purpose node at two hundred eighty dollars a month.
 
 9
-00:00:24,504 --> 00:00:29,154
-A team of AI agents finds the cause and writes the fix as a git commit.
+00:00:37,032 --> 00:00:39,704
+Some requests were set high, just in case:
 
 10
-00:00:29,154 --> 00:00:34,263
-The agent chat on the left shows how the agents hand their work to each other.
+00:00:39,704 --> 00:00:43,268
+two services reserve two cores each and use almost none.
 
 11
-00:00:35,692 --> 00:00:40,307
-Each slab is a real machine, standing in for a priced cloud VM.
+00:00:43,268 --> 00:00:46,195
+A cheaper compute-optimised node stands ready.
 
 12
-00:00:40,307 --> 00:00:44,409
-Each glass box is a pod, as tall as the CPU it reserves.
+00:00:46,195 --> 00:00:49,567
+Tonight, a ledger cache ships with too little memory.
 
 13
-00:00:44,409 --> 00:00:48,218
-The glowing core inside is the CPU it actually uses.
+00:00:50,982 --> 00:00:54,388
+To find waste, KubeSage reads thirty days of usage.
 
 14
-00:00:48,218 --> 00:00:53,273
-Tall glass around a small core means paying for capacity nobody uses.
+00:00:54,388 --> 00:00:58,997
+Statistics are free, and healthy workloads stop after a quick triage.
 
 15
-00:00:53,273 --> 00:00:56,642
-Right now, every demo pod sits on the desktop.
+00:00:58,997 --> 00:01:01,868
+Only harder cases get more model reasoning.
 
 16
-00:00:57,864 --> 00:01:00,281
-Analyze reads thirty days of history:
+00:01:01,868 --> 00:01:06,544
+Guardrails floor requests from history and keep scaling within bounds.
 
 17
-00:01:00,281 --> 00:01:04,070
-a synthetic backfill, plus live samples from this cluster.
+00:01:06,544 --> 00:01:10,952
+The result is a plan for requests, autoscaling, and the node pool.
 
 18
-00:01:04,070 --> 00:01:05,638
-Statistics cost nothing.
+00:01:12,357 --> 00:01:16,733
+When an alert fires, four small agents gather evidence in parallel:
 
 19
-00:01:05,638 --> 00:01:11,779
-One low-effort model call triages every workload, and only the harder ones get more reasoning.
+00:01:16,733 --> 00:01:19,868
+metrics, system resources, alerts, and security.
 
 20
-00:01:11,779 --> 00:01:19,684
-This analysis found thirty-three dollars a month in node-pool savings, at list prices, for about one cent of model calls.
+00:01:19,868 --> 00:01:26,594
+A larger Thinker model reads their findings and your team's plain English rules to find the root cause.
 
 21
-00:01:20,909 --> 00:01:22,617
-This is the router at work.
+00:01:26,594 --> 00:01:28,357
+An Executor writes the fix.
 
 22
-00:01:22,617 --> 00:01:24,895
-Healthy workloads stop after triage.
+00:01:28,357 --> 00:01:32,667
+Policy checks limit each edit's scope and type, before the commit.
 
 23
-00:01:24,895 --> 00:01:30,716
-Routine ones get medium reasoning, and complex ones, like a memory leak, get high reasoning.
+00:01:34,874 --> 00:01:38,880
+Here is the KubeSage dashboard on that simulated cluster.
 
 24
-00:01:30,716 --> 00:01:37,929
-Guardrails then hold every request above the usage that was measured, and keep the scaling settings within bounds.
+00:01:38,880 --> 00:01:44,854
+Each glass box is a pod, as tall as the CPU it reserves, filled as far as it is used.
 
 25
-00:01:39,159 --> 00:01:41,452
-Apply sends the plan to the cluster.
+00:01:45,557 --> 00:01:51,210
+Analyze finds that a cheaper node would save about thirty-four dollars a month, twelve percent.
 
 26
-00:01:41,452 --> 00:01:45,020
-Requests are right-sized, and KEDA autoscaling is added.
+00:01:51,210 --> 00:01:54,007
+The model calls to find it cost about one cent.
 
 27
-00:01:45,020 --> 00:01:52,985
-The pods move to the laptop, which stands in for a cheaper machine type, as a real Apply did on the twenty-eighth of October.
+00:01:54,619 --> 00:01:58,226
+Apply moves the right-sized services to the cheaper node.
 
 28
-00:01:52,985 --> 00:01:57,509
-Meanwhile, report-worker scales to zero until its nightly batch window.
+00:01:58,226 --> 00:02:01,769
+Report-worker scales to zero outside its nightly window.
 
 29
-00:01:58,724 --> 00:01:59,810
-Now, real traffic:
+00:02:02,652 --> 00:02:04,456
+Now the bad release ships.
 
 30
-00:01:59,810 --> 00:02:02,224
-sixty requests a second at checkout-web.
+00:02:04,456 --> 00:02:08,825
+Ledger-cache needs more memory than its limit, so it is killed.
 
 31
-00:02:02,224 --> 00:02:08,018
-These numbers come from a run recorded on the twenty-seventh of October, shown six times faster.
+00:02:08,825 --> 00:02:11,252
+The ContainerOOMKilled alert fires.
 
 32
-00:02:08,018 --> 00:02:13,390
-CPU climbs past the seventy percent target, and KEDA scales checkout-web out to six pods.
+00:02:11,870 --> 00:02:13,531
+The team starts on its own.
 
 33
-00:02:13,390 --> 00:02:18,338
-While new pods started, the sampled intervals showed twenty-three failed requests.
+00:02:13,531 --> 00:02:19,007
+The four sub-agents report, the Thinker finds the cause, and the Executor writes the fix.
 
 34
-00:02:18,338 --> 00:02:19,002
-After that:
+00:02:19,007 --> 00:02:21,530
+The chat on the left shows each hand-off.
 
 35
-00:02:19,002 --> 00:02:24,434
-zero errors, and a p ninety-five of one hundred seventy to two hundred forty milliseconds.
+00:02:22,148 --> 00:02:29,682
+The commit raises ledger-cache's memory, proposes a memory-optimised node pool, and adds two security fixes.
 
 36
-00:02:34,823 --> 00:02:35,311
-Act two:
+00:02:29,682 --> 00:02:31,565
+Sixteen seconds, two cents.
 
 37
-00:02:35,311 --> 00:02:36,349
-something breaks.
+00:02:31,565 --> 00:02:33,518
+A person decides what ships.
 
 38
-00:02:36,349 --> 00:02:39,706
-The memory test case starts ledger-cache on the laptop.
+00:02:34,076 --> 00:02:35,106
+That is KubeSage.
 
 39
-00:02:39,706 --> 00:02:46,970
-It tries to hold seven hundred megabytes under a five hundred and twelve megabyte limit, so it is killed, and restarts.
-
-40
-00:02:46,970 --> 00:02:49,411
-The alert rule fires ContainerOOMKilled.
-
-41
-00:02:49,411 --> 00:02:52,463
-With auto-run on, the agent team starts by itself.
-
-42
-00:02:52,463 --> 00:02:56,919
-On the live cluster it first waits forty-five seconds for related alerts.
-
-43
-00:02:56,919 --> 00:03:00,703
-The run that follows is the real one, recorded for this alert.
-
-44
-00:03:01,920 --> 00:03:05,689
-Four sub-agents on a small model gather evidence in parallel:
-
-45
-00:03:05,689 --> 00:03:09,643
-metrics, the Kubernetes API, Alertmanager, and security posture.
-
-46
-00:03:09,643 --> 00:03:13,721
-Every finding must cite a signal they collected, or it is dropped.
-
-47
-00:03:13,721 --> 00:03:18,354
-Then the Thinker, a large model, reads the findings and the platform rules.
-
-48
-00:03:18,354 --> 00:03:21,320
-It finds the root cause, and plans four actions.
-
-49
-00:03:21,320 --> 00:03:26,880
-The chat on the left rebuilds this run's reports and plan as hand-offs between the agents.
-
-50
-00:03:28,160 --> 00:03:31,775
-The Executor writes the fix as a git commit on its own branch:
-
-51
-00:03:31,775 --> 00:03:39,413
-a bigger memory limit, two security fixes, and a proposal for a memory-optimised node pool, which needs a separate Terraform apply.
-
-52
-00:03:39,413 --> 00:03:44,311
-Its edits are bound to their actions, and the Kubernetes changes pass policy checks.
-
-53
-00:03:44,311 --> 00:03:48,509
-Sixteen seconds and two cents, from the start of the run to this commit.
-
-54
-00:03:48,509 --> 00:03:53,990
-A person reads the diff, dry-runs it, and decides whether to apply it, or open a pull request.
-
-55
-00:03:55,234 --> 00:03:58,583
-This incident cost about two cents in model calls.
-
-56
-00:03:58,583 --> 00:04:05,081
-Every finding must cite collected evidence, and agent fixes become commits that a person reviews.
-
-57
-00:04:05,081 --> 00:04:07,895
-A person decides what reaches the cluster.
-
-58
-00:04:07,895 --> 00:04:09,034
-That is KubeSage.
+00:02:35,106 --> 00:02:39,646
+It finds the waste, fixes what breaks, and leaves the decision to a person.

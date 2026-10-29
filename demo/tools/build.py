@@ -74,6 +74,6 @@ subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "
                 "-vf", "fps=30,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-tune", "stillimage",
                 "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",  # online-video speech level, whatever the voice's own
                 "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-c:s", "mov_text", "-metadata:s:s:0", "language=eng",
-                "-metadata", "title=KubeSage: a replay of the demo on a two-machine cluster",
+                "-metadata", "title=KubeSage: an AI SRE team for Kubernetes (simulated demo on a hypothetical cluster)",
                 "-movflags", "+faststart", "-t", f"{total:.2f}", str(OUT)], check=True)
 print(OUT, f"{total:.1f} s, {len(cues)} subtitle cues")

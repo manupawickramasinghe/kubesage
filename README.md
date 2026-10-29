@@ -51,9 +51,10 @@ Prices are Azure list prices: each real machine stands in for the cloud VM its `
 
 ### Demo video
 
-A narrated, four-minute walk through the dashboard's demo: right-sizing the cluster, then an incident the agent team
-diagnoses and fixes. It replays runs recorded on the real cluster. **[Watch it](demo/video/kubesage-demo.mp4)**; the
-[demo folder](demo/README.md) has the chapters, every screenshot, and how the video was made.
+A narrated video under three minutes. Slides first: the summary, a hypothetical customer cluster and how KubeSage works.
+Then one minute of the dashboard right-sizing that cluster and fixing an incident, simulated from runs recorded on the
+real cluster. **[Watch it](demo/video/kubesage-demo.mp4)**; the [demo folder](demo/README.md) has the chapters, the
+pictures made for it, every screenshot, and how the video was made.
 
 ## Why it's different
 
@@ -260,7 +261,7 @@ tests/               pytest suite and browser checks
 | [API](docs/api.md) | The HTTP API and `report.json` |
 | [Testing](docs/testing.md) | The test suite, browser checks and manual checks with their last results |
 | [Cleanup](docs/cleanup.md) | What `scripts/cleanup.sh` removes on each machine, and what it never touches |
-| [Demo](demo/README.md) | The narrated demo video, its chapters, every screenshot, and the tools that rebuild the video |
+| [Demo](demo/README.md) | The narrated demo video, its chapters, the slides and pictures made for it, every screenshot, and the tools that rebuild the video |
 | [Project review](docs/REVIEW_REPORT.md) | The 29 October review: validation results, the findings and their status |
 
 ## Testing
