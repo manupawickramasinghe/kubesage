@@ -78,7 +78,8 @@ function runBar(run) {
     <span>${esc(run.mode)} · ${esc(run.profile)}</span>${secs ? `<span class="num-v">${secs}</span>` : ""}
     <span class="num-v">${usd(run.cost_usd || 0)}</span>${run.error ? `<span style="color:var(--crit)">${esc(run.error)}</span>`
       : run.warning ? `<span>${esc(run.warning)}</span>` : ""}
-    <span class="sp"></span><button class="btn btn-ghost btn-sm" data-goto="tmux">Follow in tmux</button>`;
+    <span class="sp"></span><button class="btn btn-ghost btn-sm" data-chat>${icon("chat")}Agent chat</button>
+    <button class="btn btn-ghost btn-sm" data-goto="tmux">Follow in tmux</button>`;
 }
 
 function renderTeam() {
@@ -183,6 +184,7 @@ function renderTeamDetail(run, agents) {
 async function pollTeam() {
   try { team.data = await api("/api/agents"); } catch (e) { teamMsg(`agents: ${e.message}`, "err"); return; }
   if (!$("#team").hidden) renderTeam();
+  renderChat();
   renderTestcases();
   if (tx.loaded && JSON.stringify(txWindows().map((w) => w.panes.length)) !== tx.shape) renderTx();
   else if (tx.loaded) txStates();
@@ -255,7 +257,11 @@ function initTeam() {
     renderTeam();
   };
   $("#team-detail").onclick = (ev) => { const b = ev.target.closest("[data-exec]"); if (b) execAction(b.dataset.exec); };
-  $("#team-runbar").onclick = (ev) => { const b = ev.target.closest("[data-goto]"); if (b) location.hash = b.dataset.goto; };
+  $("#team-runbar").onclick = (ev) => {
+    if (ev.target.closest("[data-chat]")) { if (!chat.open) setChat(true); $("#chat-log").focus(); return; }
+    const b = ev.target.closest("[data-goto]");
+    if (b) location.hash = b.dataset.goto;
+  };
   $("#tx-range").onchange = (ev) => ($("#tx-save").href = `/api/ring/dump?minutes=${ev.currentTarget.value}`);
   $("#tx-pause").onclick = (ev) => {
     tx.paused = !tx.paused;

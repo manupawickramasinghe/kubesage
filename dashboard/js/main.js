@@ -21,12 +21,15 @@ function showView(next) {
   document.title = TITLES[next];
   $(".skip").href = PANELS[next];
   if (next === "lab") startLab(); else stopLab();
-  if (next !== "dashboard" || demo.on) startTeam(); else stopTeam();  // the demo's caption bar shows the team's state
+  syncTeam();
   syncTx();  // the tmux view, or the tmux panel beside this one
   if (next === "agents" && team.data) renderTeam();
   renderDemo();
   renderDock();
 }
+
+// The team's state feeds the Agent team view, the demo's caption bar and the agent chat beside every view.
+function syncTeam() { if (view !== "dashboard" || demo.on || chat.open) startTeam(); else stopTeam(); }
 
 function initViews() {
   $$(".viewtab").forEach((t) => {
@@ -39,6 +42,9 @@ function initViews() {
   });
   window.addEventListener("hashchange", () => { if (viewFromHash() !== view) showView(viewFromHash()); });
 }
+
+// The panels beside the views hang under the header, which takes more rows on a narrow screen.
+new ResizeObserver(() => document.documentElement.style.setProperty("--top", `${$("header.top").offsetHeight}px`)).observe($("header.top"));
 
 let laidOutAt = $("main").clientWidth;
 new ResizeObserver(() => {
@@ -53,7 +59,8 @@ new ResizeObserver(() => {
   try {
     config = await api("/api/config");
     const live = config.mode !== "mock";
-    $("#mode").innerHTML = `<span class="pulse-dot" style="--c:${live ? "var(--good)" : "var(--warn)"}"></span>${live ? "Live LLM" : "Mock LLM"}`;
+    $("#mode").innerHTML = `<span class="pulse-dot" style="--c:${live ? "var(--good)" : "var(--warn)"}"></span>${live ? "Live" : "Mock"}<span class="mode-llm"> LLM</span>`;
+    $("#mode").title = live ? "Live LLM: the agents call a real model" : "Mock LLM: deterministic stand-ins, no model calls";
     $("#btn-gitops").hidden = !config.gitops;
   } catch (e) { $("#mode").textContent = "Server unavailable"; log(e.message, "err"); notice("Cannot load server configuration. Check the KubeSage server connection.", "err"); }
   try {
@@ -71,5 +78,6 @@ initLab();
 initTeam();
 initDemo();
 initTx();
+initChat();
 initViews();
 showView(viewFromHash());

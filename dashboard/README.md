@@ -6,17 +6,19 @@ build step, no CDN. Files are read from disk on every request, so after an edit 
 | file | what it holds |
 |---|---|
 | `index.html` | the markup for all five views, the header and the demo caption bar |
-| `css/base.css` | colour tokens (light and dark), fonts, header and tabs, buttons, page layout |
+| `css/base.css` | colour tokens (light and dark), fonts, header and tabs, buttons, page layout and room for the side panels |
 | `css/finops.css` | FinOps: figures, the isometric cluster, inspector, charts, recommendations |
 | `css/agents.css` | Agent team: test cases, the sub-agent → Thinker → Executor diagram, diagnosis, diff |
 | `css/lab.css` | Under the hood: pipeline stages and the shell, journal and wire panes |
 | `css/tmux.css` | tmux: the read-only mirror of the RAM ring |
+| `css/chat.css` | the agent chat sidebar |
 | `css/demo.css` | Demo: the pitch, the run of show and the caption bar |
 | `js/core.js` | shared helpers and state: `$`, `esc`, `usd`, icons, `api()`, busy state, the activity log |
 | `js/finops.js` | the FinOps view and its three steps |
 | `js/lab.js` | Under the hood: pipeline stages, the read-only shell, journal and wire |
 | `js/agents.js` | the agent team: test cases, team runs, diagnosis and change |
 | `js/tmux.js` | the tmux view, and the same mirror as a panel beside the other views |
+| `js/chat.js` | the agent chat: a team run as the messages its agents hand each other, in a sidebar on the left |
 | `js/demo.js` | the run of show (`DEMO`): each step's view, what to ring, narration, button and live status |
 | `js/main.js` | view switching from the URL hash, and start-up. Loaded last |
 | `fonts/` | Inter and Instrument Serif (SIL OFL, licences beside them) |
