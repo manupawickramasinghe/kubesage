@@ -22,7 +22,7 @@ It spends as little as possible on its own LLM calls, and shows every cent.
 | [configuration.md](configuration.md) | Model profiles, SKU catalog, environment variables, secrets |
 | [testing.md](testing.md) | The test suite and the manual checks, with the last verified results |
 | [ui-review.md](ui-review.md) | UI/UX changes, advanced controls and the live verification results |
-| [REVIEW_REPORT.md](REVIEW_REPORT.md) | Full review report: findings, delivered changes, evidence, limits and follow-up priorities |
+| [REVIEW_REPORT.md](REVIEW_REPORT.md) | **Updated 29 October:** merged-main and pending-stack review, 124/141 tests, 22/37 browser scenarios, live evidence and remaining findings |
 | [HANDOVER.md](HANDOVER.md) | Briefing for whoever reviews the UI/UX and tests next |
 
 Screenshots, all taken from the live cluster:
