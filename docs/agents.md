@@ -109,7 +109,8 @@ Every test case was run on the real cluster, and every alert above fired. The ag
 Model output varies from run to run. These are single runs, not guarantees. Guardrails and structural
 validation filter some invalid results; they do not make every run safe to apply. Review the final diff and
 rendered objects. The [29 October review](REVIEW_REPORT.md) records open action-policy, namespace-confinement
-and resource-validation gaps.
+and resource-validation gaps. It separately assesses the policy checks proposed in PR #16; those checks
+are not yet on merged main and still have residual limits.
 
 Individual test cases have resource constraints: container limits where configured, limited scratch space,
 and small pause-image pods. These do not enforce a combined shared-machine budget or a strict load-job

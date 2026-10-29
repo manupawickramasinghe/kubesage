@@ -1,14 +1,27 @@
 # Testing
 
-Fresh verification on **29 October 2026**, revision `c2d9481`: **119 pytest tests and 20 browser scenarios
-passed**. Additional failure probes found issues outside that regression coverage; see
-[REVIEW_REPORT.md](REVIEW_REPORT.md). Earlier live demonstrations below are historical evidence, not runs
-repeated for the report update.
+Fresh verification on **29 October 2026** covered two pinned revisions:
+
+| Revision | pytest | Chromium scenarios |
+|---|---:|---:|
+| Merged `main`, `2425375` (PR #15) | **124 passed** | **22/22 passed** |
+| Pending PR #16–#19 stack, `641c74b` | **141 passed** | **37/37 passed** |
+
+The full runs included local Kustomize checks using the pinned kubectl. API/browser fixtures were isolated;
+these checks made no paid model calls or live cluster changes. On merged `main`, set `KUBESAGE_RING` to a
+private temporary path and `KUBESAGE_RING_MB=4` before pytest so journal/agent fixtures do not write into the
+running server's ring. PR #17 adds this isolation as a fixture. Missing kubectl skips one test on main and two
+on the candidate, so a smaller passing count is not the full result above.
+
+Additional targeted probes found remaining issues outside the green suites; see
+[REVIEW_REPORT.md](REVIEW_REPORT.md) for finding statuses, pending fixes and the new live snapshot. Historical
+live demonstrations below were not replayed for this report update.
 
 ## Automated (`pytest`, no cluster or network needed)
 
 ```bash
-.venv/bin/python -m pytest -q
+review_ring_dir=$(mktemp -d)
+KUBESAGE_RING="$review_ring_dir/ring" KUBESAGE_RING_MB=4 .venv/bin/python -m pytest -q
 ```
 
 | file | covers |

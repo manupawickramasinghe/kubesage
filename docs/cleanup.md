@@ -54,7 +54,9 @@ Obsidian notes and `~/.kube/config`. The script does not stop or delete unrelate
 current network-detach loop can disconnect any container attached to the k3d network without checking
 KubeSage ownership. Remote uninstall also has incomplete failure handling. These are open findings F04/F20
 in the [29 October review](REVIEW_REPORT.md), so this is not a guarantee that unrelated services remain
-unaffected. No new teardown or laptop uninstall was performed for that review.
+unaffected. PR #16 addresses the network-ownership loop and direct uninstall error handling, but
+`cleanup.sh --all` can still delete the recovery registry after a failed remote leave. See the updated
+report for the pending-fix assessment. No new teardown or laptop uninstall was performed for that review.
 
 ## Finding the joined machines
 
