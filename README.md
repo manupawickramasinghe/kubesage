@@ -251,6 +251,7 @@ tests/               pytest suite and browser checks
 | [API](docs/api.md) | The HTTP API and `report.json` |
 | [Testing](docs/testing.md) | The test suite, browser checks and manual checks with their last results |
 | [Cleanup](docs/cleanup.md) | What `scripts/cleanup.sh` removes on each machine, and what it never touches |
+| [Project review](docs/REVIEW_REPORT.md) | The 29 October review: validation results, the findings and their status |
 
 ## Testing
 

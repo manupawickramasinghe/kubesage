@@ -1,5 +1,9 @@
 # Control Center review · 2026-10-27
 
+This is the historical 27 October implementation review. For the merged Lab/agent-team features, fresh
+119-test/20-browser results and unresolved findings, read the
+[29 October project review](REVIEW_REPORT.md).
+
 The dashboard now separates an immutable analysis snapshot from live Kubernetes state. It offers report
 history, pinned Apply/GitOps actions, JSON/YAML downloads, searchable recommendations and field-level drift
 inspection. The plan review explains placement, guardrail adjustments and estimated costs before applying.
@@ -11,7 +15,7 @@ determine application status across reloads; rollout readiness and available tar
 checked separately. Failed and skipped commands remain visible. An operation in another tab disables
 conflicting controls. Report publication is atomic and existing runs cannot be overwritten.
 
-The keyboard selection survives polling. Diagrams have visible focus and descriptive labels; tooltips are
+The dashboard's reviewed keyboard selection survives polling. Diagrams have visible focus and descriptive labels; tooltips are
 linked to focused objects. Mobile charts use separate label/value and bar lines, ledger numbers stay
 together, and reduced motion disables animations. Inter and Instrument Serif remain local assets, with
 one script, no CDN and no build step.
