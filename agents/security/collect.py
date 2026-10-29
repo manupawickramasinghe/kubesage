@@ -21,6 +21,31 @@ def gitops_names(gitops: Path):
     return names
 
 
+def image_repo(image: str) -> str:
+    """registry/path of an image reference, the way the runtime resolves it: no tag or digest, Docker Hub spelled
+    out (python -> docker.io/library/python)."""
+    name = image.split("@", 1)[0]
+    if ":" in name.split("/")[-1]:
+        name = name.rsplit(":", 1)[0]
+    first, _, rest = name.partition("/")
+    if not rest or ("." not in first and ":" not in first and first != "localhost"):
+        first, rest = "docker.io", name if "/" in name else f"library/{name}"
+    return f"{'docker.io' if first == 'index.docker.io' else first}/{rest}"
+
+
+def allowed_image(image: str, allowed: list[str]) -> bool:
+    """A whole registry (registry.k8s.io) or a repository and what's under it, matched on "/" boundaries, so
+    python-malicious isn't python and registry.k8s.io.attacker isn't registry.k8s.io."""
+    repo = image_repo(image)
+    for a in allowed:
+        if "/" not in a and ("." in a or ":" in a or a == "localhost"):  # a bare registry
+            if repo.split("/", 1)[0] == a:
+                return True
+        elif repo == image_repo(a) or repo.startswith(image_repo(a) + "/"):
+            return True
+    return False
+
+
 def collect(ctx):
     allowed = ctx.settings.get("allowed_registries", [])
     in_git = gitops_names(ctx.gitops_dir)
@@ -55,7 +80,7 @@ def collect(ctx):
                 repo, _, tag = image.rpartition(":") if ":" in image.split("/")[-1] else (image, "", "")
                 if not tag or tag == "latest":
                     problems.append(f"{c['name']}: floating image tag ({image})")
-                if allowed and not any(repo == a or repo.startswith(a + "/") or image.startswith(a) for a in allowed):
+                if allowed and not allowed_image(image, allowed):
                     problems.append(f"{c['name']}: image {image} is from outside the allowed registries")
                 if not (c.get("resources") or {}).get("limits"):
                     problems.append(f"{c['name']}: no resource limits")

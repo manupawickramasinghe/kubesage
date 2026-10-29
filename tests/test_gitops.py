@@ -65,3 +65,11 @@ def test_overlay_builds_with_kustomize(result, tmp_path, gitops_repo):
     assert "replicas" not in docs[("Deployment", "checkout-web")]["spec"]  # the ScaledObject owns it now
     assert docs[("Deployment", "catalog-api")]["spec"]["replicas"] == 2  # healthy and unscaled: untouched
     assert ("ScaledObject", "report-worker") in docs
+
+
+def test_report_keeps_the_node_pool_notes_and_burst_warning(result):
+    # Review F17: REPORT.md (the GitOps PR body) dropped the pool notes, including the burst-capacity warning.
+    assert result.node_pool and result.node_pool.notes
+    md = summary.markdown(result)
+    for note in result.node_pool.notes:
+        assert f"- note: {note}" in md

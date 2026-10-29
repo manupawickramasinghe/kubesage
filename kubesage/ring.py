@@ -160,7 +160,9 @@ class Ring:
         return out
 
     def read(self, after: int = 0, *, limit: int = 1000, streams: list[str] | None = None) -> tuple[list[Record], int]:
-        """Records with seq > after (the oldest still held, if `after` was overwritten), and the newest seq."""
+        """Records with seq > after (the oldest still held, if `after` was overwritten), and the cursor to pass as
+        `after` next time: the last record delivered when `limit` cut the read short, else the newest seq scanned.
+        Returning the newest seq after a short read skipped every record between the two."""
         segs = self._segments()
         _, next_rec = self._state()
         start = 0
@@ -168,13 +170,16 @@ class Ring:
             if first <= after + 1:
                 start = i
         out: list[Record] = []
+        scanned = 0
         for seg, _ in segs[start:]:
             for rec in self._records(seg):
+                scanned = max(scanned, rec.seq)
                 if rec.seq > after and _matches(rec.stream, streams):
                     out.append(rec)
                     if len(out) >= limit:
-                        return out, next_rec - 1
-        return out, next_rec - 1
+                        return out, rec.seq
+        # A record written while scanning is delivered now, so the cursor moves past it too.
+        return out, max(scanned, next_rec - 1)
 
     def tail(self, n: int = 200, *, streams: list[str] | None = None) -> tuple[list[Record], int]:
         """The newest `n` matching records, scanning back only as far as needed."""

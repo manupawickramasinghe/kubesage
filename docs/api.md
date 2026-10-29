@@ -27,10 +27,10 @@ other websites can't trigger actions. There's no authentication beyond that.
 | GET | `/api/agents` | The agent team: `{team: {profile, provider: {base_url, api_key_env}, agents: [{name, title, role, size, label, model, description, folder}], rules: [{file, text}], error}, run: <latest run>, runs: [...], auto, prs, pending: {alert, in_s} \| null}` |
 | POST | `/api/agents/run` | `{trigger?: "manual"}` → 202 `{id}`; the run continues in the background. 409 if one is running. |
 | GET | `/api/agents/run?id=<id>` | One run: per-agent state, tokens, cost; every sub-agent's signals and report; the diagnosis; what validation rejected; the executor's branch, commit, edits, diff, PR body and `pr_url`. |
-| POST | `/api/agents/apply` | `{id, dry_run: bool}` → `{ok, dry_run, steps: [{cmd, ok, output}], skipped: [{path, reason}]}`: `kubectl apply -k` of each changed `gitops/apps/<app>` from the run's commit. Terraform files are listed as skipped. |
+| POST | `/api/agents/apply` | `{id, dry_run: bool}` → `{ok, dry_run, steps: [{cmd, ok, output}], skipped: [{path, reason}]}`: `kubectl apply -k` of each changed `gitops/apps/<app>` from the run's commit. Terraform files are listed as skipped. 422 `{error, problems}` without running kubectl if a rendered object leaves the lab namespace, has another kind, or carries resources the policy refuses. The outcome is written to the run's `run.json`. |
 | POST | `/api/agents/pr` | `{id}` → `{pr_url}`: push the run's branch and open a PR with `gh`. 403 unless started with `--agent-prs`. |
 | POST | `/api/agents/auto` | `{on: bool}` → `{auto}`: run the team when a lab alert fires |
-| GET | `/api/ring?after=<seq>&streams=a,b/&limit=` | `{records: [{seq, ts, stream, text}], last}` from the RAM ring; `tail=<n>` instead of `after` returns the newest n. A trailing `/` or `*` matches a stream prefix. |
+| GET | `/api/ring?after=<seq>&streams=a,b/&limit=` | `{records: [{seq, ts, stream, text}], last}` from the RAM ring; `tail=<n>` instead of `after` returns the newest n. A trailing `/` or `*` matches a stream prefix. Pass `last` as the next `after`: when `limit` cut the read short it is the last record returned, so paging never skips records. |
 | GET | `/api/ring/stat` | `{path, capacity_bytes, used_bytes, segments, segments_used, wrapped, records, last_seq, oldest_ts, newest_ts}` |
 | GET | `/api/ring/dump?minutes=<n>&streams=` | The ring as a `text/plain` download (0 minutes: everything held), API key values redacted |
 
@@ -53,6 +53,7 @@ validates the steps it executes with Kubernetes without saving changes; skipped 
 ```jsonc
 {
   "available": true,
+  "objects": true,                      // false: the pod/deployment read failed, so the lists are unknown, not empty
   "namespace": "demo",
   "metrics": true,                      // metrics-server answered for the namespace's pods
   "nodes": [{
@@ -87,10 +88,12 @@ The response also includes:
   requests/limits;
 - `plan`: comparison of the **latest** analysis's Deployment and ScaledObject fields with live objects.
   `state` is `none`, `pending`, `partial`, `applied` or `unknown`; `matched`/`total` count fully matching
-  workloads. `ready` additionally checks Deployment rollout readiness. `workloads[name].checks[]` contains
+  workloads. `ready` additionally checks that every planned workload's Deployment exists and has rolled out;
+  a missing Deployment is never ready. `workloads[name].checks[]` contains
   `{field, expected, actual, match}` for drift inspection. `capacity` reports `{sku, required, ready, available}`;
-- `active_jobs[]`: running or pending KubeSage traffic jobs, including target, load parameters and expected
-  `ends_at`. CPU targets and HPA conditions are included under `scaling` when available.
+- `active_jobs[]`: running or pending KubeSage traffic jobs (named `kubesage-spike-*` and labelled
+  `app.kubernetes.io/managed-by=kubesage`; a Job with only the name is ignored), including target, load
+  parameters and expected `ends_at`. CPU targets and HPA conditions are included under `scaling` when available.
 - `traffic`: the latest managed traffic job, including completed/failed jobs, or null. It contains `job`,
   `status`, `succeeded_requests`, `failed_requests`, `p50_ms`, `p95_ms`, `elapsed` and `logs_available`.
   Request counters sum the load generator's interval reports; latency comes from its latest interval.

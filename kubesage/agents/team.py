@@ -20,7 +20,7 @@ from pathlib import Path
 
 from kubesage import ring
 from kubesage.agents import edits as E
-from kubesage.agents import inventory, mock, repo
+from kubesage.agents import inventory, mock, policy, repo
 from kubesage.agents.context import Context
 from kubesage.agents.loader import Agent, Team
 from kubesage.agents.schemas import Action, ChangeSet, Diagnosis, Edit, Skipped, SubAgentReport
@@ -86,7 +86,7 @@ class TeamRun:
         self._lock = threading.Lock()
         self.data = {
             "id": self.id, "trigger": trigger, "state": "running", "mode": mode, "profile": team.profile,
-            "started_at": _now(), "finished_at": None, "error": None, "cost_usd": 0.0,
+            "started_at": _now(), "finished_at": None, "error": None, "warning": None, "cost_usd": 0.0,
             "order": [a.name for a in team.agents],
             "agents": {a.name: {"title": a.config.title or a.name, "role": a.config.role, "size": a.config.model,
                                 "label": a.tier.label or a.tier.model, "model": a.tier.model,
@@ -243,7 +243,7 @@ def run(team: Team, s: TeamSettings, *, trigger: str = "manual", on_update: Call
     charge(thinker.name, entry)
     max_issues = thinker.config.settings.get("max_issues", 6)
     before = len(tr.data["rejected"])
-    checked = _check_diagnosis(diagnosis.model_copy(deep=True), all_signals, inv, catalog, tr, max_issues)
+    checked = _check_diagnosis(diagnosis.model_copy(deep=True), all_signals, inv, catalog, tr, max_issues, s.namespaces)
     refused = [r for r in tr.data["rejected"][before:] if r["what"].startswith("action")]
     if refused and mode == "live":
         _say(thinker.name, f"  ↺ {len(refused)} action(s) failed the guardrails; asking the Thinker once more")
@@ -257,7 +257,7 @@ def run(team: Team, s: TeamSettings, *, trigger: str = "manual", on_update: Call
                                           "and why. Return the full corrected diagnosis.", retry, Diagnosis,
                                           lambda: diagnosis, stage="thinker", workload="team-retry", unit="agents", flow_stage=3)
             charge(thinker.name, entry)
-            checked = _check_diagnosis(again, all_signals, inv, catalog, tr, max_issues)
+            checked = _check_diagnosis(again, all_signals, inv, catalog, tr, max_issues, s.namespaces)
         except LLMError as exc:
             _say(thinker.name, f"  retry failed ({exc}); keeping the actions that passed")
     diagnosis = checked
@@ -273,7 +273,7 @@ def run(team: Team, s: TeamSettings, *, trigger: str = "manual", on_update: Call
 
     # ---- 3. Executor ----
     _execute(team, s, tr, llm, diagnosis, inv, catalog, run_dir, charge, notify)
-    tr.set(state="done" if tr.data["state"] == "running" else tr.data["state"], finished_at=_now())
+    tr.set(**_outcome(tr, team), finished_at=_now())
     _say("team", f"━━ team run {tr.id} {tr.data['state']} · ${tr.data['cost_usd']:.4f} · "
                  f"{len(diagnosis.issues)} issues, {len(diagnosis.actions)} actions"
                  f"{' · branch ' + tr.data['executor']['branch'] if (tr.data.get('executor') or {}).get('commit') else ''}")
@@ -281,6 +281,22 @@ def run(team: Team, s: TeamSettings, *, trigger: str = "manual", on_update: Call
     _finish(tr, run_dir, trace + llm.trace)
     notify()
     return tr
+
+
+def _outcome(tr: TeamRun, team: Team) -> dict:
+    """The run's state from every role: a failed Executor fails the run; a failed sub-agent leaves a warning,
+    because the Thinker still decided on the other reports and on every collected signal."""
+    if tr.data["state"] != "running":
+        return {}
+    agents = tr.data["agents"]
+    ex = agents[team.executor.name]
+    if ex["state"] == "failed":
+        return {"state": "failed", "error": f"Executor: {ex['error'] or 'failed'}"}
+    subs = [a.name for a in team.subagents if agents[a.name]["state"] == "failed"]
+    if subs:
+        return {"state": "done", "warning": f"{len(subs)} of {len(team.subagents)} sub-agents failed ({', '.join(subs)}); "
+                                            f"the Thinker decided without their reports"}
+    return {"state": "done"}
 
 
 def _reasoning(trace: list[dict], name: str) -> str:
@@ -293,7 +309,16 @@ def _reasoning(trace: list[dict], name: str) -> str:
     return ""
 
 
-def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRun, max_issues: int = 6) -> Diagnosis:
+# What each action type may point at; anything else is a malformed action, not a judgement call.
+TARGET_KINDS = {"set_resources": ("deployment", "pod"), "autoscale": ("deployment",), "code_change": ("deployment", "pod"),
+                "storage": ("deployment", "pod"), "spread_pods": ("deployment",), "remove_workload": ("deployment", "pod"),
+                "change_node_sku": ("nodepool",), "set_node_pool": ("nodepool",),
+                "security_hardening": ("namespace", "deployment", "pod"),
+                "investigate": ("deployment", "pod", "nodepool", "namespace")}
+
+
+def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRun, max_issues: int = 6,
+                     namespaces: list[str] = ("lab",)) -> Diagnosis:
     reject = lambda what, why: tr.data["rejected"].append({"agent": "thinker", "what": what, "reason": why})
     rank = {"critical": 0, "warning": 1, "info": 2}
     ordered = sorted(d.issues, key=lambda i: rank[i.severity])
@@ -317,6 +342,10 @@ def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRu
             why = f"its issue {a.issue} was dropped or doesn't exist"
         elif not TARGET.fullmatch(a.target):
             why = f"target {a.target!r} is not kind/namespace/name"
+        elif a.target.split("/")[0] not in TARGET_KINDS[a.type]:
+            why = f"{a.type} can't target a {a.target.split('/')[0]}; it takes {' or '.join(TARGET_KINDS[a.type])}"
+        elif a.target.split("/")[0] in ("deployment", "pod", "namespace") and a.target.split("/")[1] not in namespaces:
+            why = f"{a.target} is outside the {', '.join(namespaces)} namespace KubeSage may change"
         elif a.target.split("/")[0] in ("deployment", "pod") and tuple(a.target.split("/")[1:]) not in names:
             why = f"{a.target} is not in the inventory"
         elif a.type in ("change_node_sku", "set_node_pool"):
@@ -344,61 +373,108 @@ def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRu
     return d
 
 
-_UNITS = {"Ki": 2 ** 10, "Mi": 2 ** 20, "Gi": 2 ** 30, "Ti": 2 ** 40, "k": 1e3, "M": 1e6, "G": 1e9, "m": 1e-3}
-
-
-def _qty(q) -> float:
-    q = str(q).strip()
-    for suffix in sorted(_UNITS, key=len, reverse=True):
-        if q.endswith(suffix):
-            return float(q[:-len(suffix)]) * _UNITS[suffix]
-    return float(q)
-
-
 def _fits_today(a: Action, inv: dict) -> str | None:
-    """A request no node of the workload's pool can satisfy leaves the pod Pending once applied."""
-    name = a.target.split("/")[-1]
-    w = next((x for x in inv["workloads"] if x["name"] == name), None)
+    """Requests and limits that are real, positive quantities, request no more than the limit, and fit a node of the
+    workload's pool today (a request no node can satisfy leaves the pod Pending once applied)."""
+    _, ns, name = a.target.split("/")
+    w = next((x for x in inv["workloads"] if (x["namespace"], x["name"]) == (ns, name)), None)
     pool = ((w or {}).get("node_selector") or {}).get("kubesage.io/pool")
-    nodes = [n for n in inv["nodes"] if not pool or n.get("pool") == pool]
+    room = policy.biggest_node(inv["nodes"], pool)
+    params = a.params or {}
     try:
         for kind, effect in (("requests", "the pod would stay Pending"), ("limits", "the node can't give it that much")):
-            values = (a.params or {}).get(kind) or {}
+            values = params.get(kind) or {}
+            if not isinstance(values, dict):
+                return f"{kind} must be a mapping like {{cpu: 500m, memory: 1Gi}}"
             for key, label in (("memory", "GiB"), ("cpu", "cores")):
-                if values.get(key) is not None and nodes:
-                    biggest = max(_qty(n["allocatable"][key]) for n in nodes)
-                    if _qty(values[key]) > biggest:
-                        have = biggest / 2 ** 30 if key == "memory" else biggest
-                        return (f"{kind} {key}={values[key]}, but the biggest {pool or 'cluster'} node has {have:.1f} {label} "
-                                f"allocatable today, so {effect}. Size requests and limits for today's nodes; put the "
-                                f"future peak in a change_node_sku action instead.")
-    except (ValueError, TypeError, KeyError):
-        return f"resources {a.params} are not valid Kubernetes quantities"
-    return None
+                if values.get(key) is not None and room and policy.qty(values[key]) > room[key]:
+                    have = room[key] / 2 ** 30 if key == "memory" else room[key]
+                    return (f"{kind} {key}={values[key]}, but the biggest {pool or 'cluster'} node has {have:.1f} {label} "
+                            f"allocatable today, so {effect}. Size requests and limits for today's nodes; put the "
+                            f"future peak in a change_node_sku action instead.")
+    except ValueError:
+        return f"resources {params} are not valid Kubernetes quantities"
+    # Judge the result, not just the change: a new request is compared with the limit the container keeps.
+    current = ((w or {}).get("containers") or [{}])[0]
+    merged = {kind: {**(current.get(kind) or {}), **{k: v for k, v in (params.get(kind) or {}).items() if v is not None}}
+              for kind in ("requests", "limits")}
+    problems = policy.resources(a.target, merged)
+    return problems[0] if problems else None
+
+
+def _scope(a: Action) -> tuple[str, ...]:
+    """The files an action may change: its own app's folder, the node pools or the namespace, nothing else."""
+    kind, *rest = a.target.split("/")
+    if a.type in ("change_node_sku", "set_node_pool") or kind == "nodepool":
+        return ("gitops/infra/nodepools.tf",)
+    if kind == "namespace":
+        return ("gitops/apps/namespace.yaml",)
+    return (f"gitops/apps/{rest[-1]}/",)
+
+
+def _in_scope(path: str, a: Action) -> bool:
+    return any(path == x or (x.endswith("/") and path.startswith(x)) for x in _scope(a))
 
 
 def _files_for(actions: list[Action], clone: Path) -> dict[str, str]:
     paths = set()
     for a in actions:
-        kind, *rest = a.target.split("/")
-        if kind in ("deployment", "pod"):
-            app = clone / "gitops" / "apps" / rest[-1]
-            if app.is_dir():
-                paths |= {p for p in app.rglob("*") if p.is_file() and p.suffix in (".yaml", ".py")}
-        if kind == "nodepool" or a.type in ("change_node_sku", "set_node_pool"):
-            paths.add(clone / "gitops" / "infra" / "nodepools.tf")
-        if kind == "namespace":
-            paths.add(clone / "gitops" / "apps" / "namespace.yaml")
+        for x in _scope(a):
+            if x.endswith("/") and (clone / x).is_dir():
+                paths |= {p for p in (clone / x).rglob("*") if p.is_file() and p.suffix in (".yaml", ".py")}
+            elif (clone / x).is_file():
+                paths.add(clone / x)
         f = (a.params or {}).get("file")
-        if isinstance(f, str) and f.startswith("gitops/") and (clone / f).is_file():
+        if isinstance(f, str) and _in_scope(f, a) and (clone / f).is_file():
             paths.add(clone / f)
     return {str(p.relative_to(clone)): p.read_text() for p in sorted(paths) if p.exists()}
 
 
-def _materialize(clone: Path, edits: list[Edit], skus: set[str], by: str) -> tuple[list[dict], list[dict]]:
+def _bind(edits: list[Edit], actions: list[Action], by: str) -> tuple[list[Edit], list[dict]]:
+    """Keep the edits that implement an approved action inside that action's files; refuse the rest."""
+    approved = {a.id: a for a in actions}
+    kept, refused = [], []
+    for e in edits:
+        a = approved.get(e.action)
+        if a is None:
+            refused.append({**e.model_dump(), "by": by, "reason": f"names action {e.action!r}, which the Executor was not given"})
+        elif not _in_scope(e.path, a):
+            refused.append({**e.model_dump(), "by": by, "reason": f"{a.id} ({a.type} {a.target}) may only change "
+                                                                  f"{' or '.join(_scope(a))}"})
+        else:
+            kept.append(e)
+    return kept, refused
+
+
+def _as_approved(objs: list[dict], actions: list[Action]) -> list[str]:
+    """A set_resources edit must leave the target with the requests and limits the Thinker's checks passed."""
+    problems = []
+    for a in actions:
+        if a.type != "set_resources":
+            continue
+        name = a.target.split("/")[-1]
+        obj = next((o for o in objs if o.get("kind") in ("Deployment", "Pod") and (o.get("metadata") or {}).get("name") == name), None)
+        containers = (policy.pod_spec(obj) or {}).get("containers") or [] if obj else []
+        c = next((c for c in containers if c.get("name") == name), containers[0] if containers else None)
+        res = (c or {}).get("resources") or {}
+        for kind in ("requests", "limits"):
+            for key, want in ((a.params or {}).get(kind) or {}).items():
+                got = (res.get(kind) or {}).get(key)
+                try:
+                    same = want is None or (got is not None and policy.qty(got) == policy.qty(want))
+                except ValueError:
+                    same = False
+                if not same:
+                    problems.append(f"{a.id} approved {kind}.{key}={want} for {name}, but the change leaves {got}")
+    return problems
+
+
+def _materialize(clone: Path, edits: list[Edit], skus: set[str], by: str, actions: list[Action],
+                 namespaces: list[str], nodes: list[dict]) -> tuple[list[dict], list[dict]]:
+    edits, rejected = _bind(edits, actions, by)
     texts: dict[str, str | None] = {}
     originals: dict[str, str | None] = {}
-    applied, rejected = [], []
+    applied = []
     for e in edits:
         try:
             path = E.check_path(clone, e.path)
@@ -414,20 +490,31 @@ def _materialize(clone: Path, edits: list[Edit], skus: set[str], by: str) -> tup
         if text is not None:
             (clone / rel).parent.mkdir(parents=True, exist_ok=True)
             (clone / rel).write_text(text)
-    for app in sorted({"/".join(e["path"].split("/")[:3]) for e in applied if e["path"].startswith("gitops/apps/")}):
-        if not (clone / app / "kustomization.yaml").exists():
+    # Check what Apply would send, per app folder (kubectl apply -k) or the namespace file (-f), and undo a unit
+    # whose rendered objects leave the namespace, use another kind, or carry resources the policy refuses.
+    units = sorted({"/".join(e["path"].split("/")[:3]) for e in applied if e["path"].startswith("gitops/apps/")})
+    for unit in units:
+        target = clone / unit
+        if target.is_dir() and not (target / "kustomization.yaml").exists():
             continue
-        error = E.kustomize_ok(clone / app)
-        if error:
-            for e in [x for x in applied if x["path"].startswith(app + "/")]:
-                applied.remove(e)
-                rejected.append({**e, "reason": f"kubectl kustomize {app} failed: {error}"})
-            for rel, text in originals.items():
-                if rel.startswith(app + "/"):
-                    if text is None:
-                        (clone / rel).unlink(missing_ok=True)
-                    else:
-                        (clone / rel).write_text(text)
+        by_unit = [a for a in actions if any(e["action"] == a.id for e in applied if e["path"].startswith(unit))]
+        try:
+            objs = policy.render(target)
+            problems = policy.check(objs, namespaces, nodes) + _as_approved(objs, by_unit)
+        except (policy.PolicyError, OSError) as exc:
+            problems = [str(exc)]
+        if not problems:
+            continue
+        reason = "; ".join(problems)[:600]
+        for e in [x for x in applied if x["path"] == unit or x["path"].startswith(unit + "/")]:
+            applied.remove(e)
+            rejected.append({**e, "reason": f"{unit} would break policy: {reason}"})
+        for rel, text in originals.items():
+            if rel == unit or rel.startswith(unit + "/"):
+                if text is None:
+                    (clone / rel).unlink(missing_ok=True)
+                else:
+                    (clone / rel).write_text(text)
     return applied, rejected
 
 
@@ -478,11 +565,12 @@ def _execute(team, s, tr, llm, diagnosis: Diagnosis, inv, catalog, run_dir: Path
         return
     charge(ex.name, entry)
     by = "rules" if tr.data["mode"] == "mock" else "model"
-    applied, rejected = _materialize(clone, cs.edits, skus, by)
+    bounds = (doable, s.namespaces, inv["nodes"])
+    applied, rejected = _materialize(clone, cs.edits, skus, by, *bounds)
     done_ids = {e["action"] for e in applied}
     fallback = [e for a in doable if a.id not in done_ids and by == "model" for e in E.deterministic(a, _files_for([a], clone))]
     if fallback:
-        more, more_rejected = _materialize(clone, fallback, skus, "rules-fallback")
+        more, more_rejected = _materialize(clone, fallback, skus, "rules-fallback", *bounds)
         applied += more
         rejected += more_rejected
     for e in applied:
@@ -549,8 +637,15 @@ def open_pr(tr_or_data, s: TeamSettings, run_dir: Path) -> str:
     return url
 
 
+def save_run(run_dir: Path, data: dict) -> None:
+    """Write run.json whole or not at all, so a crash mid-write never leaves a run that won't load."""
+    tmp = run_dir / "run.json.tmp"
+    tmp.write_text(json.dumps(data, indent=1, default=str))
+    os.replace(tmp, run_dir / "run.json")
+
+
 def _finish(tr: TeamRun, run_dir: Path, trace: list[dict]) -> None:
-    (run_dir / "run.json").write_text(json.dumps(tr.snapshot(), indent=1))
+    save_run(run_dir, tr.snapshot())
     (run_dir / "trace.json").write_text(json.dumps(trace, default=str))
 
 

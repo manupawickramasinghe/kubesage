@@ -27,6 +27,7 @@ from conftest import result, stats  # noqa: E402; reuse the deterministic pipeli
 from playwright.sync_api import expect, sync_playwright  # noqa: E402
 
 LATEST = "20260102-000000"
+NEWER = "20260103-000000"
 OLDER = "20260101-000000"
 
 
@@ -72,6 +73,7 @@ class MockApi:
         self.failures = {}
         self.sequence = 0
         self.team, self.active = team_fixture(), {}
+        self.runs, self.analyze_run = [LATEST, OLDER], LATEST
 
     def route(self, route):
         request = route.request
@@ -84,7 +86,7 @@ class MockApi:
         elif url.path == "/api/config":
             status, value = 200, {"mode": "mock", "namespace": "demo", "gitops": True}
         elif url.path == "/api/reports":
-            status, value = 200, {"runs": [] if self.empty else [{"run": run, "mode": "mock"} for run in (LATEST, OLDER)]}
+            status, value = 200, {"runs": [] if self.empty else [{"run": run, "mode": "mock"} for run in self.runs]}
         elif url.path == "/api/report":
             run = parse_qs(url.query).get("run", [LATEST])[0]
             status, value = (404, {"error": "no analysis yet"}) if self.empty else (200, {"run": run, "report": self.old if run == OLDER else self.report})
@@ -96,7 +98,13 @@ class MockApi:
             status = 200
         elif url.path == "/api/analyze":
             self.empty = False
-            status, value = 200, {"run": LATEST, "report": self.report}
+            if self.analyze_run not in self.runs:
+                self.runs.insert(0, self.analyze_run)
+            status, value = 200, {"run": self.analyze_run, "report": self.report}
+        elif url.path == "/api/trace":
+            run = parse_qs(url.query).get("run", [LATEST])[0]
+            status, value = 200, {"run": run, "mode": "mock", "exchanges": [], "backfill": None,
+                                  "kubectl": [{"file": f"{run}.patch.yaml", "cmd": "kubectl patch deployment x", "manifest": ""}]}
         elif url.path == "/api/apply":
             if not body.get("dry_run") and body.get("run") == LATEST:
                 self.cluster["plan"].update(state="applied", matched=4, ready=True)
@@ -477,6 +485,111 @@ def run(args):
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
             scenario("tmux-phone-width", tmux_phone, width=390)
+
+            def plan_shown_is_plan_applied(page, mock):
+                # Review F02: a failed history refresh after Analyze left the old plan on screen while Apply sent the new run.
+                ready(page, url)
+                mock.analyze_run = NEWER
+                mock.failures["/api/reports"] = (500, {"error": "history unavailable"})
+                page.locator("#btn-analyze").click()
+                expect(page.locator("#report-select")).to_have_value(NEWER)
+                expect(page.locator("#log")).to_contain_text("analysis history: history unavailable")
+                page.locator("#dryrun").check()
+                page.locator("#btn-apply").click()
+                expect(page.locator("#notice")).to_contain_text("Validation complete")
+                assert [b for path, b in mock.requests if path == "/api/apply"][-1]["run"] == NEWER
+
+            scenario("plan-shown-is-plan-applied", plan_shown_is_plan_applied)
+
+            def errors_reach_the_open_view(page, mock):
+                # Review F12: a case-start failure from the tmux view and an Analyze failure from Under the hood were
+                # written to message areas in other, hidden views.
+                page.goto(url + "#tmux")
+                expect(page.locator("#tx-win .pane")).to_have_count(6)
+                mock.failures["/api/testcase"] = (502, {"error": "kubectl apply failed: quota exceeded"})
+                page.locator("#tx-tc").select_option("cpu-code")
+                page.locator("#tx-start").click()
+                expect(page.locator("#toast")).to_be_visible()
+                expect(page.locator("#toast")).to_contain_text("quota exceeded")
+                assert page.locator("#toast").get_attribute("role") == "alert"
+                page.locator("#toast-x").click()
+                expect(page.locator("#toast")).to_be_hidden()
+                page.goto(url + "#lab")
+                mock.failures["/api/analyze"] = (502, {"error": "model provider timed out"})
+                page.locator("#lab-analyze").click()
+                expect(page.locator("#toast")).to_contain_text("model provider timed out")
+                page.goto(url + "#dashboard")  # in its own view the inline notice is enough
+                page.locator("#toast-x").click()
+                page.locator("#btn-analyze").click()
+                expect(page.locator("#notice")).to_contain_text("model provider timed out")
+                expect(page.locator("#toast")).to_be_hidden()
+
+            scenario("errors-reach-the-open-view", errors_reach_the_open_view)
+
+            def keyboard_stays_put(page, mock):
+                # Review F13: re-rendering the team lost focus, and Tab in the shell never let go with text typed.
+                page.goto(url + "#agents")
+                expect(page.locator("#team-flow .agent")).to_have_count(6)
+                page.locator('[data-agent="promql"]').focus()
+                page.evaluate("renderTeam()")
+                assert page.evaluate("document.activeElement.dataset.agent") == "promql"
+                page.goto(url + "#lab")
+                shell = page.locator("#sh-in")
+                shell.fill("zzz")  # nothing to complete: Tab moves on
+                shell.press("Tab")
+                assert page.evaluate("document.activeElement.id") != "sh-in"
+                shell.fill("kubectl g")  # completes in place
+                shell.press("Tab")
+                assert page.evaluate("document.activeElement.id") == "sh-in" and shell.input_value() == "kubectl get "
+                shell.fill("kubectl ")  # lists the options once, then the next Tab moves on
+                shell.press("Tab")
+                assert page.evaluate("document.activeElement.id") == "sh-in"
+                shell.press("Tab")
+                assert page.evaluate("document.activeElement.id") != "sh-in"
+                shell.fill("kubectl g")
+                shell.press("Shift+Tab")  # never a completion
+                assert page.evaluate("document.activeElement.id") != "sh-in" and shell.input_value() == "kubectl g"
+
+            scenario("keyboard-stays-put", keyboard_stays_put)
+
+            def wire_follows_operations(page, mock):
+                # Review F14: the Wire reloaded only when the run id changed, so it went stale after a new Analyze or Apply.
+                page.goto(url + "#lab")
+                expect(page.locator("#wire-kinds")).to_contain_text("kubectl 1")
+                traces = lambda: [p for p, _ in mock.requests if p == "/api/trace"]
+                first = len(traces())
+                mock.analyze_run = NEWER
+                page.locator("#lab-analyze").click()
+                expect(page.locator("#wire-run")).to_have_value(NEWER)
+                page.wait_for_function("lab.traceRun === '%s' && !lab.traceStale" % NEWER)
+                after_analyze = len(traces())
+                assert after_analyze > first
+                page.locator("#lab-apply").click()  # same run, new state: the trace is fetched again
+                page.wait_for_function(f"!lab.traceStale")
+                expect(page.locator("#wire-run")).to_have_value(NEWER)
+                page.wait_for_timeout(200)
+                assert len(traces()) > after_analyze
+
+            scenario("wire-follows-operations", wire_follows_operations)
+
+            def unknown_usage_is_not_zero(page, mock):
+                # Review F09: one sampled pod of eight showed as low utilisation; an unread inventory looked empty.
+                pods = mock.cluster["nodes"][0]["pods"]
+                for p in pods[1:]:
+                    p["cpu_used_m"] = p["mem_used_mi"] = None
+                ready(page, url)
+                expect(page.locator("#inspector .big")).to_have_text("—")
+                expect(page.locator("#inspector")).to_contain_text(f"1 of {len(pods)} pods sampled")
+                page.locator("#iso [data-node]").first.focus()  # a keyboard tooltip closes on Escape with nothing selected
+                expect(page.locator("#tip")).to_be_visible()
+                page.keyboard.press("Escape")
+                expect(page.locator("#tip")).to_be_hidden()
+                mock.cluster["objects"] = False
+                expect(page.locator("#cluster-status")).to_contain_text("could not be read", timeout=8000)
+                expect(page.locator("#btn-apply")).to_be_disabled()
+                expect(page.locator("#btn-spike")).to_be_disabled()
+
+            scenario("unknown-usage-is-not-zero", unknown_usage_is_not_zero)
 
             def responsive(page, mock):
                 mock.cluster["traffic"] = traffic_fixture(errors=20)

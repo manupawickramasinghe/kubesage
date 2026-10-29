@@ -117,3 +117,24 @@ def test_latest_run_ignores_incomplete_and_staging_directories(tmp_path):
     (staging / "manifests").mkdir(parents=True)
     (staging / "report.json").write_text("{}")
     assert apply.latest_run(tmp_path) == run
+
+
+def test_a_fixed_replica_plan_removes_the_autoscaler_it_replaces(tmp_path, monkeypatch):
+    # Review F07: a fixed replica count left the previous run's ScaledObject in place, so its HPA kept resizing.
+    rec = Recommendation(workload="demo/api", risk="low", diagnosis="steady",
+                         scaling=ScalingPlan(min_replicas=2, max_replicas=2))
+    run = tmp_path / "20260101-000000"
+    (run / "manifests").mkdir(parents=True)
+    for name, text in render(rec, namespace="demo", name="api", container="api", tz="UTC").items():
+        (run / "manifests" / name).write_text(text)
+    (run / "report.json").write_text("{}")
+    steps = apply.plan(run, kubectl=["kubectl"])
+    assert [s.cmd[3:6] for s in steps] == [["delete", "scaledobjects.keda.sh", "-l"], ["patch", "deployment", "api"]]
+    assert "metadata.name=api" in steps[0].cmd and "app.kubernetes.io/managed-by=kubesage" in steps[0].cmd
+    # without KEDA there is nothing to remove, and the patch still runs
+    outputs = iter([(1, "", "error: the server doesn't have a resource type \"scaledobjects\""), (0, "patched", "")])
+    monkeypatch.setattr(apply.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, *next(outputs)))
+    done = apply.run(steps)
+    assert [s.returncode for s in done] == [0, 0] and "KEDA isn't installed" in done[0].output
+    # a run that autoscales keeps its ScaledObject: nothing to remove
+    assert all("delete" not in s.cmd for s in apply.plan(_write_run(tmp_path / "b"), kubectl=["kubectl"]))

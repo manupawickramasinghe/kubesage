@@ -1,6 +1,7 @@
 """`kubesage spike`: a load-generator Job against a demo Service, for the live part of the demo."""
 from __future__ import annotations
 
+import secrets
 import subprocess
 import time
 
@@ -12,7 +13,8 @@ APP_IMAGE = "python:3.13.12-alpine3.22"  # keep in sync with deploy/k8s/demo/wor
 
 
 def spike_job(*, namespace: str, target: str, rps: float, work_ms: int, seconds: int) -> dict:
-    name = f"kubesage-spike-{int(time.time())}"
+    # The random part keeps two starts within one second apart; `create` never rewrites a Job that exists.
+    name = f"kubesage-spike-{int(time.time())}-{secrets.token_hex(2)}"
     env = {"TARGET": f"http://{target}:8080", "RPS": str(rps), "WORK_MS": str(work_ms), "SECONDS": str(seconds)}
     return {
         "apiVersion": "batch/v1", "kind": "Job",
@@ -34,5 +36,5 @@ def spike_job(*, namespace: str, target: str, rps: float, work_ms: int, seconds:
 
 
 def start_spike(job: dict) -> subprocess.CompletedProcess:
-    return subprocess.run([*kubectl_base(), "apply", "-f", "-"], input=yaml.safe_dump(job), capture_output=True, text=True,
+    return subprocess.run([*kubectl_base(), "create", "-f", "-"], input=yaml.safe_dump(job), capture_output=True, text=True,
                           timeout=30)

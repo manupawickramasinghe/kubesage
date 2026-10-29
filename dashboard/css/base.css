@@ -170,3 +170,12 @@ h2 { margin: 0; font: 400 28px/1.1 var(--serif); letter-spacing: -.01em; }
 @media (max-width: 380px) {
   #btn-reset span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+
+/* Toast: the message of an action whose own message area is in a view that isn't open */
+.toast { position: fixed; z-index: 45; top: 72px; right: 16px; display: flex; align-items: start; gap: 10px;
+  width: min(440px, calc(100% - 32px)); padding: 12px 12px 12px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--card); box-shadow: 0 12px 32px rgba(16, 16, 14, .16); font-size: 13.5px; overflow-wrap: anywhere; }
+.toast[data-kind="err"] { border-color: var(--crit); }
+.toast[data-kind="warn"] { border-color: var(--warn); }
+.toast .btn { margin-left: auto; flex: none; }
+@media (max-width: 600px) { .toast { top: auto; bottom: 12px; right: 12px; width: calc(100% - 24px); } body.presenting .toast { bottom: 240px; } }

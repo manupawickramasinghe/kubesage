@@ -327,12 +327,16 @@ def test_cluster_exposes_autoscaler_target_deployment_and_active_traffic(tmp_pat
         "metrics": [{"type": "Resource", "resource": {"name": "cpu", "target": {"averageUtilization": 70}}}]},
         "status": {"currentReplicas": 2, "desiredReplicas": 3, "currentMetrics": [
             {"type": "Resource", "resource": {"name": "cpu", "current": {"averageUtilization": 95}}}]}}
-    job = {"kind": "Job", "metadata": {"name": "kubesage-spike-123"}, "spec": {"template": {"spec": {
-        "containers": [{"env": [{"name": "SECONDS", "value": "180"}, {"name": "RPS", "value": "80"}]}]}}},
-        "status": {"active": 1, "startTime": "2026-01-01T00:00:00Z"}}
+    job = {"kind": "Job", "metadata": {"name": "kubesage-spike-123", "labels": {"app.kubernetes.io/managed-by": "kubesage"}},
+           "spec": {"template": {"spec": {
+               "containers": [{"env": [{"name": "SECONDS", "value": "180"}, {"name": "RPS", "value": "80"}]}]}}},
+           "status": {"active": 1, "startTime": "2026-01-01T00:00:00Z"}}
     finished = {**job, "status": {"succeeded": 1}}
+    # Review F16: someone else's Job with the same name prefix and a malformed SECONDS used to break cluster reads.
+    stranger = {"kind": "Job", "metadata": {"name": "kubesage-spike-x"}, "spec": {"template": {"spec": {
+        "containers": [{"env": [{"name": "SECONDS", "value": "soon"}]}]}}}, "status": {"active": 1, "startTime": "never"}}
     monkeypatch.setattr(web, "_kubectl_json", lambda *a: {"items": [node] if a == ("get", "nodes")
-                                                         else [deployment, hpa, job, finished]})
+                                                         else [deployment, hpa, job, finished, stranger]})
     monkeypatch.setattr(web, "_kubectl_raw", lambda *a: None)
     _, body = api_for(tmp_path).cluster()
     assert body["observed_at"] and body["scaling"]["checkout-web"]["cpu_target"] == 70
@@ -443,3 +447,18 @@ def test_cluster_read_overlapping_an_operation_is_not_cached(tmp_path):
     assert api.cluster()[1]["read"] == 1   # the in-flight snapshot is still returned to its caller...
     assert api.cluster()[1]["read"] == 2   # ...but not cached, so the next poll reads the cluster again
     assert api.cluster()[1]["read"] == 2   # a read with no operation in between is cached as before
+
+
+def test_a_scaling_only_plan_is_not_ready_without_its_deployment(tmp_path):
+    # Review F10: a plan whose target Deployment was absent counted as ready, because all([]) is True.
+    run = tmp_path / "20260101-000000"
+    (run / "manifests").mkdir(parents=True)
+    (run / "report.json").write_text(json.dumps({"namespace": "demo", "node_pool": None}))
+    so = {"kind": "ScaledObject", "metadata": {"name": "api", "namespace": "demo"},
+          "spec": {"scaleTargetRef": {"name": "api"}, "minReplicaCount": 1, "maxReplicaCount": 3, "triggers": []}}
+    (run / "manifests" / "api.keda.yaml").write_text(yaml.safe_dump(so))
+    plan = api_for(tmp_path)._plan_status([so], [])
+    assert plan["state"] == "applied" and plan["ready"] is False
+    dep = {"kind": "Deployment", "metadata": {"name": "api", "generation": 1},
+           "spec": {"replicas": 2}, "status": {"readyReplicas": 2, "updatedReplicas": 2, "observedGeneration": 1}}
+    assert api_for(tmp_path)._plan_status([so, dep], [])["ready"] is True

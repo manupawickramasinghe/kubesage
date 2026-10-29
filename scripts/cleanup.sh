@@ -51,13 +51,26 @@ mapfile -t NODES < <(printf '%s\n' "${NODES[@]}" | awk -F@ 'NF && !seen[$NF]++')
 
 compose() { docker compose -f "$REPO_ROOT/docker-compose.yml" "$@"; }
 COMPOSE_PROJECT=$(awk '/^name:/ {print $2; exit}' "$REPO_ROOT/docker-compose.yml")
-ui_pids() { pgrep -f '[k]ubesage serve' || true; }  # [k]: the pattern must not match its own command line
+ui_pids() { pgrep -f '[k]ubesage(\.cli)? serve' || true; }  # [k]: the pattern must not match its own command line
 k3d_containers() { docker ps -a --filter "label=k3d.cluster=$CLUSTER_NAME" --format '{{.Names}}'; }
 k3d_leftovers() {
   docker network ls -q --filter "name=^k3d-$CLUSTER_NAME\$"
   docker volume ls -q --filter "label=k3d.cluster=$CLUSTER_NAME"
 }
 own_kubeconfig() { [ -f "$KUBECONFIG" ] && grep -q "^current-context: k3d-$CLUSTER_NAME\$" "$KUBECONFIG"; }
+# Containers on the cluster network besides k3d's own: "ours <name>" for the compose stack live-up.sh attached,
+# "foreign <name>" for anything else, which cleanup never detaches.
+attached() {
+  local c owner
+  for c in $(docker ps -aq --filter "network=k3d-$CLUSTER_NAME"); do
+    owner=$(docker inspect -f '{{index .Config.Labels "k3d.cluster"}}|{{index .Config.Labels "com.docker.compose.project"}}|{{.Name}}' "$c")
+    case "$owner" in
+      "$CLUSTER_NAME|"*) ;;
+      "|$COMPOSE_PROJECT|"*) echo "ours ${owner##*|/}" ;;
+      *) echo "foreign ${owner##*|/}" ;;
+    esac
+  done
+}
 metrics_containers() { compose ps -a --format '{{.Name}}' 2>/dev/null || true; }
 metrics_volumes() { docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT"; }
 metric_images() { compose config --images 2>/dev/null || true; }
@@ -128,6 +141,10 @@ plan() {
   pids=$(ui_pids); [ -n "$pids" ] && echo "  - kubesage serve (pid $(echo $pids))"
   for n in "${NODES[@]}"; do echo "  - on $n: drain and delete its node, uninstall the k3s agent, udev rule, kubesage ufw rules"; done
   cs=$(k3d_containers); [ -n "$cs" ] && echo "  - k3d cluster '$CLUSTER_NAME': $(echo $cs), its network and image volume"
+  if [ -n "$cs" ]; then
+    attached | awk '$1 == "ours" {print "  - detach " $2 " from the cluster network (KubeSage'"'"'s metrics stack)"}'
+    attached | awk '$1 == "foreign" {print "  ! " $2 " is on the cluster network but isn'"'"'t KubeSage'"'"'s: left attached, so the network stays"}'
+  fi
   own_kubeconfig && echo "  - $KUBECONFIG"
   if [ "$ALL" = 1 ]; then
     [ -n "$(metrics_containers)" ] && echo "  - VictoriaMetrics + Grafana containers and network"
@@ -165,14 +182,21 @@ if [ ${#NODES[@]} -gt 0 ]; then  # before the cluster goes, so their nodes can s
 fi
 
 if [ -n "$(k3d_containers)" ]; then
-  # live-up.sh attaches VictoriaMetrics to the cluster network; detach anything else so the network can go.
-  for c in $(docker ps -aq --filter "network=k3d-$CLUSTER_NAME"); do
-    [ "$(docker inspect -f '{{index .Config.Labels "k3d.cluster"}}' "$c")" = "$CLUSTER_NAME" ] && continue
-    docker network disconnect -f "k3d-$CLUSTER_NAME" "$c"
-  done
+  # live-up.sh attaches VictoriaMetrics to the cluster network: detach the compose stack's containers so the
+  # network can go. Anything else on it isn't KubeSage's and stays attached; then the network stays too.
+  while read -r who name; do
+    if [ "$who" = ours ]; then
+      docker network disconnect -f "k3d-$CLUSTER_NAME" "$name" && echo "detached $name from k3d-$CLUSTER_NAME"
+    else
+      echo "warning: $name is attached to k3d-$CLUSTER_NAME and isn't KubeSage's; left it (and the network) alone." >&2
+      echo "         When it's safe: docker network disconnect k3d-$CLUSTER_NAME $name && scripts/cleanup.sh" >&2
+    fi
+  done < <(attached)
   if command -v k3d >/dev/null; then
     # k3d also edits $KUBECONFIG; give it a scratch file so a kubeconfig of another cluster is never rewritten.
-    scratch=$(mktemp); KUBECONFIG=$scratch k3d cluster delete "$CLUSTER_NAME"; rm -f "$scratch"
+    scratch=$(mktemp)
+    KUBECONFIG=$scratch k3d cluster delete "$CLUSTER_NAME" || echo "warning: k3d cluster delete did not finish" >&2
+    rm -f "$scratch"
   else  # .bin/ is already gone: do what `k3d cluster delete` does
     docker rm -f $(k3d_containers) >/dev/null
   fi

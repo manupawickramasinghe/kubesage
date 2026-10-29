@@ -82,7 +82,10 @@ The script runs these in order. Use the same order by hand if you ever need to.
    ssh manupa@192.168.1.92 'sudo ufw status numbered | grep kubesage'   # delete those, if any: sudo ufw delete <n>
    ```
 
-3. Detach VictoriaMetrics from the cluster's network (`live-up.sh` attached it), then delete the cluster:
+3. Detach VictoriaMetrics from the cluster's network (`live-up.sh` attached it), then delete the cluster. The
+   script detaches only containers of KubeSage's compose project (label
+   `com.docker.compose.project=kubesage`). Any other container on `k3d-kubesage` is left attached and named in
+   a warning, and the network then stays until you detach it yourself and run cleanup again:
 
    ```bash
    docker network disconnect -f k3d-kubesage kubesage-victoriametrics-1
@@ -151,10 +154,15 @@ added, because ufw is inactive there), and `iptables` chains. For a manual look,
   on the laptop the binary, unit, data directory, interfaces and udev rule.
 - **A real teardown** ran against a throwaway cluster, `CLUSTER_NAME=kubesage-cleanuptest`, with an extra
   container attached to its network like VictoriaMetrics.
-  - Containers, network and volume were removed, and the extra container was detached.
+  - Containers, network and volume were removed, and the extra container was detached. (That was before the
+    ownership check: today only a container of KubeSage's compose project is detached, and any other one is
+    left attached and named, so the network stays.)
   - The real cluster and its kubeconfig were byte-for-byte untouched; k3d is given a scratch kubeconfig for that.
-- **Not run yet: the laptop part** (`leave-node.sh`, uninstalling k3s there). To test it without losing the
-  laptop, run a leave-and-rejoin cycle:
+- **Not run yet: the laptop part** (`leave-node.sh`, uninstalling k3s there). It stops at the first failure on
+  the machine, prints the uninstaller's last lines, checks that the binary, unit, data directory and udev rule
+  are gone, and only then removes the machine from `.bin/joined-nodes`. The remote part was exercised against
+  a scratch directory (success, a failing uninstaller, files left behind), not on the laptop. To test it without
+  losing the laptop, run a leave-and-rejoin cycle:
 
   ```bash
   scripts/leave-node.sh manupa@192.168.1.92

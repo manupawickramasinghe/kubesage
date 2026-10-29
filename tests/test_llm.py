@@ -54,3 +54,11 @@ def test_invalid_json_is_fed_back_once(monkeypatch):
     assert call(llm)[0].verdict == "fixed"
     assert "failed validation" in sent[1]["messages"][-1]["content"]
     assert sent[1]["reasoning_effort"] == "high"
+
+
+def test_a_refusal_is_named_as_one(monkeypatch):
+    refusal = {"choices": [{"message": {"role": "assistant", "content": None, "refusal": "I can't help with that."},
+                            "finish_reason": "stop"}], "usage": {"prompt_tokens": 5, "completion_tokens": 3}}
+    llm, _ = client(monkeypatch, [refusal, refusal])
+    with pytest.raises(LLMError, match="refused: I can't help with that"):
+        call(llm)

@@ -37,3 +37,11 @@ def test_spike_job_uses_the_demo_app_image():
     assert container["image"] == APP_IMAGE
     assert {"name": "TARGET", "value": "http://checkout-web:8080"} in container["env"]
     assert APP_IMAGE in (APP.parent / "workloads.yaml").read_text()
+
+
+def test_two_spikes_in_the_same_second_get_different_jobs():
+    # Review P3: names had one-second resolution, so a second start in that second hit the first Job.
+    import re
+    names = {spike_job(namespace="demo", target="checkout-web", rps=40, work_ms=50, seconds=60)["metadata"]["name"]
+             for _ in range(20)}
+    assert len(names) == 20 and all(re.fullmatch(r"kubesage-spike-[a-z0-9][a-z0-9-]*", n) and len(n) <= 63 for n in names)

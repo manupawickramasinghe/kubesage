@@ -532,10 +532,14 @@ class Api:
         total = len(workloads)
         state = "none" if not total else "applied" if matched == total else \
             "partial" if any(w["state"] != "pending" for w in workloads.values()) else "pending"
-        ready = all((o.get("status", {}).get("readyReplicas", 0) >= o.get("spec", {}).get("replicas", 1)
-                     and o.get("status", {}).get("updatedReplicas", 0) >= o.get("spec", {}).get("replicas", 1)
-                     and o.get("status", {}).get("observedGeneration", 0) >= o.get("metadata", {}).get("generation", 0))
-                    for (kind, name), o in actual.items() if kind == "Deployment" and name in workloads)
+        # Every planned workload's Deployment must exist and have rolled out; a missing one is not "ready".
+        deployments = {name: o for (kind, name), o in actual.items() if kind == "Deployment"}
+        ready = bool(workloads) and all(
+            (o := deployments.get(name)) is not None
+            and o.get("status", {}).get("readyReplicas", 0) >= o.get("spec", {}).get("replicas", 1)
+            and o.get("status", {}).get("updatedReplicas", 0) >= o.get("spec", {}).get("replicas", 1)
+            and o.get("status", {}).get("observedGeneration", 0) >= o.get("metadata", {}).get("generation", 0)
+            for name in workloads)
         pool = report.get("node_pool") or {}
         choice = pool.get("choice") or {}
         capacity = None
@@ -551,9 +555,7 @@ class Api:
                 "ready": ready and state == "applied", "workloads": workloads, "capacity": capacity}
 
     def _traffic(self, objects: list[dict]) -> dict | None:
-        jobs = [o for o in objects if o.get("kind") == "Job"
-                and o.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/managed-by") == "kubesage"
-                and re.fullmatch(r"kubesage-spike-[a-z0-9][a-z0-9-]*", o.get("metadata", {}).get("name", ""))
+        jobs = [o for o in objects if o.get("kind") == "Job" and _spike_job(o)
                 and o["metadata"].get("namespace", self.s.namespace) == self.s.namespace]
         if not jobs:
             return None
@@ -694,15 +696,18 @@ class Api:
                     "mem_request_mi": _resources(containers, "requests", "memory", mem_mi),
                     "cpu_limit_m": _resources(containers, "limits", "cpu", cpu_m),
                     "mem_limit_mi": _resources(containers, "limits", "memory", mem_mi)}
-            elif kind == "Job" and meta["name"].startswith("kubesage-spike-"):
+            elif kind == "Job" and _spike_job(o):
                 status = o.get("status", {})
                 if status.get("succeeded") or status.get("failed"):
                     continue
                 containers = o.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [])
-                env = {e["name"]: e.get("value") for c in containers for e in c.get("env", [])}
+                env = {e.get("name"): e.get("value") for c in containers for e in c.get("env") or [] if isinstance(e, dict)}
                 started = status.get("startTime")
-                seconds = int(env.get("SECONDS") or 0)
-                ends = (datetime.fromisoformat(started.replace("Z", "+00:00")).timestamp() + seconds) if started else None
+                seconds = int(env["SECONDS"]) if re.fullmatch(r"\d{1,6}", str(env.get("SECONDS") or "")) else 0
+                try:
+                    ends = (datetime.fromisoformat(started.replace("Z", "+00:00")).timestamp() + seconds) if started else None
+                except (AttributeError, ValueError):
+                    ends = None
                 active_jobs.append({"name": meta["name"], "started_at": started, "seconds": seconds,
                                     "ends_at": datetime.fromtimestamp(ends, timezone.utc).isoformat() if ends else None,
                                     "target": env.get("TARGET"), "rps": env.get("RPS"), "work_ms": env.get("WORK_MS"),
@@ -711,9 +716,17 @@ class Api:
         plan = self._plan_status(objs["items"], nodes["items"])
         if not objects_available:
             plan.update(state="unknown", ready=False)
-        return 200, {"available": True, "namespace": ns, "metrics": bool(usage), "nodes": node_list,
+        # "objects": False means the pod/deployment read failed, so empty lists are unknown, not an empty namespace.
+        return 200, {"available": True, "objects": objects_available, "namespace": ns, "metrics": bool(usage), "nodes": node_list,
                      "scaling": scaling, "deployments": deployments, "plan": plan, "active_jobs": active_jobs,
                      "traffic": self._traffic(objs["items"]), "observed_at": _now(), "operation": self.operation}
+
+
+def _spike_job(o: dict) -> bool:
+    """A traffic Job KubeSage started: its name and its managed-by label, not the name prefix alone."""
+    meta = o.get("metadata") or {}
+    return ((meta.get("labels") or {}).get("app.kubernetes.io/managed-by") == "kubesage"
+            and bool(re.fullmatch(r"kubesage-spike-[a-z0-9][a-z0-9-]*", str(meta.get("name", "")))))
 
 
 def _api_key_names() -> set[str]:

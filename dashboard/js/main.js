@@ -62,6 +62,7 @@ new ResizeObserver(() => {
   } catch (e) { if (e.status !== 404) log(e.message, "err"); }
   try { await refreshReports(); } catch (e) { log(e.message, "err"); }
   renderReport(true);
+  wireChanged();  // a page opened on Under the hood shows the latest run's trace now, not at the next poll
   await refreshCluster();
   setInterval(refreshCluster, 3000);
   setInterval(renderSteps, 1000);

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
@@ -95,9 +96,16 @@ def _compact(s: WorkloadStats) -> dict:
 def _burst_note(burst: costing.Demand, pool: "NodePoolResult", catalog: SkuCatalog) -> str:
     """The pool is sized for scheduled peaks; say what happens if every CPU autoscaler maxes out at once."""
     cpu, mem = costing.allocatable(pool.choice.sku, pool.choice.nodes, catalog)
-    if burst.cpu_cores <= cpu and burst.mem_mib <= mem:
+    per_node = costing.allocatable(pool.choice.sku, 1, catalog)
+    packed = costing.nodes_to_pack(burst.pods, *per_node) if burst.pods else 0
+    if burst.cpu_cores <= cpu and burst.mem_mib <= mem and packed is not None and packed <= pool.choice.nodes:
         return (f"Sized for scheduled peaks; it also fits every CPU autoscaler at its maximum "
                 f"({burst.cpu_cores:.2f} of {cpu:.2f} allocatable cores).")
+    if burst.cpu_cores <= cpu and burst.mem_mib <= mem:
+        return (f"Sized for scheduled peaks. If every CPU autoscaler reached its maximum at once, the totals "
+                f"({burst.cpu_cores:.2f} of {cpu:.2f} cores) fit but the pods don't pack onto {pool.choice.nodes} "
+                f"{pool.choice.sku} node(s){f' (they need {packed})' if packed else ''}, so some scale-out pods would "
+                f"stay Pending until load drops.")
     short = [f"{burst.cpu_cores - cpu:.2f} cores" if burst.cpu_cores > cpu else "",
              f"{(burst.mem_mib - mem) / 1024:.1f} GiB" if burst.mem_mib > mem else ""]
     return (f"Sized for scheduled peaks. If every CPU autoscaler reached its maximum at once, pods would request "
@@ -110,7 +118,8 @@ def _demand(rows: list[tuple[float, float, float]]) -> costing.Demand:
     return costing.Demand(cpu_cores=round(sum(c * n for c, _, n in rows), 3),
                           mem_mib=round(sum(m * n for _, m, n in rows), 1),
                           largest_pod_cpu=max((c for c, _, _ in rows), default=0.0),
-                          largest_pod_mem_mib=max((m for _, m, _ in rows), default=0.0))
+                          largest_pod_mem_mib=max((m for _, m, _ in rows), default=0.0),
+                          pods=[(c, m) for c, m, n in rows for _ in range(math.ceil(n))])
 
 
 def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, namespace: str, days: int,
