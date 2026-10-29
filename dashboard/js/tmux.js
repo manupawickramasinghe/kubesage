@@ -163,6 +163,7 @@ function syncTx() {
   if (view !== "tmux") tx.back = view;
   $("#txside").hidden = !(tx.side && view !== "tmux");
   document.body.classList.toggle("side-open", !$("#txside").hidden);
+  fitPanels();
   $$("#btn-side, #tx-side").forEach((b) => b.setAttribute("aria-pressed", String(tx.side)));
   const shown = txShown();
   if (shown.length) startTx(); else stopTx();
@@ -179,9 +180,8 @@ function saveSide() {
 function sizeSide(w) {
   tx.sideW = Math.round(Math.min(SIDE_MAX, Math.max(SIDE_MIN, w)));
   document.documentElement.style.setProperty("--side-w", `${tx.sideW}px`);
-  const max = Math.max(SIDE_MIN, Math.floor(innerWidth * 0.6));
-  $("#txs-grip").setAttribute("aria-valuemax", max);
-  $("#txs-grip").setAttribute("aria-valuenow", Math.min(tx.sideW, max));
+  $("#txs-grip").setAttribute("aria-valuemax", Math.max(SIDE_MIN, Math.floor(innerWidth * 0.6)));
+  fitPanels();
 }
 
 function initTx() {
@@ -225,5 +225,4 @@ function initTx() {
     sizeSide(+grip.getAttribute("aria-valuenow") + step);
     saveSide();
   };
-  addEventListener("resize", () => sizeSide(tx.sideW));  // the 60% cap moves with the window
 }

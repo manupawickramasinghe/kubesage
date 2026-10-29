@@ -34,6 +34,43 @@ def qty(q) -> float:
     return float(m.group(1)) * _UNITS.get(m.group(2) or "", 1)
 
 
+def rooms(nodes: list[dict] | None, pool: str | None) -> list[dict[str, float]]:
+    """What each node of `pool` (or of the cluster) can give a pod: cpu cores and memory bytes; [] when unknown."""
+    out = []
+    for n in nodes or []:
+        if pool and n.get("pool") != pool:
+            continue
+        try:
+            out.append({key: qty(n["allocatable"][key]) for key in ("cpu", "memory")})
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+def pod_demand(pod: dict, kind: str) -> dict[str, float]:
+    """A pod's `kind` (requests or limits) as the scheduler adds it up: its containers' sum, or its largest init
+    container if that is more. Unparseable values count as zero here; resources() reports them."""
+    def total(cs):
+        out = {"cpu": 0.0, "memory": 0.0}
+        for c in cs:
+            for key in out:
+                try:
+                    out[key] += qty((((c.get("resources") or {}).get(kind) or {}).get(key)) or 0)
+                except (ValueError, AttributeError):
+                    pass
+        return out
+    main = total(pod.get("containers") or [])
+    for c in pod.get("initContainers") or []:
+        one = total([c])
+        main = {key: max(main[key], one[key]) for key in main}
+    return main
+
+
+def fits(need: dict[str, float], room: list[dict[str, float]]) -> bool:
+    """True when one node has room for all of it: cpu and memory on the same node, not maxima from two."""
+    return any(all(need[k] <= r[k] for k in need) for r in room)
+
+
 def biggest_node(nodes: list[dict] | None, pool: str | None) -> dict[str, float] | None:
     """The most cpu and memory any one node of `pool` (or of the cluster) can give a pod."""
     nodes = [n for n in nodes or [] if not pool or n.get("pool") == pool]
@@ -100,9 +137,115 @@ def check(objs: list[dict], namespaces: list[str], nodes: list[dict] | None = No
             problems.append(f"{name}: namespace {meta.get('namespace')!r} is outside {', '.join(namespaces)}")
         pod = pod_spec(obj)
         if pod:
-            room = biggest_node(nodes, (pod.get("nodeSelector") or {}).get("kubesage.io/pool"))
+            pool = (pod.get("nodeSelector") or {}).get("kubesage.io/pool")
             for c in (pod.get("containers") or []) + (pod.get("initContainers") or []):
-                problems += resources(f"{name} container {c.get('name')}", c.get("resources") or {}, room)
+                problems += resources(f"{name} container {c.get('name')}", c.get("resources") or {})
+            room = rooms(nodes, pool)
+            if not room:  # fail closed: a pod that can't be checked against a real node isn't accepted
+                problems.append(f"{name}: no node inventory for {f'pool {pool}' if pool else 'the cluster'}, so it can't "
+                                f"be checked that the pod fits a node")
+                continue
+            for kind in ("requests", "limits"):
+                need = pod_demand(pod, kind)
+                if not fits(need, room):
+                    problems.append(f"{name}: the pod's {kind} add up to {need['cpu']:g} cores and "
+                                    f"{need['memory'] / 2 ** 30:.1f} GiB, more than any one "
+                                    f"{f'{pool} ' if pool else ''}node can give it")
+    return problems
+
+
+# ---- what an approved action may change ----
+
+# Per action type: the kinds of object it may change and, as a regex over the flattened path, where in them.
+# Lists of named items are keyed by name: spec.template.spec.containers[ledger-cache].resources.limits.memory.
+_C = r"spec\.template\.spec\.(?:initContainers|containers)\[[^\]]+\]\."
+CHANGES = {
+    "set_resources": [("Deployment", _C + r"resources\.")],
+    "storage": [("Deployment", _C + r"(?:resources\.|volumeMounts\[|env\[)"),
+                ("Deployment", r"spec\.template\.spec\.volumes\[[^\]]+\]\.(?:name$|emptyDir)")],
+    "code_change": [("ConfigMap", r"data\."), ("Deployment", _C + r"(?:env\[|command|args)"),
+                    ("Deployment", r"spec\.template\.metadata\.annotations\.")],
+    "security_hardening": [("Deployment", r"spec\.template\.spec\.(?:securityContext|automountServiceAccountToken)"),
+                           ("Deployment", _C + r"securityContext\."),
+                           ("Namespace", r"metadata\.labels\.pod-security\.kubernetes\.io/")],
+    "autoscale": [("ScaledObject", r""), ("Deployment", r"spec\.replicas$")],
+    "spread_pods": [("Deployment", r"spec\.replicas$|spec\.template\.spec\.(?:topologySpreadConstraints|affinity)"),
+                    ("PodDisruptionBudget", r"")],
+}
+# Values no action may introduce, whatever its type allows.
+NEVER = [(r"\.privileged$", lambda v: v is True), (r"\.allowPrivilegeEscalation$", lambda v: v is True),
+         (r"\.capabilities\.add", lambda v: v not in (None, [], {})), (r"\.runAsUser$", lambda v: v == 0),
+         (r"\.runAsNonRoot$", lambda v: v is False), (r"\.hostPath\.", lambda v: v is not None),
+         (r"spec\.template\.spec\.host(?:Network|PID|IPC)$", lambda v: v is True)]
+_GENERATED = re.compile(r"^(.+)-[a-z0-9]{10}$")  # a kustomize configMapGenerator name: base-<content hash>
+
+
+def _flatten(value, path: str = "", out: dict | None = None) -> dict:
+    out = {} if out is None else out
+    if isinstance(value, dict) and value:
+        for k, v in value.items():
+            _flatten(v, f"{path}.{k}" if path else str(k), out)
+    elif isinstance(value, list) and value:
+        named = all(isinstance(x, dict) and isinstance(x.get("name"), str) for x in value)
+        for i, x in enumerate(value):
+            _flatten(x, f"{path}[{x['name'] if named else i}]", out)
+    else:
+        out[path] = value
+    return out
+
+
+def _objects(objs: list[dict]) -> dict[tuple[str, str], dict]:
+    """Objects by (kind, name), with generated ConfigMap names reduced to their base wherever they appear, so new
+    source content (a new hash) reads as a change of data, not as a new object plus a new reference."""
+    generated = {o["metadata"]["name"]: m.group(1) for o in objs if isinstance(o, dict) and o.get("kind") == "ConfigMap"
+                 for m in [_GENERATED.match(str((o.get("metadata") or {}).get("name", "")))] if m}
+
+    def plain(v):
+        if isinstance(v, dict):
+            return {k: plain(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [plain(x) for x in v]
+        return generated.get(v, v) if isinstance(v, str) else v
+    return {(o.get("kind"), plain((o.get("metadata") or {}).get("name"))): plain(o) for o in objs if isinstance(o, dict)}
+
+
+def _owner(action, kind: str, name: str, obj: dict) -> bool:
+    """Is this object the action's own: its workload, that workload's source, autoscaler or PDB, or its namespace."""
+    target = action.target.split("/")
+    if target[0] == "namespace":
+        return kind == "Namespace" and name == target[-1]
+    app = target[-1]
+    if kind == "ScaledObject":
+        return name == app or ((obj.get("spec") or {}).get("scaleTargetRef") or {}).get("name") == app
+    return name == app or (kind == "ConfigMap" and name == f"{app}-src") or (kind == "PodDisruptionBudget" and name.startswith(app))
+
+
+def unapproved(before: list[dict], after: list[dict], actions: list) -> list[str]:
+    """Every change between the rendered objects before and after the edits that no approved action covers: the
+    whole diff, not just the values an action named. [] when each change belongs to an approved action."""
+    old, new = _objects(before), _objects(after)
+    problems = []
+    for key in sorted(set(old) | set(new), key=str):
+        kind, name = key
+        a, b = _flatten(old.get(key, {})), _flatten(new.get(key, {}))
+        changed = sorted(p for p in set(a) | set(b) if a.get(p) != b.get(p))
+        if not changed:
+            continue
+        if key not in new:
+            problems.append(f"{kind}/{name} is removed, and no action may remove objects")
+            continue
+        for path in changed:
+            value = b.get(path)
+            bad = next((rx for rx, test in NEVER if re.search(rx, path) and test(value)), None)
+            if bad:
+                problems.append(f"{kind}/{name}: {path}={value!r} is never allowed")
+                continue
+            if not any(_owner(act, kind, name, new[key]) and k == kind and re.match(rx, path)
+                       for act in actions for k, rx in CHANGES.get(act.type, [])):
+                what = "added" if key not in old else f"{path} changed"
+                problems.append(f"{kind}/{name}: {what}, which no approved action ({', '.join(f'{x.id} {x.type}' for x in actions)}) covers")
+                if key not in old:
+                    break  # one line per object nobody asked for
     return problems
 
 

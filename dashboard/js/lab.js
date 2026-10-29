@@ -53,7 +53,7 @@ function stageFacts(n) {
   }
   const nodes = (c?.nodes || []).filter((x) => x.role !== "pending");
   return {comp: `k3s · ${nodes.length} machine${nodes.length === 1 ? "" : "s"}`, lines: nodes.map((x) =>
-    `${x.host || shortNode(x.name)} · ${cpuName(x.cpu_model) || "?"} · ${x.pods.filter((p) => p.phase !== "Terminating").length} pods`)};
+    `${x.host || shortNode(x.name)} · ${cpuName(x.cpu_model) || "?"} · ${x.pods.filter(holding).length} pods`)};
 }
 
 function renderStages() {

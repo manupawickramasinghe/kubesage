@@ -148,17 +148,18 @@ class TeamApi:
         if not self._lab_lock.acquire(blocking=False):
             return 409, {"error": "another test case is starting or stopping; wait a moment"}
         try:
-            cases = list(lab.CATALOG) if action == "stop-all" else [lab.BY_NAME[name]]
             steps = []
-            for tc in cases:
-                if action == "start":
-                    ring.emit(f"testcase/{tc.name}", f"━━ starting test case {tc.name}: {tc.summary}")
-                    steps += lab.start(tc)
-                elif action == "stop-all" and tc.name not in lab.status(lab.lab_pods()):
-                    continue
-                else:
-                    steps += lab.stop(tc)
-                    ring.emit(f"testcase/{tc.name}", f"━━ stopped test case {tc.name}")
+            if action == "stop-all":  # by ownership label, not by which cases still have pods
+                steps += lab.stop_all()
+                ring.emit("testcase/all", "━━ stopped every test case")
+            elif action == "start":
+                tc = lab.BY_NAME[name]
+                ring.emit(f"testcase/{tc.name}", f"━━ starting test case {tc.name}: {tc.summary}")
+                steps += lab.start(tc)
+            else:
+                tc = lab.BY_NAME[name]
+                steps += lab.stop(tc)
+                ring.emit(f"testcase/{tc.name}", f"━━ stopped test case {tc.name}")
             for s in steps:
                 ring.emit(f"testcase/{name or 'all'}", f"$ {s['cmd']} -> {'ok' if s['ok'] else 'FAILED'}")
                 for line in s["output"].splitlines()[-6:]:

@@ -117,29 +117,45 @@ def start(tc: TestCase, gitops: Path = GITOPS) -> list[dict]:
     return steps
 
 
-def stop(tc: TestCase, gitops: Path = GITOPS) -> list[dict]:
-    steps = []
-    if tc.load_rps:
-        steps.append(_step(f"kubectl delete job/{tc.app}-load",
-                           _kubectl("-n", NAMESPACE, "delete", "job", f"{tc.app}-load", "--ignore-not-found", "--wait=false")))
-    where = f"gitops/apps/{tc.app}" if tc.gitops else f"kubesage/lab/{tc.app}.yaml"
-    steps.append(_step(f"kubectl delete {'-k' if tc.gitops else '-f'} {where}",
-                       _kubectl("delete", *manifest_args(tc, gitops), "--ignore-not-found", "--wait=false")))
-    # An applied Executor fix can add objects the repo's copy doesn't list, such as a ScaledObject: the lab namespace
-    # is KubeSage's, so anything named after the app goes too (without KEDA there is nothing to remove).
-    for kind in ("scaledobjects.keda.sh", "poddisruptionbudgets"):
-        proc = _kubectl("-n", NAMESPACE, "delete", kind, "--field-selector", f"metadata.name={tc.app}", "--ignore-not-found",
-                        "--wait=false")
-        if proc.returncode == 0 and proc.stdout.strip():
-            steps.append(_step(f"kubectl delete {kind.split('.')[0]}/{tc.app}", proc))
-        elif proc.returncode and "doesn't have a resource type" not in proc.stderr:
-            steps.append(_step(f"kubectl delete {kind.split('.')[0]}/{tc.app}", proc))
-    # An applied Executor fix changes the source, so its ConfigMap has another hash suffix: remove every version.
-    old = [n for n in _kubectl("-n", NAMESPACE, "get", "configmaps", "-o", "name").stdout.split()
-           if n.startswith(f"configmap/{tc.app}-src-")]
-    if old:
-        steps.append(_step(f"kubectl delete {' '.join(old)}", _kubectl("-n", NAMESPACE, "delete", *old, "--ignore-not-found")))
+LABEL = "kubesage.io/testcase"
+# What a test case or an applied fix can create in the lab namespace; KEDA's kind separately, as it may be absent.
+OWNED = "deployments,services,configmaps,jobs,pods,poddisruptionbudgets,serviceaccounts"
+
+
+def _delete_owned(selector: str, shown: str) -> list[dict]:
+    steps = [_step(f"kubectl delete {OWNED} -l {shown}",
+                   _kubectl("-n", NAMESPACE, "delete", OWNED, "-l", selector, "--ignore-not-found", "--wait=false"))]
+    proc = _kubectl("-n", NAMESPACE, "delete", "scaledobjects.keda.sh", "-l", selector, "--ignore-not-found", "--wait=false")
+    if proc.returncode == 0 or "doesn't have a resource type" not in proc.stderr:  # no KEDA: nothing to remove
+        steps.append(_step(f"kubectl delete scaledobjects -l {shown}", proc))
     return steps
+
+
+def _legacy(apps: set[str]) -> list[dict]:
+    """Objects from before the ownership label: autoscalers and PDBs named after an app, and every hash-suffixed
+    version of its source ConfigMap (an applied fix changes the source, and with it the suffix)."""
+    names = []
+    for kinds in ("poddisruptionbudgets,configmaps", "scaledobjects.keda.sh"):
+        proc = _kubectl("-n", NAMESPACE, "get", kinds, "-o", "name")
+        names += proc.stdout.split() if proc.returncode == 0 else []
+    old = [n for n in names if n.split("/", 1)[1] in apps and not n.startswith("configmap/")
+           or n.startswith("configmap/") and any(n.split("/", 1)[1].startswith(f"{a}-src-") for a in apps)]
+    return [_step(f"kubectl delete {' '.join(old)}", _kubectl("-n", NAMESPACE, "delete", *old, "--ignore-not-found",
+                                                             "--wait=false"))] if old else []
+
+
+def stop(tc: TestCase, gitops: Path = GITOPS) -> list[dict]:
+    """Everything the case owns, found by its label rather than by its pods or the repo's copy of the app, so an
+    applied fix's additions go too, and so does a case whose pods are already gone."""
+    where = f"gitops/apps/{tc.app}" if tc.gitops else f"kubesage/lab/{tc.app}.yaml"
+    steps = [_step(f"kubectl delete {'-k' if tc.gitops else '-f'} {where}",
+                   _kubectl("delete", *manifest_args(tc, gitops), "--ignore-not-found", "--wait=false"))]
+    return steps + _delete_owned(f"{LABEL}={tc.name}", f"{LABEL}={tc.name}") + _legacy({tc.app})
+
+
+def stop_all() -> list[dict]:
+    """Every case at once, whether or not any of its pods is left."""
+    return _delete_owned(LABEL, LABEL) + _legacy({tc.app for tc in CATALOG})
 
 
 def status(pods: dict | None) -> dict[str, dict]:

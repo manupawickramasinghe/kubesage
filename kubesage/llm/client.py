@@ -46,6 +46,25 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+def _dict(parent, key: str) -> dict:
+    """parent[key] when both are mappings, else {}: a provider's envelope is data, not a promise."""
+    value = parent.get(key) if isinstance(parent, dict) else None
+    return value if isinstance(value, dict) else {}
+
+
+def _count(value) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def _text(content) -> str:
+    """message.content as text: a string, or the text of a list of content parts; anything else is no answer."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(p["text"] for p in content if isinstance(p, dict) and isinstance(p.get("text"), str))
+    return ""
+
+
 def _strip_fences(text: str) -> str:
     match = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
     return match.group(1) if match else text
@@ -154,19 +173,23 @@ class LLMClient:
             data = self._post(body)
             exchanges.append({"request": self._request(body), "response": {"status": 200, "body": data},
                               "latency_ms": int((time.perf_counter() - started) * 1000), "sent": True})
-            usage = data.get("usage") or {}
-            inp += usage.get("prompt_tokens", 0)
-            out += usage.get("completion_tokens", 0)
-            cached += (usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0
-            choice = (data.get("choices") or [{}])[0]
-            message = choice.get("message") or {}
-            content = message.get("content") or ""
+            usage = _dict(data, "usage")
+            inp += _count(usage.get("prompt_tokens"))
+            out += _count(usage.get("completion_tokens"))
+            cached += _count(_dict(usage, "prompt_tokens_details").get("cached_tokens"))
+            choices = data.get("choices") if isinstance(data, dict) else None
+            choice = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
+            message = _dict(choice, "message")
+            content = _text(message.get("content"))
+            if not isinstance(data, dict) or not choice:
+                problem = f"a reply without choices ({type(data).__name__ if not isinstance(data, dict) else 'choices: ' + repr(choices)[:80]})"
+                continue
             if message.get("refusal"):
                 problem = f"refused: {str(message['refusal'])[:200]}"
                 continue
             if not content.strip():  # gpt-oss can reason until max_tokens and send no content key at all
                 problem = (f"no answer (finish_reason {choice.get('finish_reason')!r} after "
-                           f"{usage.get('completion_tokens', 0)} output tokens)")
+                           f"{_count(usage.get('completion_tokens'))} output tokens)")
                 continue
             try:
                 return schema.model_validate_json(_strip_fences(content)), (inp, cached, out), exchanges

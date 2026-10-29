@@ -11,7 +11,7 @@ ships every fix as a reviewable git commit.
 [![Kubernetes](https://img.shields.io/badge/kubernetes-k3s%20%C2%B7%20k3d-326CE5?logo=kubernetes&logoColor=white)](docs/cluster.md)
 [![KEDA](https://img.shields.io/badge/autoscaling-KEDA-0b6bcb)](docs/pipeline.md)
 [![LLM](https://img.shields.io/badge/LLM-any%20OpenAI--compatible%20API-6e56cf)](docs/configuration.md)
-[![Tests](https://img.shields.io/badge/tests-141%20unit%20%C2%B7%2037%20browser-2ea44f)](docs/testing.md)
+[![Tests](https://img.shields.io/badge/tests-153%20unit%20%C2%B7%2040%20browser-2ea44f)](docs/testing.md)
 
 [Quickstart](#quickstart) · [How it works](#how-it-works) · [Control Center](#the-ai-control-center) ·
 [Agent team](#the-agent-team) · [Documentation](#documentation)
@@ -43,9 +43,9 @@ sends a workload to an expensive model when a cheap one says it needs to.
 
 | scenario | result |
 |---|---|
-| **Right-sizing analysis** | Node pool `D8s_v5` → `F8s_v2`: **$280.32 → $246.74 a month**, 4 of 5 workloads changed. The analysis cost **$0.0111** in model calls |
-| **Live incident** (`ContainerOOMKilled`) | Alert to diagnosis and commit in **16 s** for **$0.0200**: 4 issues, 4 actions, 3 files changed |
-| **Scaling under load** | `checkout-web` scaled 2 → 7 pods, and p95 latency fell from **377 ms to ~110 ms** with zero errors |
+| **Right-sizing analysis** | Node pool `D8s_v5` → `F8s_v2`: **$280.32 → $246.74 a month** at list prices (a modelled saving, not an invoice), 4 of 5 workloads changed. The analysis cost **$0.0111** in model calls |
+| **Live incident** (`ContainerOOMKilled`) | Team run from start to diagnosis and commit in **16 s** for **$0.0200**: 4 issues, 4 actions, 3 files changed. Applying the fix and the recovery are separate steps, not included in that time |
+| **Scaling under load** | In one run on the desktop, `checkout-web` scaled 2 → 7 pods, and p95 latency fell from **377 ms to ~110 ms** with zero errors |
 
 Prices are Azure list prices: each real machine stands in for the cloud VM its `kubesage.io/sku` label names.
 
@@ -55,7 +55,7 @@ Prices are Azure list prices: each real machine stands in for the cloud VM its `
 |---|---|
 | **Evidence, or it's dropped** | Every finding must cite a signal an agent actually collected. Guardrails reject actions with no evidence, unknown targets, machine types outside the catalog and requests bigger than a real node. The model gets one retry, with the reasons. |
 | **Small models do the legwork** | Statistics are computed without an LLM. Cheap models triage and gather evidence; only the hard cases reach the large model. An incident run costs a few cents, and a full right-sizing analysis about one cent. |
-| **People stay in charge** | Models return structured parameters, never raw YAML. Every change is a git commit on its own branch. The web shell is read-only, the terminal views are mirrors, and nothing reaches the cluster until someone presses **Apply**. |
+| **People stay in charge** | The FinOps models return structured parameters, which KubeSage renders into YAML. The Executor's edits are text, so they are checked against everything their approved action may change. Agent fixes are git commits on their own branch, and no plan or fix reaches the cluster until someone presses **Apply**. The web shell is read-only and the terminal views are mirrors; test cases and **Reset demo** change the lab and demo namespaces on purpose. |
 
 ## Quickstart
 
@@ -111,8 +111,9 @@ flowchart TB
     G --> OUT["patches · ScaledObjects · node-pool plan · dollar math"]
 ```
 
-Models return parameters, never YAML. Deterministic guardrails clamp anything below observed usage, and every
-clamp is reported, so a bad answer can't OOM-kill a pod. Scale-to-zero is allowed only for workloads that the
+Models return parameters, never YAML. Deterministic guardrails clamp anything below observed usage and report
+every clamp, so a model can't size a pod below what it was measured using. Floors come from history, so they don't
+guarantee future capacity: review a plan before applying it. Scale-to-zero is allowed only for workloads that the
 statistics flag as batch jobs. The output can be applied directly or committed to your GitOps repo as a kustomize
 overlay with a pull request (`kubesage gitops`). [docs/pipeline.md](docs/pipeline.md) has the details.
 
@@ -177,10 +178,12 @@ Every part of every view is explained in the [UI guide](docs/ui-guide.md).
 
 - **Read-only by default.** The web shell runs a fixed allow-list of read-only commands. The RAM ring behind the
   terminal views has no write endpoint, and nothing typed in a browser reaches a terminal.
-- **Guarded writes.** Every agent edit must apply exactly, parse, stay inside its action's files and pass the
-  policy: only the lab namespace, only known kinds, and requests that fit a real node. Apply re-checks the rendered
-  objects before it sends them.
-- **A person decides.** Changes are commits on their own branches. Apply asks first; pull requests need
+- **Guarded writes.** Every agent edit must apply exactly, parse and stay inside its action's files. Its rendered
+  result is compared with the app as it was, and any change its approved action's type may not make (an image, a
+  privileged container, a host path, an extra object) is refused. Pods must stay in the lab namespace, use known
+  kinds and fit one real node, checked against live node inventory: without it, nothing is accepted. Apply
+  re-checks the rendered objects before it sends them. Generated code still needs a person to read it.
+- **A person decides.** Agent fixes are commits on their own branches. Apply asks first; pull requests need
   `--agent-prs`.
 - **Local first.** The server binds to `127.0.0.1`, and POSTs need an `X-KubeSage` header, so another site in the
   same browser can't trigger actions. Use `--host 0.0.0.0` only on a network you trust.
@@ -256,9 +259,9 @@ tests/               pytest suite and browser checks
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest -q                                          # 141 tests, no cluster or API key needed
+.venv/bin/python -m pytest -q                                          # 153 tests, no cluster or API key needed
 .venv/bin/pip install playwright && .venv/bin/python -m playwright install chromium
-.venv/bin/python tests/browser_smoke.py --output-dir /tmp/kubesage-browser   # 37 UI checks against a mocked API
+.venv/bin/python tests/browser_smoke.py --output-dir /tmp/kubesage-browser   # 40 UI checks against a mocked API
 ```
 
 The browser checks drive the FinOps steps, the agent team, the tmux mirror, the agent chat and the demo guide,

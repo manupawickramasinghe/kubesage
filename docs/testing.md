@@ -6,6 +6,7 @@ Fresh verification on **29 October 2026** covered two pinned revisions:
 |---|---:|---:|
 | Merged `main`, `2425375` (PR #15) | **124 passed** | **22/22 passed** |
 | Pending PR #16–#19 stack, `641c74b` | **141 passed** | **37/37 passed** |
+| PR #20 (the review's remaining findings), on top of that stack | **153 passed** | **40/40 passed** |
 
 The full runs included local Kustomize checks using the pinned kubectl. API/browser fixtures were isolated;
 these checks made no paid model calls or live cluster changes. On merged `main`, set `KUBESAGE_RING` to a
@@ -27,16 +28,16 @@ KUBESAGE_RING="$review_ring_dir/ring" KUBESAGE_RING_MB=4 .venv/bin/python -m pyt
 | file | covers |
 |---|---|
 | `tests/conftest.py` | session fixtures: the five demo scenarios reduced to Stage 1 stats, a mock-mode analysis, and a private RAM ring so tests never write into a live server's `/dev/shm` ring |
-| `test_pipeline.py` | Stage 1 signals, routing, recommendations, resource/replica guardrails, replica cuts against the measured total, a note for every bound the guardrails move, CPU scaling headroom, node sizing at CPU maximum replicas and by packing pods onto nodes, invalid and overnight cron windows, overlapping schedule costs |
+| `test_pipeline.py` | Stage 1 signals, routing, recommendations, resource/replica guardrails, replica cuts against the measured total, a note for every bound the guardrails move, CPU scaling headroom, node sizing at CPU maximum replicas and by packing pods onto nodes, invalid and overnight cron windows, overlapping schedule costs; a plan the 20-replica cap can't make cover the measured total gets bigger pods, or is marked high risk with a follow-up |
 | `test_apply.py` | Patch ordering, Ready/schedulable target node capacity, migration skips, removing the autoscaler a fixed replica count replaces, apply timeouts and stopping after failures, ignoring incomplete runs |
 | `test_service.py` | Atomic report publication, failed writes preserve the previous report, existing runs cannot be overwritten |
 | `test_demo_manifests.py` | demo manifests match the simulated scenarios and start on the current pool |
 | `test_demo_app.py` | the demo app's `/work` endpoint burns CPU; the spike Job uses the demo app image and gets a unique name |
 | `test_gitops.py` | the overlay is committed on a branch and pushed; it builds with kustomize; REPORT.md keeps the node-pool notes |
-| `test_agents.py` | The RAM ring (wraparound, several writers, escape stripping, paging with a limit and a stream filter); loading `agents/` (new and disabled agents, unknown sizes); edit validation (exact match, paths, duplicate YAML keys, Python, Terraform SKUs); deterministic edits; the Thinker's guardrails (evidence, targets, namespaces, SKUs, positive quantities, request vs limit, today's node capacity); the change policy (kinds, namespace, resources) and binding edits to approved actions; every shipped lab app inside the policy; a full mock team run that commits to a throwaway git origin; Apply re-checking the commit and saving its outcome; alerts that resolve and fire again; stopping a case removes what a fix added; the security collector and its image allowlist; test-case manifests and status; the team, test-case and ring endpoints (validation, read-only ring, redacted dump, access log) |
+| `test_agents.py` | The RAM ring (wraparound, several writers, escape stripping, paging with a limit and a stream filter); loading `agents/` (new and disabled agents, unknown sizes); edit validation (exact match, paths, duplicate YAML keys, Python, Terraform SKUs); deterministic edits; the Thinker's guardrails (evidence, targets, namespaces, SKUs, positive quantities, request vs limit, today's node capacity); the change policy (kinds, namespace, resources) and binding edits to approved actions; every shipped lab app inside the policy; a full mock team run that commits to a throwaway git origin; Apply re-checking the commit and saving its outcome; alerts that resolve and fire again; stopping a case removes what a fix added; the security collector and its image allowlist; test-case manifests and status; the team, test-case and ring endpoints (validation, read-only ring, redacted dump, access log); the ring cursor never passes a segment started during a read; pod-level capacity on one real node, failing closed without node inventory; an approved action can't carry an image change, a privileged container or an extra object, and every rule-based fix type still passes; every lab object carries its test-case label, and stop / stop-all delete by it |
 | `test_lab.py` | Inspection-shell command refusals/argument construction, safe trace Authorization placeholders, Lab status and journal behavior |
 | `test_web.py` | Reports/history and selected runs, request validation, mutation locking, namespace isolation, fonts, quantity parsing, live plan/drift/readiness (a missing Deployment is never ready) and traffic status (a stranger's Job is ignored), unavailable cluster data, and JavaScript parsing (`node --check`) |
-| `test_llm.py` | The live client with canned provider replies: an empty reply retried with less reasoning, two empty replies or a refusal named in the error, invalid JSON fed back once |
+| `test_llm.py` | The live client with canned provider replies: an empty reply retried with less reasoning, two empty replies or a refusal named in the error, invalid JSON fed back once; malformed provider envelopes (`choices: [null]`, a non-mapping message, non-text content) fail as a classified `LLMError` with the exchanges kept, and content parts are read as text |
 
 Mock mode makes the pipeline deterministic, so tests never call an LLM.
 
@@ -55,11 +56,12 @@ It checks selection, validation/apply/reload, traffic/reset, history-pinned acti
 failure states, measured traffic success/errors/latency, the agent team panel (untrusted model text stays text),
 the tmux mirror (no input elements, never POSTs, panes visible at phone width, quiet panes keep their lines on first
 load), the tmux panel beside the other views (beside, not over, the view; own window and zoom; remembered after a
-reload; a sheet on a tablet; the header keeps its rows), the agent chat (every hand-off in order, guardrail refusals,
+reload; a sheet on a tablet; the header keeps its rows; with the chat, the view keeps at least 560 px), the agent chat (every hand-off in order, guardrail refusals,
 reasoning from this run's window only, kept polled on FinOps, an earlier run, a live run's typing line, closed state
 remembered, a drawer on a tablet, opened from the run bar on a phone), the demo guide, the plan on screen
 being the plan Apply sends, errors reaching whichever view is open, keyboard focus and shell Tab, the Wire
-reloading after operations, unknown usage shown as unknown, and responsive layouts in both themes at 390, 768 and
+reloading after operations, unknown usage shown as unknown (a finished Job pod doesn't count as unsampled), the Demo saying what it measured
+(failed or unknown traffic results, team-run time to commit, an unknown plan state, a pool that costs more), and responsive layouts in both themes at 390, 768 and
 1400 px. Toolbar Start/Stop testcase and Run agents controls do POST;
 read-only describes the terminal mirror, not every control in the view. Screenshots and `results.json`
 are written to the output directory. Normal pytest runs do not require a browser. Check Firefox/Zen manually

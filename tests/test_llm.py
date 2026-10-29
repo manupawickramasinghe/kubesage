@@ -62,3 +62,21 @@ def test_a_refusal_is_named_as_one(monkeypatch):
     llm, _ = client(monkeypatch, [refusal, refusal])
     with pytest.raises(LLMError, match="refused: I can't help with that"):
         call(llm)
+
+
+@pytest.mark.parametrize("envelope", [{"choices": [None]}, {"choices": "x"}, ["not", "a", "dict"], {"choices": []},
+                                      {"choices": [{"message": "text"}]}, {"choices": [{"message": {"content": 7}}]}])
+def test_a_malformed_envelope_is_a_classified_failure(monkeypatch, envelope):
+    # Review F05: choices [null] or a non-mapping message raised AttributeError instead of an LLMError.
+    llm, _ = client(monkeypatch, [envelope, envelope])
+    with pytest.raises(LLMError) as err:
+        call(llm)
+    assert len(err.value.exchanges) == 2  # what the provider sent stays in the trace
+
+
+def test_content_parts_are_read_as_text(monkeypatch):
+    parts = {"choices": [{"message": {"content": [{"type": "text", "text": '{"verdict": '}, {"type": "text", "text": '"ok"}'}]},
+                          "finish_reason": "stop"}], "usage": {"prompt_tokens": "5", "completion_tokens": 3}}
+    llm, _ = client(monkeypatch, [parts])
+    result, entry = call(llm)
+    assert result.verdict == "ok" and entry.input_tokens == 0 and entry.output_tokens == 3

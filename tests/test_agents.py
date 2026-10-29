@@ -1,5 +1,6 @@
 """The agent team engine, the agents/ folder, the RAM ring, the live test cases and their web endpoints."""
 import json
+import re
 import shutil
 import subprocess
 import threading
@@ -51,6 +52,32 @@ def test_ring_pages_through_every_record_with_a_limit_and_a_stream_filter(tmp_pa
         seen += [x.seq for x in recs]
     assert seen == [1, 2, 3, 5] and after == 5
     assert r.read(5) == ([], 5)  # caught up: the cursor stays put
+
+
+def test_ring_cursor_never_passes_a_segment_started_during_a_read(tmp_path):
+    # Review F06: a writer starting a new segment between the reader's segment snapshot and its read of the newest
+    # record number moved the cursor past a record the read never returned; the next read found nothing.
+    r = ring.Ring(tmp_path / "ring", segsize=4096)
+    for i in range(2):
+        r.write("s", f"line {i}")
+    real = r._segments
+
+    def racing():
+        segs = real()
+        while real() == segs:  # fill the segment: the next record starts a new one
+            r.write("s", "x" * 1000)
+        return segs
+    r._segments = racing
+    first, cursor = r.read(0)
+    r._segments = real
+    second, _ = r.read(cursor)
+    seen = [x.seq for x in first + second]
+    assert seen == list(range(1, seen[-1] + 1)) and r.read(cursor)[0], (cursor, seen)
+    r._segments = racing
+    tail, cursor = r.tail(1000)
+    r._segments = real
+    assert not set(x.seq for x in tail) & set(x.seq for x in r.read(cursor)[0])  # nothing delivered twice
+    assert [x.seq for x in tail + r.read(cursor)[0]] == list(range(1, r._state()[1]))
 
 
 def test_ring_is_shared_between_openers_and_threads(tmp_path):
@@ -214,7 +241,17 @@ def test_policy_refuses_other_namespaces_kinds_and_resources_no_node_has():
     assert policy.check([dep], ["lab"], nodes) == []
     huge = json.loads(json.dumps(dep))
     huge["spec"]["template"]["spec"]["containers"][0]["resources"]["limits"]["memory"] = "1Ti"
-    assert "more than the biggest node" in policy.check([huge], ["lab"], nodes)[0]
+    assert "more than any one lab node" in policy.check([huge], ["lab"], nodes)[0]
+    assert "no node inventory" in policy.check([huge], ["lab"], None)[0]  # fails closed: Review F01's 1 TiB passed
+    two = json.loads(json.dumps(dep))  # Review F01: two 6-core containers passed against an 8-core node
+    c = two["spec"]["template"]["spec"]["containers"][0]
+    c["resources"] = {"requests": {"cpu": "6", "memory": "1Gi"}, "limits": {"cpu": "6", "memory": "1Gi"}}
+    two["spec"]["template"]["spec"]["containers"].append(c | {"name": "second"})
+    assert "add up to 12 cores" in policy.check([two], ["lab"], nodes)[0]
+    split = [{"pool": "lab", "allocatable": {"cpu": "8", "memory": "2Gi"}}, {"pool": "lab", "allocatable": {"cpu": "2", "memory": "16Gi"}}]
+    c2 = json.loads(json.dumps(dep))
+    c2["spec"]["template"]["spec"]["containers"][0]["resources"] = {"requests": {"cpu": "6", "memory": "8Gi"}}
+    assert "more than any one lab node" in policy.check([c2], ["lab"], split)[0]  # cpu of one node, memory of another
     assert "outside lab" in policy.check([dep | {"metadata": {"name": "x", "namespace": "kube-system"}}], ["lab"])[0]
     assert "only the lab namespace" in policy.check([{"kind": "Namespace", "metadata": {"name": "prod"}}], ["lab"])[0]
     assert "kind ClusterRoleBinding" in policy.check([{"kind": "ClusterRoleBinding", "metadata": {"name": "x"}}], ["lab"])[0]
@@ -244,11 +281,59 @@ def test_executor_edits_must_implement_an_approved_action_inside_its_files(tmp_p
     assert "memory: 512Mi" in (clone / dep).read_text()  # rolled back
 
 
+def test_an_approved_action_cannot_carry_unrelated_changes(tmp_path, monkeypatch):
+    # Review F01: an approved memory-limit edit also swapped the image, made the container privileged and mounted
+    # a hostPath, and an extra Deployment rode along; binding, approval and the rendered policy all passed it.
+    clone = tmp_path / "clone"
+    shutil.copytree(ROOT / "gitops", clone / "gitops")
+    monkeypatch.setattr(policy, "render", _render)
+    a = Action(id="A1", issue="I1", type="set_resources", target="deployment/lab/ledger-cache", summary="s", rationale="r",
+               params={"limits": {"memory": "1Gi"}})
+    dep = "gitops/apps/ledger-cache/deployment.yaml"
+    text = (clone / dep).read_text()
+    limit = Edit(path=dep, find="limits: {cpu: 500m, memory: 512Mi}", replace="limits: {cpu: 500m, memory: 1Gi}", action="A1")
+    image = re.search(r"image: (\S+)", text).group(0)
+    sneaky = [limit, Edit(path=dep, find=image, replace="image: docker.io/evil/miner:1", action="A1")]
+    applied, rejected = team._materialize(clone, sneaky, set(), "model", [a], ["lab"], INV["nodes"])
+    assert applied == [] and "image changed, which no approved action" in rejected[0]["reason"]
+    priv = [limit, Edit(path=dep, find=image, replace=image + "\n          securityContext: {privileged: true}", action="A1")]
+    applied, rejected = team._materialize(clone, priv, set(), "model", [a], ["lab"], INV["nodes"])
+    assert applied == [] and "privileged=True is never allowed" in rejected[0]["reason"]
+    extra = yaml.safe_load(text)
+    extra["metadata"]["name"] = "miner"
+    rider = [limit, Edit(path=dep, find=text[-40:], replace=text[-40:] + "---\n" + yaml.safe_dump(extra), action="A1")]
+    applied, rejected = team._materialize(clone, rider, set(), "model", [a], ["lab"], INV["nodes"])
+    assert applied == [] and "Deployment/miner: added" in rejected[0]["reason"]
+    assert "memory: 512Mi" in (clone / dep).read_text()  # rolled back each time
+    applied, rejected = team._materialize(clone, [limit], set(), "model", [a], ["lab"], INV["nodes"])
+    assert [e["action"] for e in applied] == ["A1"] and rejected == []  # the change alone is fine
+
+
+def test_the_rule_based_fixes_stay_inside_their_actions(tmp_path, monkeypatch):
+    # Each deterministic edit type must still pass the whole-diff check, or the policy would block real fixes.
+    if not (ROOT / ".bin/kubectl").exists():
+        monkeypatch.setattr(policy, "render", _render)
+    cases = [("autoscale", "deployment/lab/api-gateway", {"min_replicas": 1, "max_replicas": 4, "cpu_target": 70}),
+             ("storage", "deployment/lab/media-cache", {"size_limit": "4Gi"}),
+             ("spread_pods", "deployment/lab/sidecar-swarm", {"replicas": 40}),
+             ("security_hardening", "namespace/lab", {"pod_security": "baseline"}),
+             ("code_change", "deployment/lab/risk-scorer", {})]
+    for i, (kind, target, params) in enumerate(cases):
+        clone = tmp_path / f"c{i}"
+        shutil.copytree(ROOT / "gitops", clone / "gitops")
+        a = Action(id="A1", issue="I1", type=kind, target=target, summary="s", rationale="r", params=params)
+        files = team._files_for([a], clone)
+        edits = E.deterministic(a, files)
+        assert edits, kind
+        applied, rejected = team._materialize(clone, edits, set(), "rules", [a], ["lab"], INV["nodes"])
+        assert applied and not rejected, (kind, rejected)
+
+
 @pytest.mark.skipif(not (ROOT / ".bin/kubectl").exists(), reason="needs the repo's kubectl for kustomize")
 def test_every_shipped_lab_app_renders_inside_the_policy():
     for app in sorted((ROOT / "gitops/apps").iterdir()):
         objs = policy.render(app)
-        assert objs and policy.check(objs, ["lab"]) == [], app.name
+        assert objs and policy.check(objs, ["lab"], INV["nodes"]) == [], app.name
 
 
 # ---- a whole team run, mock mode, against a throwaway git origin ----
@@ -519,17 +604,37 @@ def test_an_alert_that_resolves_and_fires_again_triggers_the_team_again(tmp_path
 
 
 def test_stopping_a_case_removes_what_an_applied_fix_added(monkeypatch):
-    # Review F07: stop deleted the repo's copy of the app, missing a ScaledObject the Executor's fix had added.
+    # Review F07: stop deleted the repo's copy of the app, missing a ScaledObject the Executor's fix had added; then
+    # it only caught objects named after the app, and stop-all skipped cases without a pod.
     calls = []
 
     def kubectl(*args, stdin=None, timeout=60):
         calls.append(args)
-        out = "scaledobject.keda.sh \"risk-scorer\" deleted" if "scaledobjects.keda.sh" in args else ""
-        return subprocess.CompletedProcess(args, 0, out, "")
+        if args[:4] == ("-n", "lab", "get", "poddisruptionbudgets,configmaps"):
+            return subprocess.CompletedProcess(args, 0, "configmap/risk-scorer-src-abc12\nconfigmap/kube-root-ca.crt\n"
+                                                        "poddisruptionbudget.policy/risk-scorer\n", "")
+        return subprocess.CompletedProcess(args, 0, "", "")
     monkeypatch.setattr(lab, "_kubectl", kubectl)
     steps = lab.stop(lab.BY_NAME["cpu-code"])
-    assert ("-n", "lab", "delete", "scaledobjects.keda.sh", "--field-selector", "metadata.name=risk-scorer",
-            "--ignore-not-found", "--wait=false") in calls
-    assert [s["cmd"] for s in steps][:2] == ["kubectl delete -k gitops/apps/risk-scorer", "kubectl delete scaledobjects/risk-scorer"]
+    assert ("-n", "lab", "delete", lab.OWNED, "-l", "kubesage.io/testcase=cpu-code", "--ignore-not-found", "--wait=false") in calls
+    assert ("-n", "lab", "delete", "scaledobjects.keda.sh", "-l", "kubesage.io/testcase=cpu-code", "--ignore-not-found",
+            "--wait=false") in calls
+    assert ("-n", "lab", "delete", "configmap/risk-scorer-src-abc12", "poddisruptionbudget.policy/risk-scorer",
+            "--ignore-not-found", "--wait=false") in calls  # from before the label; kube-root-ca.crt stays
+    assert all(s["ok"] for s in steps)
+    calls.clear()
+    lab.stop_all()  # no pod status consulted: an orphan autoscaler of a case with no pods still goes
+    assert ("-n", "lab", "delete", lab.OWNED, "-l", "kubesage.io/testcase", "--ignore-not-found", "--wait=false") in calls
+    assert not any("pods" == a for c in calls for a in c if c[2] == "get")
     so = yaml.safe_load(E.scaled_object("risk-scorer", {}))
     assert so["metadata"]["labels"]["app.kubernetes.io/managed-by"] == "kubesage"
+
+
+def test_every_lab_object_carries_its_test_case_label():
+    # What stop deletes is whatever carries the label, so every object a case renders must carry it.
+    for tc in lab.CATALOG:
+        target = lab.GITOPS / "apps" / tc.app if tc.gitops else Path(lab.manifest_args(tc)[1])
+        for obj in policy.render(target):
+            assert obj["metadata"]["labels"]["kubesage.io/testcase"] == tc.name, (tc.name, obj["kind"])
+            if obj["kind"] == "Deployment":  # selectors are immutable: the label must stay out of them
+                assert "kubesage.io/testcase" not in obj["spec"]["selector"]["matchLabels"]
