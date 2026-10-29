@@ -17,7 +17,7 @@ const hhmm = (t) => new Date(t).toLocaleTimeString([], {hour: "2-digit", minute:
 function clusterUse() {
   if (!cluster?.available) return null;
   const nodes = cluster.nodes.filter((n) => n.role !== "pending");
-  const pods = nodes.flatMap((n) => n.pods).filter((p) => !["Terminating", "Succeeded", "Failed"].includes(p.phase));
+  const pods = nodes.flatMap((n) => n.pods).filter(holding);
   const req = sum(pods, "cpu_request_m"), used = measured(pods, "cpu_used_m");
   return {nodes, pods, ready: nodes.filter((n) => n.ready).length, podsReady: pods.filter((p) => p.ready).length,
     pct: cluster.metrics && req && used != null ? Math.round((used / req) * 100) : null};
@@ -50,7 +50,8 @@ const DEMO = [
       if ($("#btn-analyze .spin")) return ["live", "Analyzing: free statistics, one triage call, then a bigger model where needed…"];
       if (!report) return ["todo", "Not run yet"];
       const s = savings();
-      return ["done", `${s != null && s > 0 ? `${usd(s)}/mo found · ` : ""}${report.workloads.filter((w) => w.recommendation).length} of `
+      const pool = s == null ? "" : s > 0 ? `${usd(s)}/mo found · ` : s < 0 ? `the planned pool costs ${usd(-s)}/mo more · ` : "";
+      return [s < 0 ? "warn" : "done", `${pool}${report.workloads.filter((w) => w.recommendation).length} of `
         + `${report.workloads.length} workloads change · analysis cost ${usd(report.llm_cost_usd)}`];
     }},
   {act: 0, title: "How it decided", view: "dashboard", target: "#decision-card",
@@ -83,8 +84,13 @@ const DEMO = [
       if ($("#btn-spike .spin")) return ["live", "Starting the traffic job…"];
       if (t?.status === "running" || t?.status === "pending") return ["live", `Traffic running${reps}`];
       if (t?.status === "failed") return ["warn", "The traffic job failed"];
-      if (t?.status === "completed") return ["done", `${(t.succeeded_requests ?? 0).toLocaleString()} requests answered`
-        + (t.p95_ms != null ? ` · p95 ${t.p95_ms.toLocaleString()} ms` : "") + reps];
+      if (t?.status === "completed") {  // a finished job proves nothing by itself: say what the requests did, or that it's unknown
+        if (t.succeeded_requests == null) return ["warn", `Traffic finished, but its request results are unknown (no load-generator logs)${reps}`];
+        const p95 = t.p95_ms != null ? ` · p95 ${t.p95_ms.toLocaleString()} ms` : "";
+        if (t.failed_requests > 0) return ["warn", `${t.failed_requests.toLocaleString()} of `
+          + `${(t.succeeded_requests + t.failed_requests).toLocaleString()} requests failed${p95}${reps}`];
+        return ["done", `${t.succeeded_requests.toLocaleString()} requests answered, none failed${p95}${reps}`];
+      }
       return ["todo", sc?.max != null ? `Ready${reps}` : "Apply the plan first, so KEDA can scale"];
     }},
   {act: 1, title: "Break something", view: "agents", target: "#team .tc-box", tc: true,
@@ -189,12 +195,19 @@ function renderDemo() {
 
 function demoFigures() {
   const s = savings(), run = team.data?.run, agents = team.data?.team?.agents || [], u = clusterUse();
-  const waste = report && s != null ? fig("Waste found", `${usd(Math.max(0, s))}<small> /mo</small>`,
-    `potential node-pool savings, found for ${usd(report.llm_cost_usd)}`) : fig("Waste found", "—", "Act 1 finds it");
-  let incident = fig("Alert to fix", "—", "Act 2 measures it");
-  if (run?.state === "running") incident = fig("Alert to fix", "running…", `run ${esc(run.id)}`);
-  else if (run && !run.error && run.state === "done") incident = fig("Alert to fix", runSecs(run) != null ? `${runSecs(run)}<small> s</small>` : "done",
-    `${plural(run.diagnosis?.issues.length ?? 0, "issue")} and a ${run.executor?.commit ? "commit" : "diagnosis"} for ${usd(run.cost_usd || 0)}`);
+  // Modelled savings can be negative (a bigger pool), and a team run's time is start to commit, not to recovery.
+  const waste = report && s != null ? s >= 0 ? fig("Waste found", `${usd(s)}<small> /mo</small>`,
+    `modelled node-pool savings at list prices, found for ${usd(report.llm_cost_usd)}`)
+    : fig("Pool cost change", `+${usd(-s)}<small> /mo</small>`, `the planned pool costs more at list prices; found for ${usd(report.llm_cost_usd)}`)
+    : fig("Waste found", "—", "Act 1 finds it");
+  let incident = fig("Team run", "—", "Act 2 measures it");
+  if (run?.state === "running") incident = fig("Team run", "running…", `run ${esc(run.id)}`);
+  else if (run && !run.error && run.state === "done") {
+    const ap = run.executor?.applied;
+    incident = fig("Team run", runSecs(run) != null ? `${runSecs(run)}<small> s</small>` : "done",
+      `start to ${run.executor?.commit ? "diagnosis and commit" : "diagnosis"}: ${plural(run.diagnosis?.issues.length ?? 0, "issue")} for `
+      + `${usd(run.cost_usd || 0)} · ${!run.executor?.commit ? "nothing to apply" : ap ? `${ap.ok ? "applied" : "applied with errors"} ${hhmm(ap.at * 1000)}` : "not applied yet"}`);
+  }
   const cpus = [...new Set((u?.nodes || []).map((n) => cpuName(n.cpu_model)).filter(Boolean))];
   const hw = u ? fig("Real hardware", `${u.nodes.length}<small> machines</small>`, `${esc(cpus.join(" + "))} · ${sum(u.nodes, "cpu_cores")} threads`)
     : fig("Real hardware", "—", "connecting…");
@@ -215,7 +228,9 @@ function preflight() {
       : chip("bad", "Cluster not ready"),
     plan?.state === "applied" || plan?.state === "partial"
       ? chip("bad", "FinOps plan already applied", `<button class="linkish" data-pf="reset">Reset demo</button>`)
-      : chip("ok", "FinOps demo in its oversized ‘before’ state"),
+      : plan?.state === "pending" ? chip("ok", "FinOps demo in its oversized ‘before’ state")
+      : plan?.state === "none" ? chip("info", "No FinOps analysis yet: Analyze first")
+      : chip("wait", cluster ? "FinOps plan state unknown: check the cluster" : "FinOps plan…"),
     active.length ? chip("bad", `${esc(active.join(", "))} running`, `<button class="linkish" data-pf="stop">Stop</button>`)
       : team.tcs ? chip("ok", "No test case running") : chip("wait", "Test cases…"),
     team.data ? chip("info", `Auto-run on alerts ${team.data.auto ? "on" : "off"}`, `<button class="linkish" data-pf="auto">Turn ${team.data.auto ? "off" : "on"}</button>`) : "",

@@ -41,8 +41,14 @@ flowchart LR
    for the namespace). It must match its file exactly once and leave it valid: YAML parses without duplicate
    keys, Python compiles, and every Terraform `vm_size` is in `config/skus.yaml`. Then the app is rendered with
    `kubectl kustomize` and the objects themselves are checked (`kubesage/agents/policy.py`): only the kinds the
-   lab apps use, only the `lab` namespace, container resources positive, request no more than limit and within
-   the biggest node, and a `set_resources` change must leave exactly the values the Thinker's checks passed.
+   lab apps use, only the `lab` namespace, container resources positive and request no more than limit, and each
+   pod's requests and limits, added up over its containers, must fit one real node of its pool (checked against
+   live node inventory; without it nothing is accepted). A `set_resources` change must leave exactly the values
+   the Thinker's checks passed. Finally the app as rendered after the edits is compared with the app as it was:
+   every change must be one its approved action's type may make to that action's own objects (resources for
+   `set_resources`, a ScaledObject and replicas for `autoscale`, security contexts and Pod Security labels for
+   `security_hardening`, and so on). A new image, a privileged container, a host path, an extra Deployment or a
+   removed object is refused.
    Edits that fail are dropped and listed. When all the model's edits for a structured
    action fail, KubeSage's rule-based executor writes that action instead, and the PR labels those edits
    `rules-fallback`. The edits are committed to a fresh branch in the Executor's own clone (`out/agents/repo`),
@@ -83,7 +89,9 @@ still unverified.
 Each test case deploys a real workload into the `lab` namespace on the lab pool (the 3500U laptop,
 `kubesage.io/pool=lab`) that causes one kind of problem. The workloads are in `gitops/apps/<app>/`, the same
 files the Executor edits. Start and stop them from the Lab's dropdown, the tmux view, or
-`kubesage testcase start|stop <name>`.
+`kubesage testcase start|stop <name>`. Every object a case renders carries the label `kubesage.io/testcase=<name>`,
+added by its kustomization, so **Stop** deletes whatever carries it, including what an applied fix added, even
+when no pod of the case is left. **Stop all** does the same for every case in one pass.
 
 | test case | workload | what happens on the cluster | the fix the agents should find |
 |---|---|---|---|
@@ -115,9 +123,8 @@ Every test case was run on the real cluster, and every alert above fired. The ag
 
 Model output varies from run to run. These are single runs, not guarantees. Guardrails and structural
 validation filter some invalid results; they do not make every run safe to apply. Review the final diff and
-rendered objects. The [29 October review](REVIEW_REPORT.md) records open action-policy, namespace-confinement
-and resource-validation gaps. It separately assesses the policy checks proposed in PR #16; those checks
-are not yet on merged main and still have residual limits.
+rendered objects. The [29 October review](REVIEW_REPORT.md) recorded action-policy, namespace-confinement and
+resource-validation gaps; its section 12 lists what PR #20 closed. Generated code still needs a person to read it.
 
 Individual test cases have resource constraints: container limits where configured, limited scratch space,
 and small pause-image pods. These do not enforce a combined shared-machine budget or a strict load-job

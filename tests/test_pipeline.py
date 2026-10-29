@@ -211,6 +211,27 @@ def test_a_replica_cut_must_still_cover_the_measured_total(stats):
     assert fixed.resources.cpu_limit_m == 400 and any("CPU limit raised 250m -> 400m" in n for n in notes)
 
 
+def test_the_replica_cap_never_leaves_a_plan_below_demand(stats):
+    # Review F03: 100 pods using 20 cores became a 20-replica plan of 0.25-core pods: five cores in all.
+    s = stats["catalog-api"].model_copy(update={"replicas": 100, "cpu_total_p95": 20.0, "signals": [],
+                                                "weekday_hourly_cpu": [15.0] * 24, "weekend_hourly_cpu": [15.0] * 24})
+    rec = Recommendation(workload="x", risk="low", diagnosis="x",
+                         resources=ResourceSpec(cpu_request_m=250, cpu_limit_m=250, mem_request_mi=512, mem_limit_mi=1024),
+                         scaling=ScalingPlan(min_replicas=2, max_replicas=20, cpu_utilization_target=70))
+    safe, notes = guardrails.apply(rec, s)
+    assert safe.scaling.max_replicas <= guardrails.MAX_REPLICAS
+    assert safe.scaling.max_replicas * safe.resources.cpu_limit_m / 1000 >= 20.0
+    assert any("CPU limit raised 250m -> 1000m" in n for n in notes)
+    # without a resource recommendation there is nothing to enlarge: the plan says it can't cover demand
+    bare, notes = guardrails.apply(rec.model_copy(update={"resources": None}),
+                                   s.model_copy(update={"cpu_limit_cores": 0.25, "cpu_request_cores": 0.25}))
+    assert bare.risk == "high" and any("20-replica cap" in f for f in bare.follow_ups)
+    assert any(n.startswith("plan can't cover demand") for n in notes)
+    # fixed replicas aren't capped: 100 pods of 0.25 cores already cover 20 cores
+    fixed, notes = guardrails.apply(rec.model_copy(update={"scaling": None}), s)
+    assert fixed.resources.cpu_limit_m == 250
+
+
 def test_every_bound_the_guardrails_move_is_noted(stats):
     # Review F17: max below min, windows outside min..max and a CPU target outside 30-95% were changed silently.
     rec = Recommendation(workload="x", risk="low", diagnosis="x", scaling=ScalingPlan(

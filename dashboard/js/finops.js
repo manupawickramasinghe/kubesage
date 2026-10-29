@@ -150,7 +150,7 @@ function renderClusterStatus() {
     el.innerHTML = `${icon("complex")}<strong>${c ? "Cluster not reachable" : "Connecting to cluster…"}</strong><span class="muted">${esc(c?.error || "Live data is unavailable. Analysis reports remain available.")}</span>`;
     return;
   }
-  const nodes = c.nodes.filter((n) => n.role !== "pending"), pods = nodes.flatMap((n) => n.pods).filter((p) => !["Terminating", "Succeeded", "Failed"].includes(p.phase));
+  const nodes = c.nodes.filter((n) => n.role !== "pending"), pods = nodes.flatMap((n) => n.pods).filter(holding);
   const pending = c.nodes.flatMap((n) => n.pods).filter((p) => p.phase === "Pending").length;
   el.innerHTML = `<strong>${icon(nodes.every((n) => n.ready) ? "healthy" : "complex")} ${nodes.filter((n) => n.ready).length}/${nodes.length} machines ready</strong>
     <span>${pods.filter((p) => p.ready).length}/${pods.length} pods ready${pending ? ` · ${pending} pending` : ""}</span>
@@ -235,7 +235,7 @@ function renderCluster() {
     prevD = D;
     prevHeight = maxHeight;
     const ox = T, oy = column ? T : -T, slab = box(ox, oy, W, D, -ISO.slab, 0);
-    const live = pods.filter((p) => p.phase !== "Terminating");
+    const live = pods.filter(holding);
     const reqM = sum(live, "cpu_request_m"), usedM = measured(live, "cpu_used_m");
     let g = `<g class="${n.role === "pending" ? "pending-node" : ""}" data-node="${esc(n.name)}" data-tip tabindex="0" role="button"
       aria-label="${esc(`Machine ${n.host || n.name}, ${pods.length} pods`)}">
@@ -321,7 +321,7 @@ function describeIso(t) {
 
 function renderLegend() {
   const counts = {};
-  (cluster?.nodes || []).forEach((n) => n.pods.forEach((p) => { if (p.phase !== "Terminating") counts[p.app] = (counts[p.app] || 0) + 1; }));
+  (cluster?.nodes || []).forEach((n) => n.pods.forEach((p) => { if (holding(p)) counts[p.app] = (counts[p.app] || 0) + 1; }));
   (report?.workloads || []).forEach((w) => (counts[appOf(w.id)] ??= 0));
   const apps = Object.keys(counts).sort((a, b) => order.indexOf(a) - order.indexOf(b) || a.localeCompare(b));
   apps.forEach(color);
@@ -343,7 +343,7 @@ const closeBtn = `<button class="btn btn-ghost btn-icon btn-sm" data-close aria-
 function renderInspector() {
   const el = $("#inspector"), c = cluster;
   if (!c || !c.available) { replaceHTML(el, `<p class="muted">${c ? "Live inspection is unavailable while the cluster is disconnected." : "Waiting for the cluster…"}</p>`); return; }
-  const pods = c.nodes.flatMap((n) => n.pods.map((p) => ({...p, node: n.name}))).filter((p) => p.phase !== "Terminating");
+  const pods = c.nodes.flatMap((n) => n.pods.map((p) => ({...p, node: n.name}))).filter(holding);
   if (sel?.kind === "node") {
     const n = c.nodes.find((x) => x.name === sel.id);
     if (n) { replaceHTML(el, nodePanel(n, pods.filter((p) => p.node === n.name))); return; }

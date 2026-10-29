@@ -43,6 +43,30 @@ function initViews() {
   window.addEventListener("hashchange", () => { if (viewFromHash() !== view) showView(viewFromHash()); });
 }
 
+// The view keeps at least MAIN_MIN px between the panels beside it. The tmux panel narrows first, then the chat, each
+// to its minimum; when even both minimums leave too little, the tmux panel floats over the view instead of beside it.
+const MAIN_MIN = 560;
+function fitPanels() {
+  const sideOn = !$("#txside").hidden;
+  let c = Math.min(chat.w, Math.floor(innerWidth * 0.34)), s = Math.min(tx.sideW, Math.floor(innerWidth * 0.6)), float = false;
+  if (innerWidth > 900 && (chat.open ? c : 0) + (sideOn ? s : 0) + MAIN_MIN > innerWidth) {
+    if ((chat.open ? CHAT_MIN : 0) + (sideOn ? SIDE_MIN : 0) + MAIN_MIN <= innerWidth) {
+      let over = (chat.open ? c : 0) + (sideOn ? s : 0) + MAIN_MIN - innerWidth;
+      if (sideOn) { const cut = Math.min(over, Math.max(0, s - SIDE_MIN)); s -= cut; over -= cut; }
+      if (chat.open) c -= Math.min(over, Math.max(0, c - CHAT_MIN));
+    } else {
+      float = sideOn;
+      c = Math.max(CHAT_MIN, Math.min(c, innerWidth - MAIN_MIN));
+    }
+  }
+  document.documentElement.style.setProperty("--chat", `${c}px`);
+  document.documentElement.style.setProperty("--side", `${s}px`);
+  document.body.classList.toggle("side-over", float);
+  $("#chat-grip").setAttribute("aria-valuenow", c);
+  $("#txs-grip").setAttribute("aria-valuenow", s);
+}
+addEventListener("resize", fitPanels);
+
 // The panels beside the views hang under the header, which takes more rows on a narrow screen.
 new ResizeObserver(() => document.documentElement.style.setProperty("--top", `${$("header.top").offsetHeight}px`)).observe($("header.top"));
 

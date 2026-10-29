@@ -85,7 +85,7 @@ Applied to every recommendation, with every override recorded:
 | min 0 with no cron window → 1 | nothing would wake it |
 | max replicas ≤ 20; cron replicas within [min, max]; CPU target within 30–95% (each change noted) | sanity |
 | CPU request ≥ the 30-day median (active-period median for scale-to-zero) | never starve a pod |
-| memory request ≥ the median (active p95 for scale-to-zero); limit ≥ 1.15 × observed max and ≥ request | never OOM-kill on day one |
+| memory request ≥ the median (active p95 for scale-to-zero); limit ≥ 1.15 × observed max and ≥ request | no OOM kill at the usage already measured (it can't promise future demand) |
 | CPU limit ≥ the request and the p99 | no throttling below observed load |
 | **The replicas a plan can reach × CPU per pod (limit, else request) ≥ the p95 total across pods**: else a CPU trigger is added and max raised, or cron windows raised for scale-to-zero; min covers the median total; with fixed replicas the CPU limit covers its share | per-pod floors don't protect a replica cut: four pods using 0.8 cores could become one pod capped at 0.25 |
 

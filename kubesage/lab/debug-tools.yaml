@@ -5,7 +5,7 @@ kind: Pod
 metadata:
   name: debug-tools
   namespace: lab
-  labels: {app: debug-tools}
+  labels: {app: debug-tools, kubesage.io/testcase: security}
 spec:
   nodeSelector: {kubesage.io/pool: lab}
   terminationGracePeriodSeconds: 1

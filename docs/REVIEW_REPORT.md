@@ -345,3 +345,25 @@ started by it. Source review and targeted probes are not a formal proof of all p
 Supporting guides: [UI](ui-guide.md), [agents](agents.md), [API](api.md), [testing](testing.md),
 [cleanup](cleanup.md), [historical UI review](ui-review.md). Screenshots in those guides illustrate recorded
 states; the pinned tests and timestamped observations above define this review's evidence.
+
+## 12. Status after PR #20
+
+Added after this review, on 29 October 2026, by the PR that answers section 8. Sections 1–11 are the review as
+written; this section records what changed since. Each fix has a regression test that fails without it.
+
+| ID | Fix in PR #20 | Regression |
+|---|---|---|
+| F01 | The app is rendered before and after the Executor's edits, and every change must be one its approved action's type may make to that action's own objects. Images, privileged containers, host paths, privilege escalation, root users, extra objects and removals are refused. Pod requests and limits are summed over containers and must fit one real node of the pool, with CPU and memory on the same node; without node inventory nothing is accepted. The Thinker's resource check uses the same joint fit. | `test_an_approved_action_cannot_carry_unrelated_changes`, `test_the_rule_based_fixes_stay_inside_their_actions`, `test_policy_refuses_other_namespaces_kinds_and_resources_no_node_has` |
+| F03 | When the 20-replica cap can't cover the measured total, each pod gets the CPU it needs; without a resource recommendation the plan is marked high risk with a follow-up. | `test_the_replica_cap_never_leaves_a_plan_below_demand` |
+| F05 | The provider envelope is type-checked; malformed replies become a classified `LLMError` that keeps the exchanges, and content parts are read as text. | `test_a_malformed_envelope_is_a_classified_failure`, `test_content_parts_are_read_as_text` |
+| F06 | `read()` and `tail()` read the newest record number before the segment snapshot, and `tail()` advances only over what it scanned. | `test_ring_cursor_never_passes_a_segment_started_during_a_read` |
+| F07 | Every lab object carries `kubesage.io/testcase=<name>` (kustomization `labels`, kept out of selectors). Stop and stop-all delete by that label, whether or not a pod is left, plus pre-label leftovers by name. | `test_stopping_a_case_removes_what_an_applied_fix_added`, `test_every_lab_object_carries_its_test_case_label` |
+| F09 | One definition of the pods that hold resources: Terminating, Succeeded and Failed pods are left out of usage totals. | browser `finished-job-pods-dont-blank-usage` |
+| F20 | When a remote leave fails, `cleanup.sh --all` keeps `.bin/joined-nodes` and exits non-zero. | `bash -n`; no teardown was run |
+| F21 | The Demo reports failed or unknown traffic results, calls the run time "Team run: start to diagnosis and commit" with the apply state, keeps an unknown plan state unknown, and shows a pool that costs more. | browser `demo-says-what-it-measured` |
+| F22 | README and page claims are qualified: modelled prices, team-run time, FinOps rendering vs Executor edits, what Apply guards and what test cases change. | review of the text |
+| F23 | The view keeps at least 560 px between the panels: the tmux panel narrows first, then the chat, and the tmux panel floats over the view when both minimums don't fit. | browser `panels-leave-room-for-the-view` |
+
+Verification on the PR #20 head: **153 pytest tests and 40/40 Chromium scenarios passed**, with local Kustomize
+rendering. Section 9's design limits still apply. Remaining work: a bounded live rehearsal, Firefox and
+accessibility checks, and review of generated code by a person.

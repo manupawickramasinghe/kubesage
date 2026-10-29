@@ -174,6 +174,7 @@ function setChat(on) {
   document.body.classList.toggle("chat-open", on);
   $("#btn-chat").setAttribute("aria-pressed", String(on));
   syncTeam();
+  fitPanels();
   chat.html = "";
   renderChat();
 }
@@ -183,9 +184,8 @@ function saveChat() {
 function sizeChat(w) {
   chat.w = Math.round(Math.min(CHAT_MAX, Math.max(CHAT_MIN, w)));
   document.documentElement.style.setProperty("--chat-w", `${chat.w}px`);
-  const max = Math.max(CHAT_MIN, Math.floor(innerWidth * 0.34));
-  $("#chat-grip").setAttribute("aria-valuemax", max);
-  $("#chat-grip").setAttribute("aria-valuenow", Math.min(chat.w, max));
+  $("#chat-grip").setAttribute("aria-valuemax", Math.max(CHAT_MIN, Math.floor(innerWidth * 0.34)));
+  fitPanels();  // the width it gets, within the room the view needs
 }
 
 function initChat() {
@@ -222,7 +222,6 @@ function initChat() {
     sizeChat(+grip.getAttribute("aria-valuenow") + step);
     saveChat();
   };
-  addEventListener("resize", () => sizeChat(chat.w));
   // Open by default where there's room for it beside a view; a reader's own choice wins after that.
   setChat(typeof saved.open === "boolean" ? saved.open : innerWidth >= 1280);
 }

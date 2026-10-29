@@ -48,7 +48,8 @@
 .txs-grip:hover, .txs-grip:focus-visible, body.resizing .txs-grip { outline: none; background: color-mix(in srgb, var(--t-violet) 55%, transparent); }
 body.resizing { cursor: col-resize; user-select: none; }
 #btn-side[aria-pressed="true"] { background: var(--secondary); }
-@media (min-width: 901px) { body.side-open { --pr: var(--side); } }  /* base.css makes room for it */
+/* base.css makes room for it, unless fitPanels() floats it over a view that would get too narrow */
+@media (min-width: 901px) { body.side-open:not(.side-over) { --pr: var(--side); } }
 @media (max-width: 600px) { #btn-side { display: none; } }  /* a phone has the tmux tab; the panel keeps its own close */
 @media (max-width: 900px) {
   .tmux.txside { top: auto; left: 0; width: auto; height: var(--sheet); border-width: 1px 0 0; border-radius: 12px 12px 0 0;

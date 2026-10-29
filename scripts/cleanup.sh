@@ -165,6 +165,7 @@ fi
 
 # ---------- clean ----------
 
+FAILED=()  # joined machines whose leave failed: their record in .bin/joined-nodes must survive
 pids=$(ui_pids)
 if [ -n "$pids" ]; then
   kill $pids 2>/dev/null || true
@@ -177,7 +178,7 @@ if [ ${#NODES[@]} -gt 0 ]; then  # before the cluster goes, so their nodes can s
   if [ -z "${SUDO_PASSWORD:-}" ]; then read -rsp "sudo password on ${NODES[*]}: " SUDO_PASSWORD; echo; fi
   export SUDO_PASSWORD
   for n in "${NODES[@]}"; do
-    "$REPO_ROOT/scripts/leave-node.sh" "$n" || echo "warning: $n was not cleaned; retry with scripts/leave-node.sh $n" >&2
+    "$REPO_ROOT/scripts/leave-node.sh" "$n" || { FAILED+=("$n"); echo "warning: $n was not cleaned; retry with scripts/leave-node.sh $n" >&2; }
   done
 fi
 
@@ -210,10 +211,18 @@ if [ "$ALL" = 1 ]; then
   for i in "${images[@]}"; do
     if docker rmi "$i" >/dev/null 2>&1; then echo "removed image $i"; else echo "kept image $i: another container uses it"; fi
   done
-  rm -rf "$BIN_DIR" "$REPO_ROOT/out"
-  echo "removed $BIN_DIR and $REPO_ROOT/out"
+  if [ ${#FAILED[@]} -gt 0 ] && [ -f "$BIN_DIR/joined-nodes" ]; then
+    # .bin/joined-nodes is how a retry finds a machine that wasn't cleaned: everything else goes, it stays.
+    find "${BIN_DIR:?}/" -mindepth 1 -maxdepth 1 ! -name joined-nodes -exec rm -rf {} +
+    rm -rf "$REPO_ROOT/out"
+    echo "removed $BIN_DIR (kept joined-nodes: ${FAILED[*]} still need scripts/leave-node.sh) and $REPO_ROOT/out"
+  else
+    rm -rf "$BIN_DIR" "$REPO_ROOT/out"
+    echo "removed $BIN_DIR and $REPO_ROOT/out"
+  fi
 fi
 
 echo
 check
-[ "$LEFT" = 0 ]
+[ ${#FAILED[@]} -eq 0 ] || echo "not cleaned: ${FAILED[*]} (still listed in $BIN_DIR/joined-nodes)" >&2
+[ "$LEFT" = 0 ] && [ ${#FAILED[@]} -eq 0 ]

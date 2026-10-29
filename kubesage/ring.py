@@ -163,8 +163,11 @@ class Ring:
         """Records with seq > after (the oldest still held, if `after` was overwritten), and the cursor to pass as
         `after` next time: the last record delivered when `limit` cut the read short, else the newest seq scanned.
         Returning the newest seq after a short read skipped every record between the two."""
-        segs = self._segments()
+        # The newest record number first, then the segments: every record up to it is published, so it is in a
+        # segment of this snapshot. Read the other way round, a writer could start a new segment in between and
+        # the cursor would move past records this read never saw.
         _, next_rec = self._state()
+        segs = self._segments()
         start = 0
         for i, (_, first) in enumerate(segs):
             if first <= after + 1:
@@ -179,19 +182,21 @@ class Ring:
                     if len(out) >= limit:
                         return out, rec.seq
         # A record written while scanning is delivered now, so the cursor moves past it too.
-        return out, max(scanned, next_rec - 1)
+        return out, max(after, scanned, next_rec - 1)
 
     def tail(self, n: int = 200, *, streams: list[str] | None = None) -> tuple[list[Record], int]:
         """The newest `n` matching records, scanning back only as far as needed."""
+        _, next_rec = self._state()  # before the segments, as in read()
         segs = self._segments()
-        _, next_rec = self._state()
         out: list[Record] = []
+        scanned = 0
         for seg, _ in reversed(segs):
-            recs = [r for r in self._records(seg) if _matches(r.stream, streams)]
-            out[:0] = recs
+            held = self._records(seg)
+            scanned = max([scanned] + [r.seq for r in held])  # written since next_rec was read: delivered, so passed
+            out[:0] = [r for r in held if _matches(r.stream, streams)]
             if len(out) >= n:
                 break
-        return out[-n:], next_rec - 1
+        return out[-n:], max(scanned, next_rec - 1)
 
     def iter_since(self, since_ts: float = 0, *, streams: list[str] | None = None) -> Iterator[Record]:
         for seg, _ in self._segments():

@@ -121,6 +121,24 @@ def _aggregate(rec: Recommendation, s: WorkloadStats, notes: list[str]) -> None:
     need = s.cpu_total_p95
     if per_pod <= 0 or need <= 0:
         return
+    if plan is not None and math.ceil(need / per_pod - 1e-9) > MAX_REPLICAS:
+        # Even the replica cap can't cover the total at this pod size: make each pod bigger, or say it can't.
+        want = _up(need / MAX_REPLICAS * 1000, 5)
+        why = f"{MAX_REPLICAS} replicas, the cap, must cover the {need:.2f}-core p95 total"
+        if r is not None and r.cpu_limit_m is not None:
+            notes.append(f"CPU limit raised {r.cpu_limit_m}m -> {want}m ({why})")
+            r.cpu_limit_m = want
+            per_pod = want / 1000
+        elif r is not None:
+            notes.append(f"CPU request raised {r.cpu_request_m}m -> {want}m ({why})")
+            r.cpu_request_m = want
+            per_pod = want / 1000
+        else:
+            gap = f"{need:.2f} cores at p95 needs {math.ceil(need / per_pod - 1e-9)} pods of {per_pod:g} cores, more than " \
+                  f"the {MAX_REPLICAS}-replica cap: give each pod more CPU before relying on this plan"
+            notes.append(f"plan can't cover demand: {gap}")
+            rec.follow_ups.append(gap)
+            rec.risk = "high"
     pods = min(MAX_REPLICAS, max(1, math.ceil(need / per_pod - 1e-9)))
     if plan is None:
         if r is not None and r.cpu_limit_m is not None and s.replicas * per_pod < need:

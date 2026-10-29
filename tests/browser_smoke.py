@@ -514,6 +514,7 @@ def run(args):
 
             def tmux_beside(page, mock):
                 page.goto(url + "#agents")
+                page.locator("#chat-x").click()  # the chat would share the width this test measures
                 expect(page.locator("#txside")).to_be_hidden()
                 page.locator("#btn-side").click()
                 expect(page.locator("#txside")).to_be_visible()
@@ -825,6 +826,68 @@ def run(args):
                 expect(page.locator("#btn-spike")).to_be_disabled()
 
             scenario("unknown-usage-is-not-zero", unknown_usage_is_not_zero)
+
+            def finished_job_pods_dont_blank_usage(page, mock):
+                # Review F09: a completed load-generator pod (no samples, ever) made the whole total unknown.
+                mock.cluster["nodes"][0]["pods"].append({"name": "kubesage-spike-test-x1", "app": "kubesage-spike-test",
+                                                         "phase": "Succeeded", "ready": False, "restarts": 0,
+                                                         "cpu_request_m": 100, "mem_request_mi": 64, "mem_limit_mi": 256,
+                                                         "cpu_used_m": None, "mem_used_mi": None})
+                ready(page, url)
+                expect(page.locator("#inspector .big")).not_to_have_text("—")
+                expect(page.locator("#inspector")).not_to_contain_text("pods sampled")
+
+            scenario("finished-job-pods-dont-blank-usage", finished_job_pods_dont_blank_usage)
+
+            def demo_says_what_it_measured(page, mock):
+                # Review F21: a finished traffic Job read as success whatever its requests did; a team run's time was
+                # called "Alert to fix"; an unknown plan passed as the "before" state; a bigger pool showed $0 saved.
+                mock.cluster["traffic"] = traffic_fixture(errors=20)
+                page.goto(url + "#demo")
+                scales = page.locator("#demo-acts .ds").nth(4)
+                expect(scales.locator(".ds-st")).to_contain_text("20 of 520 requests failed")
+                expect(scales).to_have_attribute("data-state", "warn")
+                figs = page.locator("#demo-figs")
+                expect(figs).to_contain_text("Team run")
+                expect(figs).to_contain_text("start to diagnosis and commit")
+                expect(figs).to_contain_text("not applied yet")
+                expect(figs).not_to_contain_text("Alert to fix")
+                mock.cluster["traffic"] = traffic_fixture(logs=False)
+                mock.cluster["plan"].update(state="unknown")
+                expect(scales.locator(".ds-st")).to_contain_text("request results are unknown", timeout=8000)
+                expect(page.locator("#demo-preflight")).to_contain_text("FinOps plan state unknown")
+                expect(page.locator("#demo-preflight")).not_to_contain_text("oversized")
+                mock.report["node_pool"]["after_monthly_usd"] = mock.report["node_pool"]["before_monthly_usd"] + 50
+                page.reload()
+                expect(figs).to_contain_text("Pool cost change")
+                expect(figs).to_contain_text("+$50.00")
+
+            scenario("demo-says-what-it-measured", demo_says_what_it_measured)
+
+            def panels_leave_room_for_the_view(page, mock):
+                # Review F23: both panels at their widest left the view 61 px at 1024 and 84 px at 1400.
+                room = lambda: page.evaluate("""() => { const b = getComputedStyle(document.body);
+                    return innerWidth - parseFloat(b.paddingLeft) - parseFloat(b.paddingRight); }""")
+                for width, floats in ((1024, True), (1400, False)):
+                    page.set_viewport_size({"width": width, "height": 900})
+                    page.goto(url + "#agents")
+                    expect(page.locator("#team-flow .agent")).to_have_count(6)
+                    if page.locator("#chat").is_hidden():
+                        page.locator("#btn-chat").click()
+                    if page.locator("#txside").is_hidden():
+                        page.locator("#btn-side").click()
+                    for grip, key in (("#chat-grip", "ArrowRight"), ("#txs-grip", "ArrowLeft")):
+                        page.locator(grip).focus()
+                        for _ in range(15):
+                            page.keyboard.press(key)
+                    assert room() >= 560, (width, room())
+                    assert page.evaluate("document.body.classList.contains('side-over')") == floats, width
+                    if floats:  # over the view: it keeps the room, and the panel is still all on screen
+                        side = page.locator("#txside").bounding_box()
+                        assert side["x"] >= 0 and side["x"] + side["width"] <= width + 1, side
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+            scenario("panels-leave-room-for-the-view", panels_leave_room_for_the_view)
 
             def responsive(page, mock):
                 mock.cluster["traffic"] = traffic_fixture(errors=20)

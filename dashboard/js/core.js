@@ -11,6 +11,9 @@ const mib = (v) => (v == null ? "—" : v >= 1024 ? (v / 1024).toFixed(1) + " Gi
 const sum = (xs, key) => xs.reduce((a, x) => a + (x[key] ?? 0), 0);
 // A measured total only when every pod has a sample (a Pending pod uses nothing): a partial sum would read as spare
 // capacity. coverage() says how many were sampled when some weren't.
+// The pods that hold resources now: a Terminating pod is leaving, and a finished Job pod (Succeeded or Failed) uses
+// nothing and never gets a sample, so neither belongs in a total of what is in use.
+const holding = (p) => !["Terminating", "Succeeded", "Failed"].includes(p.phase);
 const sampled = (x, key) => x[key] != null || x.phase === "Pending";
 const measured = (xs, key) => xs.every((x) => sampled(x, key)) ? sum(xs, key) : null;
 const coverage = (xs, key) => { const n = xs.filter((x) => sampled(x, key)).length; return n < xs.length ? `${n} of ${xs.length} pods sampled` : ""; };

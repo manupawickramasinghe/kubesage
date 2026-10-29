@@ -394,6 +394,15 @@ def _fits_today(a: Action, inv: dict) -> str | None:
                             f"future peak in a change_node_sku action instead.")
     except ValueError:
         return f"resources {params} are not valid Kubernetes quantities"
+    merged_requests = {k: v for k, v in (params.get("requests") or {}).items() if v is not None}
+    try:
+        need = {k: policy.qty(merged_requests[k]) if k in merged_requests else 0.0 for k in ("cpu", "memory")}
+    except ValueError:
+        return f"resources {params} are not valid Kubernetes quantities"
+    room_all = policy.rooms(inv["nodes"], pool)
+    if room_all and not policy.fits(need, room_all):  # each fits some node, but not both on the same one
+        return (f"requests {merged_requests} don't fit together on any one {pool or 'cluster'} node today, so the pod "
+                f"would stay Pending")
     # Judge the result, not just the change: a new request is compared with the limit the container keeps.
     current = ((w or {}).get("containers") or [{}])[0]
     merged = {kind: {**(current.get(kind) or {}), **{k: v for k, v in (params.get(kind) or {}).items() if v is not None}}
@@ -486,21 +495,31 @@ def _materialize(clone: Path, edits: list[Edit], skus: set[str], by: str, action
             applied.append({**e.model_dump(), "by": by})
         except E.EditError as exc:
             rejected.append({**e.model_dump(), "by": by, "reason": str(exc)})
+    # Check what Apply would send, per app folder (kubectl apply -k) or the namespace file (-f), and undo a unit
+    # whose rendered objects leave the namespace, use another kind, carry resources the policy refuses or differ
+    # from the unit as it was in any way its approved actions don't cover.
+    units = sorted({"/".join(e["path"].split("/")[:3]) for e in applied if e["path"].startswith("gitops/apps/")})
+    before = {}
+    for unit in units:  # rendered before anything is written: what the edits change is the difference
+        try:
+            before[unit] = policy.render(clone / unit) if (clone / unit).exists() else []
+        except (policy.PolicyError, OSError) as exc:
+            before[unit] = exc
     for rel, text in texts.items():
         if text is not None:
             (clone / rel).parent.mkdir(parents=True, exist_ok=True)
             (clone / rel).write_text(text)
-    # Check what Apply would send, per app folder (kubectl apply -k) or the namespace file (-f), and undo a unit
-    # whose rendered objects leave the namespace, use another kind, or carry resources the policy refuses.
-    units = sorted({"/".join(e["path"].split("/")[:3]) for e in applied if e["path"].startswith("gitops/apps/")})
     for unit in units:
         target = clone / unit
         if target.is_dir() and not (target / "kustomization.yaml").exists():
             continue
         by_unit = [a for a in actions if any(e["action"] == a.id for e in applied if e["path"].startswith(unit))]
         try:
+            if isinstance(before[unit], Exception):
+                raise before[unit]
             objs = policy.render(target)
-            problems = policy.check(objs, namespaces, nodes) + _as_approved(objs, by_unit)
+            problems = (policy.check(objs, namespaces, nodes) + _as_approved(objs, by_unit)
+                        + policy.unapproved(before[unit], objs, by_unit))
         except (policy.PolicyError, OSError) as exc:
             problems = [str(exc)]
         if not problems:

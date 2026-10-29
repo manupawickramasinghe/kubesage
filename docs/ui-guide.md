@@ -23,7 +23,9 @@ reload or a shared link keeps the view.
 
 Below 900 px the tabs shorten to **Demo · FinOps · Agents · Lab · tmux**; on a phone they get a row of their own.
 Two panels can sit beside any view: the **Agent chat** on the left (see [Agent chat](#agent-chat)) and the **tmux
-panel** on the right (see [tmux](#tmux)). The header buttons with those names open and close them.
+panel** on the right (see [tmux](#tmux)). The header buttons with those names open and close them. With both
+open, the view keeps at least 560 px: the tmux panel gets narrower first, then the chat, and on a screen too small
+for both beside the view, the tmux panel floats over it instead.
 
 ## Presenting the demo
 
