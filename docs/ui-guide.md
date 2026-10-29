@@ -161,9 +161,11 @@ window appear above them; applying changes does not rewrite this evidence.
 Prices are a **cost model**: Azure list prices from `config/skus.yaml`. The 8600G stands in for a D8s_v5 node
 and the 3500U for an F8s_v2. The hardware itself isn't priced.
 
-The node pool must fit CPU autoscalers at their maximum replicas, so extra scaling headroom can require more
-machines. Workload costs use the scheduled average replica count, with overlapping cron windows taking the
-largest active target; unpredictable CPU scale-out is excluded from that average. A workload can also cost
+The node pool is sized for scheduled peaks. Maximum CPU autoscaler demand is calculated separately, and the
+plan notes explain whether that burst fits or exceeds the modelled pool. This does not guarantee scheduler
+placement or reserve every workload's maximum at once. Workload costs use the scheduled average replica
+count, with overlapping cron windows taking the largest active target; unpredictable CPU scale-out is
+excluded from that average. A workload can also cost
 more when safety guardrails require more CPU, memory or replicas. These estimates are potential changes,
 not a measured bill reduction.
 
@@ -270,14 +272,14 @@ fix. [agents.md](agents.md) explains the agents, models and rules behind it.
   Executor's commit title, branch and commit, the changed files and a diff split by file. Select a sub-agent card
   for its own findings and over-threshold signals instead; select it again to go back.
 - Change buttons: **Dry-run apply** (`kubectl apply --dry-run=server`), **Apply to cluster** (asks first; lab
-  namespace only; Terraform changes are never applied), **Open pull request** (only with `--agent-prs`).
+  namespace intended; deterministic namespace enforcement is pending in PR #16; Terraform is never applied), **Open pull request** (only with `--agent-prs`).
 - **Custom rules**: the `agents/rules/` files the Thinker and Executor follow, read-only here.
 
 ## Under the hood
 
-The engineering view of the same system. Everything on it is read from the server: live numbers, real log lines,
-requests exactly as sent. Nothing is simulated. It has two parts, and the **Pipeline · Terminal** buttons under the
-title jump to each:
+The engineering view exposes server readings, log lines and request traces. Mock LLM mode and synthetic
+metrics backfill are supported; check the mode and source of each result. It has two parts, and the
+**Pipeline · Terminal** buttons under the title jump to each:
 1. the **right-sizing pipeline**, the five stages behind the FinOps view;
 2. the **terminal**: shell, journal and wire panes.
 
