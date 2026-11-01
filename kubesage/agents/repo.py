@@ -2,8 +2,11 @@
 people and other agents work in: the Executor switches branches and resets freely here."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
+
+from kubesage.agents.git_auth import executor_ssh_env
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -13,7 +16,8 @@ class RepoError(RuntimeError):
 
 
 def git(repo: Path, *args: str, timeout: int = 120) -> str:
-    proc = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=timeout)
+    proc = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=timeout,
+                          env={**os.environ, **executor_ssh_env()})
     if proc.returncode:
         raise RepoError(f"git {' '.join(args)}: {(proc.stderr or proc.stdout).strip()[:400]}")
     return proc.stdout.strip()
@@ -35,7 +39,8 @@ def ensure(clone: Path, url: str) -> Path:
     if not (clone / ".git").is_dir():
         clone.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(["git", "clone", "--quiet", "--filter=blob:none", url, str(clone)], check=True,
-                       capture_output=True, text=True, timeout=300)
+                       capture_output=True, text=True, timeout=300,
+                       env={**os.environ, **executor_ssh_env()})
     git(clone, "fetch", "--quiet", "--prune", "origin")
     return clone
 
