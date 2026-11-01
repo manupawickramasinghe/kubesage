@@ -82,15 +82,20 @@ def _collector(path: Path) -> Callable:
 
 def load_team(root: Path | None = None, profile: str | None = None) -> Team:
     root = Path(root or agents_dir())
-    models = yaml.safe_load((root / "models.yaml").read_text())
-    profile = profile or os.environ.get("KUBESAGE_MODELS") or models.get("default_profile", "meta")
-    if profile not in models["profiles"]:
-        raise TeamError(f"agents/models.yaml has no profile {profile!r}")
-    prof = models["profiles"][profile]
+    try:
+        models = yaml.safe_load((root / "models.yaml").read_text())
+        profile = profile or os.environ.get("KUBESAGE_MODELS") or models.get("default_profile", "meta")
+        prof = models["profiles"][profile]
+    except (KeyError, AttributeError, TypeError) as exc:
+        raise TeamError(f"agents/models.yaml is malformed or has no profile {profile!r}: {exc}") from exc
     provider = ProviderConfig.model_validate(prof["provider"])
     agents: list[Agent] = []
+    seen_names: set[str] = set()
     for cfg_path in sorted(root.glob("*/agent.yaml")):
         cfg = AgentConfig.model_validate(yaml.safe_load(cfg_path.read_text()))
+        if cfg.name in seen_names:
+            raise TeamError(f"duplicate agent name {cfg.name!r} ({cfg_path}); agent names must be unique")
+        seen_names.add(cfg.name)
         if not cfg.enabled:
             continue
         if cfg.model not in prof["models"]:

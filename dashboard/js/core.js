@@ -67,14 +67,23 @@ function color(app) {
   return i < 8 ? `var(--s${i + 1})` : "var(--muted)";  // a 9th workload gets neutral grey, never a generated hue
 }
 
-async function api(path, body) {
-  const opts = body === undefined ? {headers: {"X-KubeSage": "1"}}
-    : {method: "POST", headers: {"Content-Type": "application/json", "X-KubeSage": "1"}, body: JSON.stringify(body)};
+async function api(path, body, retried) {
+  const token = sessionStorage.getItem("kubesage-api-token");
+  const headers = {"X-KubeSage": "1", ...(token ? {"X-KubeSage-Token": token} : {})};
+  const opts = body === undefined ? {headers}
+    : {method: "POST", headers: {"Content-Type": "application/json", ...headers}, body: JSON.stringify(body)};
   // Analyze is bounded by the server's own LLM timeouts and holds the operation lock until it ends; giving up
   // here would report a failure while the run is still going and make every retry a 409.
   if (path !== "/api/analyze") opts.signal = AbortSignal.timeout(body === undefined ? 45000 : 360000);
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({error: res.statusText}));
+  if (res.status === 401 && data.auth_required && !retried) {
+    const entered = window.prompt("This KubeSage server requires an API token for changes. Paste it here (kept only for this tab):");
+    if (entered) {
+      sessionStorage.setItem("kubesage-api-token", entered.trim());
+      return api(path, body, true);
+    }
+  }
   if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), {status: res.status, data});
   return data;
 }

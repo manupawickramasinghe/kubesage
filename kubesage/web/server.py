@@ -5,6 +5,7 @@ server never answers, so another site open in the same browser can't trigger app
 """
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import math
@@ -50,6 +51,7 @@ class Settings:
     alertmanager: str = "http://localhost:9193"
     agent_prs: bool = False   # let the Executor push branches and open pull requests
     auto_agents: bool = True  # run the agent team when a lab alert fires
+    api_token: str | None = None  # KUBESAGE_API_TOKEN: when set, mutating POSTs need it (see do_POST)
 
 
 def _kubectl_json(*args: str) -> dict | None:
@@ -211,6 +213,7 @@ class Api:
     def config(self) -> tuple[int, dict]:
         models = load_models()
         return 200, {"namespace": self.s.namespace, "mode": resolve_mode(self.s.mode, models),
+                     "auth_required": bool(self.s.api_token or os.environ.get("KUBESAGE_API_TOKEN")),
                      "tiers": {name: tier.model for name, tier in models.tiers.items()},
                      "gitops": self.s.gitops_repo is not None and self.s.gitops_base is not None,
                      "operation": self.operation}
@@ -837,6 +840,14 @@ def make_handler(api: Api):
             if self.headers.get("X-KubeSage") != "1":
                 self._send(403, {"error": "missing X-KubeSage header"})
                 return
+            token = api.s.api_token or os.environ.get("KUBESAGE_API_TOKEN")
+            if token:
+                given = (self.headers.get("X-KubeSage-Token") or
+                         (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip())
+                if not given or not hmac.compare_digest(given, token):
+                    self._send(401, {"error": "unauthorized: a valid API token is required for changes",
+                                     "auth_required": True})
+                    return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
             except ValueError:

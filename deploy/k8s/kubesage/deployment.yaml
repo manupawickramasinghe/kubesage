@@ -29,6 +29,11 @@ spec:
             - name: MODEL_API_KEY
               valueFrom:
                 secretKeyRef: {name: kubesage-secrets, key: MODEL_API_KEY, optional: true}
+            # When set, mutating POSTs require this token (the UI prompts for it once per tab).
+            # In-cluster you SHOULD set it: the Service is reachable by every pod in the cluster.
+            - name: KUBESAGE_API_TOKEN
+              valueFrom:
+                secretKeyRef: {name: kubesage-secrets, key: API_TOKEN, optional: true}
             - {name: KUBESAGE_VM_URL, value: "http://victoriametrics.kubesage-metrics.svc:8428"}  # EDIT: your Prometheus/VM service
             - {name: KUBESAGE_TZ, value: "Asia/Colombo"}  # EDIT: your workloads' timezone
           resources:

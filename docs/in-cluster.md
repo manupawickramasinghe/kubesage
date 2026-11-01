@@ -13,6 +13,11 @@ never touch.
 | Scheduled analysis | `CronJob` (Mon 06:15, edit freely) | Clones your GitOps repo with a deploy key, runs `kubesage analyze --mode live`, then `kubesage gitops --push`: a `kubesage/rightsize-<run>` branch with the kustomize overlay + `REPORT.md`. |
 | Flux | your existing install | Reconciles KubeSage itself from `deploy/k8s/kubesage`, and reconciles your workloads from the overlay path in your GitOps repo — **after a human merges the KubeSage branch/PR**. Merging is the apply. |
 
+Set `API_TOKEN` in that Secret: the UI Deployment reads it as `KUBESAGE_API_TOKEN`, and every
+mutating POST then requires it (the dashboard prompts once per tab and keeps it in
+`sessionStorage`). Without it, anything that can reach the Service could press Apply —
+the token is what makes the in-cluster UI safe to expose beyond loopback.
+
 Why git-only writes? The pod holds an LLM API key and runs model-influenced code.
 Read-only RBAC (`get/list/watch` on pods, nodes, deployments, jobs, KEDA
 ScaledObjects) means a compromised or confused pod can leak a report, not resize

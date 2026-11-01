@@ -9,9 +9,15 @@ rendered YAML says so plainly so nobody mistakes a one-off for a weekly trigger.
 """
 from __future__ import annotations
 
+import re
 from datetime import date
 
 from kubesage.forecast import WorkloadForecast
+
+
+def _slug(text: str, limit: int = 30) -> str:
+    """DNS-1123-safe slug: an event name is operator text, never a path or label fragment."""
+    return re.sub(r"[^a-z0-9-]+", "-", text.lower()).strip("-")[:limit].strip("-") or "event"
 
 IMAGE = "bitnami/kubectl:latest"  # operators pin this in production; the manifest names it in one place
 
@@ -31,7 +37,7 @@ def _job(name: str, namespace: str, deployment: str, replicas: int, schedule: st
     return {
         "apiVersion": "batch/v1", "kind": "CronJob",
         "metadata": {"name": name, "namespace": namespace,
-                     "labels": {"kubesage.io/event": event.lower().replace(" ", "-")[:40],
+                     "labels": {"kubesage.io/event": _slug(event, 40),
                                 "kubesage.io/managed-by": "kubesage"}},
         "spec": {"schedule": schedule, "jobTemplate": {"spec": {"template": {"spec": {
             "restartPolicy": "Never",
@@ -56,7 +62,7 @@ def timed_manifests(forecast: WorkloadForecast, *, namespace: str, deployment: s
         day, month, _year = _date_parts(window.schedule, today)
         pre_h, pre_m = (int(p) for p in window.prewarm_time.split(":"))
         end_h, end_m = (int(p) for p in window.end_time.split(":"))
-        slug = window.event.lower().replace(" ", "-")[:30]
+        slug = _slug(window.event)
         up = _job(f"kubesage-{deployment}-{slug}-up"[:63], namespace, deployment, window.replicas_needed,
                   f"{pre_m} {pre_h} {day} {month} *", window.event)
         down = _job(f"kubesage-{deployment}-{slug}-down"[:63], namespace, deployment,

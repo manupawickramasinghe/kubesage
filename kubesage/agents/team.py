@@ -356,6 +356,8 @@ def _check_diagnosis(d: Diagnosis, signals: dict, inv: dict, catalog, tr: TeamRu
                 to = str((a.params or {}).get("to_sku", "")).removeprefix("Standard_")
                 if to not in skus:
                     why = f"SKU {to!r} is not in the catalog"
+                elif pools[pool].get("sku") not in skus:
+                    why = f"node pool {pool!r} runs SKU {pools[pool].get('sku')!r}, which is not in the catalog; add it to config/skus.yaml first"
                 else:
                     cur = pools[pool]
                     a.params = {**a.params, "pool": pool, "from_sku": cur["sku"], "to_sku": to,
@@ -404,7 +406,11 @@ def _fits_today(a: Action, inv: dict) -> str | None:
         return (f"requests {merged_requests} don't fit together on any one {pool or 'cluster'} node today, so the pod "
                 f"would stay Pending")
     # Judge the result, not just the change: a new request is compared with the limit the container keeps.
-    current = ((w or {}).get("containers") or [{}])[0]
+    containers = (w or {}).get("containers") or [{}]
+    wanted = params.get("container")
+    if wanted and not any(c.get("name") == wanted for c in containers):
+        return f"container {wanted!r} is not in {a.target}; it has {[c.get('name') for c in containers]}"
+    current = next((c for c in containers if c.get("name") == wanted), containers[0]) if wanted else containers[0]
     merged = {kind: {**(current.get(kind) or {}), **{k: v for k, v in (params.get(kind) or {}).items() if v is not None}}
               for kind in ("requests", "limits")}
     problems = policy.resources(a.target, merged)
@@ -464,7 +470,12 @@ def _as_approved(objs: list[dict], actions: list[Action]) -> list[str]:
         name = a.target.split("/")[-1]
         obj = next((o for o in objs if o.get("kind") in ("Deployment", "Pod") and (o.get("metadata") or {}).get("name") == name), None)
         containers = (policy.pod_spec(obj) or {}).get("containers") or [] if obj else []
-        c = next((c for c in containers if c.get("name") == name), containers[0] if containers else None)
+        wanted = (a.params or {}).get("container")
+        if wanted and not any(c.get("name") == wanted for c in containers):
+            problems.append(f"{a.id} names container {wanted!r}, which {name} does not have")
+            continue
+        c = next((c for c in containers if c.get("name") == (wanted or name)),
+                 containers[0] if containers else None)
         res = (c or {}).get("resources") or {}
         for kind in ("requests", "limits"):
             for key, want in ((a.params or {}).get(kind) or {}).items():
@@ -475,6 +486,35 @@ def _as_approved(objs: list[dict], actions: list[Action]) -> list[str]:
                     same = False
                 if not same:
                     problems.append(f"{a.id} approved {kind}.{key}={want} for {name}, but the change leaves {got}")
+    return problems
+
+
+def _infra_problems(before: str, after: str, actions: list[Action]) -> list[str]:
+    """nodepools.tf edits must land exactly what their approved action asked for (SKU / counts)."""
+    problems = []
+    for a in actions:
+        p = a.params or {}
+        pool = p.get("pool") or a.target.split("/")[-1]
+        block = E._pool_block(after, pool)
+        if block is None:
+            problems.append(f"{a.id}: pool {pool!r} not found in nodepools.tf after the edit")
+            continue
+        if a.type == "change_node_sku" and p.get("to_sku"):
+            want = str(p["to_sku"]).removeprefix("Standard_")
+            if f'Standard_{want}"' not in block and f'"{want}"' not in block:
+                problems.append(f"{a.id} approved SKU {want} for {pool}, but nodepools.tf does not set it")
+        if a.type == "set_node_pool":
+            for key in ("node_count", "max_pods"):
+                if p.get(key) is not None:
+                    try:
+                        want = int(p[key])
+                    except (TypeError, ValueError):
+                        problems.append(f"{a.id}: {key}={p[key]!r} is not an integer")
+                        continue
+                    import re as _re
+                    m = _re.search(rf"{key}\s*=\s*(\d+)", block)
+                    if not m or int(m.group(1)) != want:
+                        problems.append(f"{a.id} approved {key}={want} for {pool}, but nodepools.tf leaves {m.group(1) if m else 'unset'}")
     return problems
 
 
@@ -489,6 +529,9 @@ def _materialize(clone: Path, edits: list[Edit], skus: set[str], by: str, action
             path = E.check_path(clone, e.path)
             if e.path not in texts:
                 originals[e.path] = texts[e.path] = path.read_text() if path.exists() else None
+            if texts[e.path] is None and path.name != "scaledobject.yaml":
+                raise E.EditError(f"{e.path}: creating new files is not allowed (only a KEDA scaledobject.yaml); "
+                                  "edit the files the action was given")
             new = E.apply_edit(texts[e.path], e)
             E.validate_file(e.path, new, skus)
             texts[e.path] = new
@@ -509,6 +552,19 @@ def _materialize(clone: Path, edits: list[Edit], skus: set[str], by: str, action
         if text is not None:
             (clone / rel).parent.mkdir(parents=True, exist_ok=True)
             (clone / rel).write_text(text)
+    tf_path = "gitops/infra/nodepools.tf"
+    if any(e["path"] == tf_path for e in applied):
+        tf_actions = [a for a in actions if any(e["action"] == a.id and e["path"] == tf_path for e in applied)]
+        problems = _infra_problems(originals.get(tf_path) or "", texts.get(tf_path) or "", tf_actions)
+        if problems:
+            reason = "; ".join(problems)[:600]
+            for e in [x for x in applied if x["path"] == tf_path]:
+                applied.remove(e)
+                rejected.append({**e, "reason": f"{tf_path} would break policy: {reason}"})
+            if originals.get(tf_path) is None:
+                (clone / tf_path).unlink(missing_ok=True)
+            else:
+                (clone / tf_path).write_text(originals[tf_path])
     for unit in units:
         target = clone / unit
         if target.is_dir() and not (target / "kustomization.yaml").exists():
@@ -571,7 +627,15 @@ def _execute(team, s, tr, llm, diagnosis: Diagnosis, inv, catalog, run_dir: Path
                        "files": files, "rules": team.rules_text(),
                        "skus": [{"name": x.name, "family": x.family, "vcpu": x.vcpu, "memory_gib": x.memory_gib} for x in catalog.skus]},
                       separators=(",", ":"))
-    det = {a.id: E.deterministic(a, files) for a in doable}
+    def safe_det(action, fs):
+        try:
+            return E.deterministic(action, fs)
+        except Exception as exc:  # bad model params (EditError/ValueError/KeyError) reject, never crash
+            tr.data["rejected"].append({"agent": ex.name, "what": f"deterministic edits for {action.id}",
+                                        "reason": f"{type(exc).__name__}: {exc}"})
+            _say(ex.name, f"  ✗ deterministic edits for {action.id} rejected: {exc}")
+            return []
+    det = {a.id: safe_det(a, files) for a in doable}
     try:
         cs, entry = llm.structured(ex.name, ex.prompt + contract("executor", ex), user, ChangeSet,
                                    lambda: mock.executor(diagnosis, [e for es in det.values() for e in es],
@@ -587,7 +651,7 @@ def _execute(team, s, tr, llm, diagnosis: Diagnosis, inv, catalog, run_dir: Path
     bounds = (doable, s.namespaces, inv["nodes"])
     applied, rejected = _materialize(clone, cs.edits, skus, by, *bounds)
     done_ids = {e["action"] for e in applied}
-    fallback = [e for a in doable if a.id not in done_ids and by == "model" for e in E.deterministic(a, _files_for([a], clone))]
+    fallback = [e for a in doable if a.id not in done_ids and by == "model" for e in safe_det(a, _files_for([a], clone))]
     if fallback:
         more, more_rejected = _materialize(clone, fallback, skus, "rules-fallback", *bounds)
         applied += more
@@ -602,7 +666,13 @@ def _execute(team, s, tr, llm, diagnosis: Diagnosis, inv, catalog, run_dir: Path
     state.update(branch=branch, base_sha=base_sha, edits=applied, rejected=rejected, skipped=skipped, title=_title(cs.title),
                  body=body, files=sorted({e["path"] for e in applied}))
     if applied:
-        commit = repo.commit(clone, f"{_title(cs.title)}\n\nKubeSage agent team run {tr.id}.")
+        try:
+            commit = repo.commit(clone, f"{_title(cs.title)}\n\nKubeSage agent team run {tr.id}.")
+        except Exception as exc:
+            _say(ex.name, f"✗ git commit failed: {exc}")
+            tr.agent(ex.name, state="failed", error=str(exc)[:300], ms=int((time.monotonic() - started) * 1000))
+            tr.set(executor={**state, "error": f"git commit failed: {exc}"[:400]})
+            return
         state.update(commit=commit, diff=repo.diff(clone, base_sha))
         (run_dir / "changes.diff").write_text(state["diff"])
         (run_dir / "pr_body.md").write_text(body)
