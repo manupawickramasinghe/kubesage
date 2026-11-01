@@ -196,6 +196,24 @@ overrides it). Opening a pull request is separate and opt-in:
 - `kubesage agents run --open-pr`.
 
 PRs are opened with `gh` as whoever is logged in, against this repo's `origin` (the public kubesage repo).
+
+### Giving the Executor its own git identity (deploy key)
+
+By default the Executor pushes with your SSH agent and opens PRs as your `gh` login. To give it a
+separate, single-repo identity instead, use a GitHub **deploy key** — never put a private key in
+this repository:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/kubesage-executor -N ""   # OUTSIDE the repo
+cat ~/.ssh/kubesage-executor.pub                          # add this in the repo's
+                                                          # Settings -> Deploy keys, with write access
+```
+
+Then set `KUBESAGE_EXECUTOR_SSH_KEY=/home/you/.ssh/kubesage-executor` in the server's environment
+(e.g. `.env`). Every git clone/fetch/push from the Executor's clone then uses that key. The path is
+validated before use: a key inside the repo, a missing file, a `.pub` file, or permissions other
+users can read are all refused with the reason. `gh pr create` still needs GitHub CLI auth
+(`gh auth login` or `GH_TOKEN`) — a deploy key covers git transport only, not the API.
 **Apply to cluster** runs `kubectl apply -k` for each changed `gitops/apps/<app>` from the Executor's commit
 (**Dry-run apply** adds `--dry-run=server`). It renders the commit first and refuses (HTTP 422, nothing sent) if
 any object would break the same policy, so a run made by an older KubeSage or a clone edited by hand can't push
