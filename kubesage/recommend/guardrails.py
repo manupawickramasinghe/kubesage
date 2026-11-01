@@ -8,6 +8,8 @@ from __future__ import annotations
 import math
 import statistics
 
+from pydantic import BaseModel
+
 from kubesage.forecast import WorkloadForecast
 from kubesage.llm.schemas import CronWindow, Recommendation, ScalingPlan
 from kubesage.metrics.stats import WorkloadStats
@@ -29,7 +31,25 @@ def _floor(value: int, floor: int, label: str, unit: str, why: str, notes: list[
     return value
 
 
-def apply(rec: Recommendation, s: WorkloadStats, forecast: WorkloadForecast | None = None) -> tuple[Recommendation, list[str]]:
+class SLOSnapshot(BaseModel):
+    """Observed service health. When it is breached, saving money by removing replicas is off the table."""
+
+    latency_p99_ms: float | None = None
+    error_rate_pct: float | None = None  # 5xx share, percent
+    max_latency_p99_ms: float = 500.0
+    max_error_rate_pct: float = 1.0
+
+    @property
+    def breached(self) -> str | None:
+        if self.latency_p99_ms is not None and self.latency_p99_ms > self.max_latency_p99_ms:
+            return f"p99 latency {self.latency_p99_ms:.0f}ms exceeds the {self.max_latency_p99_ms:.0f}ms budget"
+        if self.error_rate_pct is not None and self.error_rate_pct > self.max_error_rate_pct:
+            return f"error rate {self.error_rate_pct:.1f}% exceeds the {self.max_error_rate_pct:.1f}% budget"
+        return None
+
+
+def apply(rec: Recommendation, s: WorkloadStats, forecast: WorkloadForecast | None = None,
+          slo: SLOSnapshot | None = None) -> tuple[Recommendation, list[str]]:
     rec = rec.model_copy(deep=True)
     rec.workload = s.id
     notes: list[str] = []
@@ -76,8 +96,12 @@ def apply(rec: Recommendation, s: WorkloadStats, forecast: WorkloadForecast | No
         if plan.max_replicas > MAX_REPLICAS:
             notes.append(f"max replicas capped {plan.max_replicas} -> {MAX_REPLICAS}")
             plan.max_replicas = MAX_REPLICAS
+        _slo_guard(plan, s, slo, notes)
         _forecast_windows(plan, forecast, notes)
         _bounds(plan, notes)
+        if slo is not None and slo.breached and rec.risk == "low":
+            notes.append(f"risk raised low -> medium (SLO breach: {slo.breached})")
+            rec.risk = "medium"
 
     r = rec.resources
     if r is not None:
@@ -96,6 +120,26 @@ def apply(rec: Recommendation, s: WorkloadStats, forecast: WorkloadForecast | No
                                    "CPU limit", "m", "p99 usage / request", notes)
     _aggregate(rec, s, notes)
     return rec, notes
+
+
+def _slo_guard(plan: ScalingPlan, s: WorkloadStats, slo: SLOSnapshot | None, notes: list[str]) -> None:
+    """A breached SLO outranks savings: never scale below the replica count currently serving traffic,
+    and never scale to zero, while latency or errors are over budget. Operators fix health first; the
+    FinOps cut can wait for the next healthy analysis window."""
+    if slo is None:
+        return
+    breach = slo.breached
+    if not breach:
+        return
+    floor = min(max(s.replicas, 1), MAX_REPLICAS)
+    if plan.min_replicas < floor:
+        notes.append(f"SLO breach ({breach}): min replicas raised {plan.min_replicas} -> {floor} "
+                     "(no scale-down while service health is bad)")
+        plan.min_replicas = floor
+    if plan.max_replicas < floor:
+        notes.append(f"SLO breach ({breach}): max replicas raised {plan.max_replicas} -> {floor} "
+                     "(current replica count must stay reachable)")
+        plan.max_replicas = floor
 
 
 def _forecast_windows(plan: ScalingPlan, forecast: WorkloadForecast | None, notes: list[str]) -> None:
