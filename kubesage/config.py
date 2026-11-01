@@ -81,6 +81,53 @@ class SkuCatalog(BaseModel):
         return core, core / self.cpu_to_gib_cost_ratio
 
 
+class CalendarEvent(BaseModel):
+    """One operator-declared business event: a sale, holiday rush or working-hours window.
+
+    This is the only source of future dates and traffic expectations. The LLM may reason about these
+    events and the peaks found in metrics; it must never invent an event that is not declared here.
+    """
+
+    name: str
+    kind: str = "other"  # working-hours | sale | holiday | promotion | other
+    days: str | None = None  # weekly: cron day-of-week, Sunday=0 ("1-5", "0,6", "*")
+    date: str | None = None  # one-off / yearly: "2026-11-27"
+    repeat_yearly: bool = False
+    start_date: str | None = None  # yearly range start, "MM-DD"
+    end_date: str | None = None  # yearly range end, "MM-DD"
+    start_time: str = "09:00"  # local "HH:MM"
+    end_time: str = "17:00"
+    traffic_multiplier: float = Field(default=1.0, gt=0)
+    prewarm_minutes: int | None = Field(default=None, ge=0, le=240)
+    cooldown_minutes: int = Field(default=0, ge=0, le=240)
+    workloads: list[str] = Field(default_factory=lambda: ["*"])
+    note: str = ""
+
+    def model_post_init(self, __context) -> None:
+        schedules = [self.days is not None, self.date is not None, self.start_date is not None]
+        if sum(schedules) != 1:
+            raise ValueError(f"calendar event {self.name!r} needs exactly one of days, date or start_date/end_date")
+        if self.start_date is not None and self.end_date is None:
+            raise ValueError(f"calendar event {self.name!r} needs end_date with start_date")
+        for label, value in (("start_time", self.start_time), ("end_time", self.end_time)):
+            hour, _, minute = value.partition(":")
+            if not (hour.isdigit() and minute.isdigit() and 0 <= int(hour) < 24 and 0 <= int(minute) < 60):
+                raise ValueError(f"calendar event {self.name!r} has bad {label} {value!r}")
+
+    @property
+    def weekly(self) -> bool:
+        """Weekly events fit the KEDA cron subset; dated events are forecast-only (see forecast.py)."""
+        return self.days is not None
+
+
+class BusinessCalendar(BaseModel):
+    prewarm_minutes: int = Field(default=15, ge=0, le=240)
+    events: list[CalendarEvent] = Field(default_factory=list)
+
+    def for_workload(self, name: str) -> list[CalendarEvent]:
+        return [e for e in self.events if "*" in e.workloads or name in e.workloads]
+
+
 def _load(name: str) -> dict:
     return yaml.safe_load((CONFIG_DIR / name).read_text())
 
@@ -93,3 +140,11 @@ def load_models(profile: str | None = None) -> ModelsConfig:
 
 def load_skus() -> SkuCatalog:
     return SkuCatalog.model_validate(_load("skus.yaml"))
+
+
+def load_calendar() -> BusinessCalendar:
+    """config/calendar.yaml; an absent file means no declared events (history-only forecasting)."""
+    path = CONFIG_DIR / "calendar.yaml"
+    if not path.exists():
+        return BusinessCalendar()
+    return BusinessCalendar.model_validate(yaml.safe_load(path.read_text()) or {})

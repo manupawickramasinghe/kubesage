@@ -7,6 +7,7 @@
 | `config/models.yaml` | default LLM profile (Meta Model API): base URL, key env var, tiers with model, label, prices, max tokens |
 | `config/models.<name>.yaml` | other profiles, picked with `KUBESAGE_MODELS=<name>`. `cerebras` ships with the repo. |
 | `config/skus.yaml` | the cost model: SKU catalog with Azure-like list prices, reference SKU for unit prices, allocatable fractions, `min_nodes`, the "before" pool, and the node label used for pools |
+| `config/calendar.yaml` | the business calendar the forecast reasons about: working hours, sales and holiday events with traffic multipliers and pre-warm minutes. See [calendar.md](calendar.md) |
 | `scripts/versions.sh` | pinned k3d, kubectl, k3s image and KEDA versions, and the cluster name |
 | `deploy/k8s/demo/` | the demo workloads and their "before" requests (kustomize) |
 | `agents/` | The agent team: `models.yaml` (sizes per profile), `rules/*.txt` (custom rules), one folder per agent. See [agents.md](agents.md). |

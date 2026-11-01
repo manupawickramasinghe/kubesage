@@ -1,0 +1,72 @@
+# Business calendar: the source of truth for traffic KubeSage should expect *before* it shows up in metrics.
+#
+# The LLM never invents dates or events. It may only reason about events declared here (plus peaks Stage 1
+# found in the metrics). Declare a sale, a holiday rush or working hours here and the forecast stage turns
+# each event into an expected load, a pre-warm time and a replica count; the LLM explains it, deterministic
+# guardrails enforce the pre-warm, and costing quantifies the saving in dollars and percent.
+#
+# Fields per event:
+#   name                human name shown in the UI and in the model's reasoning
+#   kind                working-hours | sale | holiday | promotion | other
+#   days                weekly events only: cron day-of-week, Sunday=0 ("1-5" = Mon-Fri, "0,6" = weekends)
+#   date                one-off / yearly event: "2026-11-27" (repeats yearly when repeat_yearly is true)
+#   start_date/end_date yearly date range as "MM-DD" (e.g. Christmas week "12-20" to "12-26")
+#   start_time/end_time local cluster time, "HH:MM"
+#   traffic_multiplier  expected load vs the workload's normal (off-peak) baseline: 3.0 = three times normal
+#   prewarm_minutes     start scaling this many minutes *before* the window opens (default: top-level default)
+#   cooldown_minutes    keep the extra replicas this long after the window closes (default 0)
+#   workloads           workload names this event drives, or ["*"] for all of them
+#   note                why this event exists; the model quotes it, it does not edit it
+#
+# Weekly events can be rendered as KEDA cron triggers. Dated events cannot (the cron subset is weekly), so
+# they are forecast and priced, and the recommendation carries a follow-up to apply the timed scale-up
+# before the date instead of pretending a weekly trigger is a one-off.
+
+prewarm_minutes: 15
+
+events:
+  - name: Weekday working hours
+    kind: working-hours
+    days: "1-5"
+    start_time: "09:00"
+    end_time: "17:00"
+    traffic_multiplier: 1.8
+    prewarm_minutes: 15
+    workloads: [checkout-web, catalog-api, auth-api]
+    note: Staff and customers arrive from 09:00 on weekdays; pre-warm a few minutes before, scale down after 17:00.
+
+  - name: Black Friday sale
+    kind: sale
+    date: "2026-11-27"
+    repeat_yearly: true
+    start_time: "08:00"
+    end_time: "22:00"
+    traffic_multiplier: 3.0
+    prewarm_minutes: 30
+    cooldown_minutes: 60
+    workloads: [checkout-web, payment-service, catalog-api]
+    note: Biggest retail day of the year. Expect roughly triple normal checkout traffic; never scale to zero before it.
+
+  - name: Christmas shopping peak
+    kind: holiday
+    start_date: "12-20"
+    end_date: "12-26"
+    start_time: "09:00"
+    end_time: "21:00"
+    traffic_multiplier: 2.2
+    prewarm_minutes: 20
+    cooldown_minutes: 30
+    workloads: [checkout-web, payment-service, catalog-api]
+    note: Holiday shopping week. Sustained elevated traffic, lower than Black Friday but all week.
+
+  - name: New Year sale
+    kind: sale
+    date: "2027-01-01"
+    repeat_yearly: true
+    start_time: "09:00"
+    end_time: "20:00"
+    traffic_multiplier: 2.0
+    prewarm_minutes: 20
+    cooldown_minutes: 30
+    workloads: [checkout-web, catalog-api]
+    note: New Year promotions drive about double normal storefront traffic.

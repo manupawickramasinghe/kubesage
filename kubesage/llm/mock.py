@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 
+from kubesage.forecast import WorkloadForecast
 from kubesage.llm.schemas import (CronWindow, Recommendation, ResourceSpec, ScalingPlan, SkuChoice, TriageItem,
                                   TriageReport)
 from kubesage.metrics.stats import PeakWindow, WorkloadStats
@@ -53,7 +54,7 @@ def _offpeak_total(s: WorkloadStats) -> float:
     return max(values, default=s.cpu_total_p95)
 
 
-def recommend(s: WorkloadStats, item: TriageItem) -> Recommendation:
+def recommend(s: WorkloadStats, item: TriageItem, forecast: WorkloadForecast | None = None) -> Recommendation:
     sig = set(s.signals)
     cpu_req_now = s.cpu_request_cores or s.cpu_pod_p95
     days = s.window_days
@@ -106,6 +107,34 @@ def recommend(s: WorkloadStats, item: TriageItem) -> Recommendation:
                      f"through restarts.")
         follow_ups = ["Heap-profile the service to find the unbounded structure (cache, session map, listeners).",
                       "Alert on working-set growth > 50 MiB/day so the next leak is caught before the OOM."]
+
+    if forecast and forecast.windows:
+        # Calendar/forecast windows the history-only paths above cannot see: pre-warm before the rush,
+        # cover the declared multiplier, and scale back down outside it. Dated events get headroom and a
+        # follow-up instead of a fake weekly cron.
+        weekly = [w for w in forecast.windows if w.source == "calendar" and w.cron_start and w.cron_end]
+        if weekly:
+            if scaling is None:
+                scaling = ScalingPlan(min_replicas=max(1, forecast.offpeak_replicas),
+                                      max_replicas=forecast.replicas_needed, cpu_utilization_target=70)
+            have = {w.start for w in scaling.cron_windows}
+            for w in weekly:
+                if w.cron_start not in have:
+                    scaling.cron_windows.append(CronWindow(start=w.cron_start, end=w.cron_end,
+                                                           desired_replicas=w.replicas_needed))
+            scaling.max_replicas = max(scaling.max_replicas, forecast.replicas_needed)
+            if scaling.min_replicas > 0:
+                scaling.min_replicas = min(scaling.min_replicas, max(1, forecast.offpeak_replicas))
+            top = weekly[0]
+            diagnosis += (f" Forecast: {top.event} ({top.schedule}) should reach ~{top.expected_total_cpu:.2f} cores "
+                          f"({top.multiplier:.1f}x normal), so pre-warm at {top.prewarm_time} to "
+                          f"{top.replicas_needed} replica(s) and scale back down outside the window "
+                          f"(confidence {top.confidence:.0%}).")
+        for w in forecast.windows:
+            if not w.cron_start:
+                follow_ups.append(f"Before {w.schedule}: apply a timed scale-up to {w.replicas_needed} replica(s) "
+                                  f"for {w.event} (expected {w.multiplier:.1f}x normal traffic, pre-warm "
+                                  f"{w.prewarm_time}); a weekly cron cannot express this dated event.")
 
     cpu_lim = None if s.cpu_limit_cores is None else max(cpu_req * 1.25, s.cpu_pod_max * 1.2)
     if cpu_lim and risk == "high":

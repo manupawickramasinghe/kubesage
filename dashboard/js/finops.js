@@ -75,6 +75,12 @@ function fig(label, value, sub, cls = "", extra = "") {
   return `<div class="fig ${cls}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div>${extra}</div>`;
 }
 
+function pctText(before, after) {
+  if (!before || before <= 0) return "";
+  const pct = (before - after) / before * 100;
+  return `${pct >= 0 ? "saves" : "costs"} ${Math.abs(pct).toFixed(1)}%`;
+}
+
 function renderFigures() {
   const r = report, el = $("#figures");
   if (!r) {
@@ -91,8 +97,9 @@ function renderFigures() {
     const bar = (y, v, cls, label) => `<text class="tick" x="0" y="${y - 5}">${esc(label)}</text>
       <path class="${cls}" d="${hbar(0, y, (v / max) * span, 10)}"/><text class="val" x="${(v / max) * span + 6}" y="${y + 9}">${usd(v)}</text>`;
     const savings = np.before_monthly_usd - np.after_monthly_usd;
-    hero = fig(savings >= 0 ? "Potential monthly savings" : "Additional monthly capacity", `${usd(Math.abs(savings))}<small> /mo</small>`,
-      savings >= 0 ? "estimated node-pool cost reduction" : "more capacity to support the proposed scaling plan", "hero-fig",
+    const pct = pctText(np.before_monthly_usd, np.after_monthly_usd);
+    hero = fig(savings >= 0 ? "Potential monthly savings" : "Additional monthly capacity", `${usd(Math.abs(savings))}<small> /mo${pct ? ` · ${pct.replace(/^(saves|costs) /, "")}` : ""}</small>`,
+      savings >= 0 ? `estimated node-pool cost reduction${pct ? ` · ${pct} vs current pool` : ""}` : "more capacity to support the proposed scaling plan", "hero-fig",
       `<svg class="poolbars" viewBox="0 0 300 66" role="img" aria-label="Node pool cost before and after">
         ${bar(14, np.before_monthly_usd, "trk", `Before · ${np.before_nodes}× ${np.before_sku}`)}
         ${bar(50, np.after_monthly_usd, "usebar", `After · ${np.choice.nodes}× ${np.choice.sku}`)}</svg>`);
@@ -100,10 +107,32 @@ function renderFigures() {
     hero = fig("Saved per month · node pool", "—", "No node-pool change recommended.", "hero-fig");
   }
   el.innerHTML = hero
-    + fig("Planned reservations", `${usd(after)}<small> /mo</small>`, `was ${usd(before)} · allocation estimate`)
+    + fig("Planned reservations", `${usd(after)}<small> /mo</small>`, `was ${usd(before)} · allocation estimate${pctText(before, after) ? ` · ${pctText(before, after)}` : ""}`)
     + fig("Cost to find it", usd(r.llm_cost_usd), `${r.ledger.length} LLM calls${r.mode === "mock" ? " · estimated (mock)" : ""}`)
     + fig("Workloads", String(r.workloads.length), Object.keys(STATUS).map((k) =>
         `<span class="nw"><span style="color:${STATUS[k].color}">${icon(STATUS[k].icon)}</span> ${counts[k]} ${STATUS[k].label.toLowerCase()}</span>`).join(" &nbsp;"));
+}
+
+/* ---------- Forecast: history peaks + declared business calendar ---------- */
+
+function renderForecast() {
+  const el = $("#forecast");
+  if (!el) return;
+  const forecasts = report?.forecasts || [];
+  const rows = forecasts.filter((f) => f.windows && f.windows.length);
+  if (!rows.length) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = `<div class="forecast-head"><h3>Forecast — scale before the rush</h3>
+      <p>From recurring peaks in the metrics and events declared in <code>config/calendar.yaml</code>. Pre-warm times and replica counts are computed, not guessed by the model.</p></div>`
+    + rows.map((f) => {
+      const top = f.windows[0];
+      return `<div class="forecast-row"><span class="dot" style="--c:${color(appOf(f.workload))}"></span>
+        <span class="name">${esc(appOf(f.workload))}</span>
+        <span class="forecast-what">${esc(top.event)} · ${esc(top.schedule)} · expect ${top.multiplier.toFixed(1)}× normal (~${top.expected_total_cpu.toFixed(2)} cores)</span>
+        <span class="forecast-act">pre-warm ${esc(top.prewarm_time)} → ${top.replicas_needed} replica${top.replicas_needed === 1 ? "" : "s"} · scale down to ${f.offpeak_replicas} outside · ${Math.round(top.confidence * 100)}% confidence</span></div>`;
+    }).join("");
 }
 
 /* ---------- Isometric cluster ---------- */
@@ -550,7 +579,7 @@ function renderWorkloads() {
   $("#workloads").innerHTML = visible.map((w) => {
     const s = stats[w.id], rec = w.recommendation, e = calls[w.id], app = appOf(w.id);
     const delta = w.monthly_before_usd - w.monthly_after_usd, files = Object.entries(w.manifests);
-    const money = rec ? `<s>${usd(w.monthly_before_usd)}</s> → <b>${usd(w.monthly_after_usd)}</b>/mo` : `<b>${usd(w.monthly_before_usd)}</b>/mo`;
+    const money = rec ? `<s>${usd(w.monthly_before_usd)}</s> → <b>${usd(w.monthly_after_usd)}</b>/mo${pctText(w.monthly_before_usd, w.monthly_after_usd) ? ` <span class="badge">${esc(pctText(w.monthly_before_usd, w.monthly_after_usd))}</span>` : ""}` : `<b>${usd(w.monthly_before_usd)}</b>/mo`;
     return `<details class="wl" data-id="${esc(w.id)}" ${open.has(w.id) ? "open" : ""}><summary><span class="dot" style="--c:${color(app)}"></span><span class="name">${esc(app)}</span>
         ${statusBadge(w.triage.status)}${w.tier ? `<span class="badge">${esc(TIER[w.tier])}</span>` : ""}
         ${rec ? `<span class="badge">risk ${esc(rec.risk)}</span>` : ""}<span class="spacer"></span><span class="money">${money}</span>${icon("chev", "chev")}</summary>
@@ -627,7 +656,7 @@ function renderReport(animate) {
   }
   $("#snapshot-note").textContent = r ? `Analysis snapshot · ${runId} · ${r.window_days} days of history. Savings are modelled; live requests and usage appear in the cluster inspector.`
     : "Savings and recommendations are estimates from an analysis. The cluster below is live.";
-  renderFigures(); renderPlan(); renderBars(); renderFlow(animate); renderWorkloads(); renderLegend(); renderInspector(); renderSteps();
+  renderFigures(); renderForecast(); renderPlan(); renderBars(); renderFlow(animate); renderWorkloads(); renderLegend(); renderInspector(); renderSteps();
   if (animate) sweep($("#headline"));
 }
 
