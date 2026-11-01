@@ -158,8 +158,10 @@ shows with tiered pricing (the Meta profile).
 
 | profile | triage | worker | strategist |
 |---|---|---|---|
-| `config/models.yaml` (Meta Model API, `MODEL_API_KEY`) | muse-glimmer-30b | muse-spark-1.3 | muse-wonder-1.0 |
+| `config/models.yaml` (Meta Model API, `MODEL_API_KEY`) | muse-spark-1.3 | muse-spark-1.3 | muse-wonder-1.0 |
 | `config/models.cerebras.yaml` (`CEREBRAS_API_KEY`, `KUBESAGE_MODELS=cerebras`) | gpt-oss-120b, effort low | gpt-oss-120b, medium | gpt-oss-120b, high |
 
-The Glimmer and Wonder IDs and prices are unverified; muse-spark-1.3 is confirmed. Check them before relying on
-the Meta profile.
+Meta IDs and Standard prices verified Oct 2026: Spark $1.25/$0.15/$4.25, Wonder $4.00/$0.20/$20.00 per 1M
+tokens. Muse Glimmer is open-weight only and is not served on the API, so triage runs on Spark with a
+small output cap (reasoning tokens bill as output). The routing saving is Spark vs Wonder: a workload
+only pays Wonder prices when Spark's triage marks it COMPLEX.

@@ -72,8 +72,8 @@ loads whatever is there. See [agents/README.md](../agents/README.md) for adding 
 
 With `KUBESAGE_MODELS=cerebras`, the sub-agents run `qwen-3.8-27b` and the Executor and Thinker run
 `gpt-oss-120b` at medium and high reasoning effort. A team run on the memory test case cost $0.024–0.027 and took
-about 15 s (live, 28 Oct 2026). The Meta profile maps small/medium/large to Glimmer/Spark/Wonder, whose IDs are
-still unverified.
+about 15 s (live, 28 Oct 2026). The Meta profile (default) maps small/medium to Muse Spark 1.3 and large to
+Muse Wonder 1.0 (IDs and prices verified Oct 2026; Glimmer is open-weight only, not on the API).
 
 ### What the rules changed, live
 
