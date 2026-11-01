@@ -264,6 +264,7 @@ tests/               pytest suite and browser checks
 | [Cleanup](docs/cleanup.md) | What `scripts/cleanup.sh` removes on each machine, and what it never touches |
 | [Demo](demo/README.md) | The narrated demo video, its chapters, the slides and pictures made for it, every screenshot, and the tools that rebuild the video |
 | [Project review](docs/REVIEW_REPORT.md) | The 29 October review: validation results, the findings and their status |
+| [Handover](docs/HANDOVER.md) | Taking the project over: the rules, its state on 1 November, demo day, and what is still open |
 
 ## Testing
 
