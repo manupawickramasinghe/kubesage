@@ -26,6 +26,12 @@ Statuses:
   conflicting signals where a naive cut would cause an outage.
 
 Units: *_cores are CPU cores, *_mib are MiB, hourly profiles are mean total CPU cores per local hour.
+You also receive a deterministic forecast per workload (Stage 1.5, $0, no model): expected peak load,
+when it arrives, the pre-warm time and how many replicas it needs. The forecast's calendar events are
+operator-declared in config/calendar.yaml and are the only future events that exist. Never invent a date,
+a sale or a holiday that is not in the forecast, and never move a declared event. A workload whose only
+problem is an upcoming declared event (for example a sale its current replica count cannot cover) is
+ROUTINE if a scheduled scale-up fixes it, COMPLEX only if something else is also wrong.
 Return JSON only, matching this JSON schema. Every input workload id must appear exactly once.
 {_schema(TriageReport)}"""
 
@@ -41,6 +47,17 @@ Rules:
 - Memory limit: at least 1.15x mem_pod_max_mib. Memory request: at least mem_pod_p50_mib.
 - When a workload has recurring peaks, prefer keeping the pod shape and scaling replicas: a ScalingPlan with
   cron_windows that start ~10 minutes before the peak, plus an optional CPU utilization target.
+- Forecast and calendar: you receive the workload's deterministic forecast (expected peak, pre-warm time,
+  replicas needed, confidence) built from its metrics and the operator's business calendar
+  (config/calendar.yaml: working hours, sales such as Black Friday, holiday peaks). Scale *before* the
+  rush, not during it: for a weekly forecast window use its cron_start (already pre-warm time) and at
+  least its replicas_needed, and scale back down outside working hours / after the window closes. Explain
+  the business reason in the diagnosis, citing the event name, the expected multiplier and the saving.
+  Dated events (cron_start is null, for example a specific sale day) cannot be a weekly KEDA cron: do not
+  fake one. Cover them with max_replicas headroom plus a CPU target, and put "apply the timed scale-up
+  before <date>" in follow_ups. Never invent or move a calendar event.
+- Quantify the money: the diagnosis should state the expected effect in plain terms (KubeSage computes the
+  exact dollars and percent); call out when a change costs more for forecast capacity rather than saving.
 - min_replicas 0 ONLY when the workload's signals include "batch-pattern" (idle between runs). Never scale a
   service with steady traffic (web frontends, APIs) to zero: it would be offline outside its cron windows.
   With min_replicas 0, set no CPU target (KEDA cannot scale to zero on CPU).
@@ -66,6 +83,7 @@ that already satisfy capacity, allocatable overhead and a minimum of {catalog.mi
 - Burstable (B-series) nodes throttle under sustained load; avoid them if any workload has sustained
   batch runs or long recurring peaks.
 - Compute-optimised (F-series) suits CPU-heavy, memory-light demand; memory-optimised (E-series) the reverse.
-- Explain the trade-off in 2-3 sentences with the monthly numbers.
+- Explain the trade-off in 2-3 sentences with the monthly numbers, including the percent cheaper your
+  pick is than the current pool and than the next candidate you rejected.
 Return JSON only, matching this JSON schema:
 {_schema(SkuChoice)}"""

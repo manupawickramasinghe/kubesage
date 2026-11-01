@@ -8,6 +8,12 @@ from rich.table import Table
 from kubesage.config import ModelsConfig
 from kubesage.metrics.stats import WorkloadStats
 from kubesage.pipeline import AnalysisResult
+from kubesage.recommend.costing import savings_pct
+
+
+def _pct(before: float, after: float) -> str:
+    pct = savings_pct(before, after)
+    return "—" if pct is None else f"{'saves' if pct >= 0 else 'costs'} {abs(pct):.1f}%"
 
 STATUS_STYLE = {"HEALTHY": "green", "ROUTINE": "yellow", "COMPLEX": "red"}
 
@@ -61,7 +67,8 @@ def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, 
             continue
         rec, e = w.recommendation, by_workload[w.id]
         delta = w.monthly_before_usd - w.monthly_after_usd
-        money = f"saves {_usd(delta)}/mo" if delta >= 0 else f"[red]costs {_usd(-delta)}/mo more[/]"
+        money = (f"saves {_usd(delta)}/mo ({_pct(w.monthly_before_usd, w.monthly_after_usd)})" if delta >= 0
+                 else f"[red]costs {_usd(-delta)}/mo more ({_pct(w.monthly_before_usd, w.monthly_after_usd)})[/]")
         body = [rec.diagnosis]
         body += [f"[magenta]guardrail[/] {n}" for n in w.guardrail_notes]
         body += [f"[blue]follow-up[/] {f}" for f in rec.follow_ups]
@@ -73,15 +80,22 @@ def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, 
         console.print(Panel("\n".join(body), title=f"{w.id} · risk {rec.risk} · "
                             f"{_usd(w.monthly_before_usd)} -> {_usd(w.monthly_after_usd)}/mo", title_align="left"))
 
+    if res.forecasts:
+        console.print("\n[bold]Stage 1.5 · forecast[/] (history + declared calendar, $0, no LLM)")
+        for f in res.forecasts:
+            console.print(f"  [cyan]{f.workload}[/] {f.summary} [dim](confidence {f.confidence:.0%})[/]")
+
     alloc_before = sum(w.monthly_before_usd for w in res.workloads)
     alloc_after = sum(w.monthly_after_usd for w in res.workloads)
-    console.print(f"\n[bold]Requested capacity (allocation view):[/] {_usd(alloc_before)}/mo -> {_usd(alloc_after)}/mo")
+    console.print(f"\n[bold]Requested capacity (allocation view):[/] {_usd(alloc_before)}/mo -> {_usd(alloc_after)}/mo "
+                  f"({_pct(alloc_before, alloc_after)})")
     if res.node_pool:
         np_ = res.node_pool
         console.print(f"[bold]Node pool (billing view, {np_.choice.sku} chosen by "
                       f"{label['strategist']}):[/] {np_.before_nodes}x {np_.before_sku} {_usd(np_.before_monthly_usd)}/mo "
                       f"-> {np_.choice.nodes}x {np_.choice.sku} {_usd(np_.after_monthly_usd)}/mo "
-                      f"([green]saves {_usd(np_.before_monthly_usd - np_.after_monthly_usd)}/mo[/])")
+                      f"([green]saves {_usd(np_.before_monthly_usd - np_.after_monthly_usd)}/mo, "
+                      f"{_pct(np_.before_monthly_usd, np_.after_monthly_usd)}[/])")
         console.print(f"  {np_.choice.rationale}")
         if np_.migrations:
             console.print(f"  [cyan]migration[/] {len(np_.migrations)} Deployments -> nodeSelector "

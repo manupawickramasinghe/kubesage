@@ -4,6 +4,7 @@
 flowchart TB
   M[("VictoriaMetrics<br/>30 days, 5-minute steps")]
   S1["Stage 1 · deterministic stats<br/>$0, no LLM"]
+  F["Stage 1.5 · forecast: history peaks +<br/>business calendar, $0, no LLM"]
   T["Stage 2 · triage<br/>one call, cheapest tier, all workloads"]
   H["HEALTHY<br/>stop, no more tokens"]
   R["ROUTINE<br/>worker tier"]
@@ -13,7 +14,7 @@ flowchart TB
   $["cost model<br/>allocation view per workload"]
   N["node pool<br/>strategist picks a SKU from the candidates"]
   MG["migrations<br/>nodeSelector patches"]
-  M --> S1 --> T
+  M --> S1 --> F --> T
   T --> H
   T --> R --> G
   T --> C --> G
@@ -55,6 +56,17 @@ It also attaches **signals**, the deterministic tags triage sees:
 | `recurring-peak` | Stage 1 found a peak that recurs on most matching days |
 | `memory-growth` | grows > 2% of the limit (or request, or max) per day |
 | `oom-restarts` / `restarts` | restarts, with memory at ≥ 95% of the limit, or not |
+
+## Stage 1.5: forecast (history + business calendar)
+
+`forecast.py` combines Stage 1's recurring peaks with the operator-declared events in
+[`config/calendar.yaml`](calendar.md) (working hours, Black Friday, Christmas, sales). Each workload gets
+expected peak load, a pre-warm time (scale *before* the rush), replicas needed at a 70% CPU target, the
+off-peak scale-down count and a confidence. The calendar is the only source of future dates: prompts
+forbid the models from inventing or moving an event, and guardrails re-add any weekly calendar pre-warm
+window a model drops. Dated events are forecast and priced but carried as timed follow-ups, since the
+cron subset is weekly. Savings are reported in dollars **and percent** (`costing.savings_pct`) per
+workload and for the node pool, including the chosen SKU's price improvement over the current pool.
 
 ## Stage 2: triage
 

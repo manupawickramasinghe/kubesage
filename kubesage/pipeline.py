@@ -11,7 +11,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from kubesage.config import SkuCatalog
+from kubesage.config import BusinessCalendar, SkuCatalog
+from kubesage.forecast import WorkloadForecast, build_forecasts
 from kubesage.journal import log
 from kubesage.llm import mock, prompts
 from kubesage.llm.client import LedgerEntry, LLMClient
@@ -32,6 +33,8 @@ class WorkloadResult(BaseModel):
     guardrail_notes: list[str] = []
     monthly_before_usd: float
     monthly_after_usd: float
+    monthly_savings_usd: float = 0.0
+    monthly_savings_pct: float | None = None  # positive = cheaper; None when there was no baseline spend
     manifests: dict[str, str] = {}
 
 
@@ -41,6 +44,8 @@ class NodePoolResult(BaseModel):
     before_monthly_usd: float
     choice: SkuChoice
     after_monthly_usd: float
+    monthly_savings_usd: float = 0.0
+    monthly_savings_pct: float | None = None
     candidates: list[costing.SkuCandidate]
     demand_before: costing.Demand
     demand_after: costing.Demand
@@ -57,6 +62,7 @@ class AnalysisResult(BaseModel):
     window_days: int
     tiers: dict[str, str] = {}  # tier key -> display label, so a report renders the same wherever it's opened
     stats: list[WorkloadStats]
+    forecasts: list[WorkloadForecast] = []
     workloads: list[WorkloadResult]
     node_pool: NodePoolResult | None
     ledger: list[LedgerEntry]
@@ -123,12 +129,25 @@ def _demand(rows: list[tuple[float, float, float]]) -> costing.Demand:
 
 
 def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, namespace: str, days: int,
-            tz: str, raw_points: int) -> AnalysisResult:
+            tz: str, raw_points: int, calendar: BusinessCalendar | None = None) -> AnalysisResult:
     ledger: list[LedgerEntry] = []
     notes: list[str] = []
 
+    # Stage 1.5: deterministic forecast ($0, no LLM). History peaks plus the operator's business calendar
+    # become expected load, pre-warm times and replica counts the models reason about but never invent.
+    forecasts = build_forecasts(stats, calendar)
+    forecast_by_id = {f.workload: f for f in forecasts}
+    for f in forecasts:
+        if f.windows:
+            log("forecast", f.summary, stage=1)
+    if calendar and calendar.events:
+        notes.append(f"forecast used {len(calendar.events)} declared calendar event(s) from config/calendar.yaml; "
+                     "the models were told not to invent or move events")
+
     # Stage 2: one cheap call triages every workload.
-    report, entry = llm.structured("triage", prompts.triage_system(), json.dumps([_compact(s) for s in stats]),
+    report, entry = llm.structured("triage", prompts.triage_system(),
+                                   json.dumps({"workloads": [_compact(s) for s in stats],
+                                               "forecasts": [f.model_dump() for f in forecasts]}),
                                    TriageReport, lambda: mock.triage(stats), stage="triage", workload="*")
     ledger.append(entry)
     by_id = {i.workload: i for i in report.items}
@@ -142,9 +161,11 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
     # Stage 3: only non-healthy workloads reach a bigger model, in parallel.
     def remediate(s: WorkloadStats) -> tuple[WorkloadStats, Recommendation, LedgerEntry, str]:
         item, tier = triage[s.id], ROUTE[triage[s.id].status]
-        user = json.dumps({"workload": _compact(s), "triage": item.model_dump()})
+        forecast = forecast_by_id[s.id]
+        user = json.dumps({"workload": _compact(s), "triage": item.model_dump(),
+                           "forecast": forecast.model_dump()})
         rec, e = llm.structured(tier, prompts.recommend_system(tz), user, Recommendation,
-                                lambda: mock.recommend(s, item), stage="recommend", workload=s.id)
+                                lambda: mock.recommend(s, item, forecast), stage="recommend", workload=s.id)
         return s, rec, e, tier
 
     todo = [s for s in stats if triage[s.id].status in ROUTE]
@@ -157,11 +178,12 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
         before = costing.allocation_monthly(cpu_now, mem_now, s.replicas, catalog)
         before_rows.append((cpu_now, mem_now, s.replicas))
         result = WorkloadResult(id=s.id, triage=triage[s.id], monthly_before_usd=round(before, 2),
-                                monthly_after_usd=round(before, 2))
+                                monthly_after_usd=round(before, 2),
+                                monthly_savings_pct=costing.savings_pct(before, before))
         if s.id in done:
             raw, e, tier = done[s.id]
             ledger.append(e)
-            rec, gnotes = guardrails.apply(raw, s)
+            rec, gnotes = guardrails.apply(raw, s, forecast_by_id[s.id])
             for note in gnotes:
                 log("guardrails", f"{s.id}: {note}", stage=3)
             cpu_new = rec.resources.cpu_request_m / 1000 if rec.resources else cpu_now
@@ -171,6 +193,8 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
             burst_rows.append((cpu_new, mem_new, costing.burst_replicas(rec.scaling, s.replicas)))
             result = result.model_copy(update=dict(
                 tier=tier, recommendation=rec, guardrail_notes=gnotes, monthly_after_usd=round(after, 2),
+                monthly_savings_usd=round(before - after, 2),
+                monthly_savings_pct=costing.savings_pct(before, after),
                 manifests=render.render(rec, namespace=s.namespace, name=s.name, container=s.name, tz=tz)))
         else:
             after_rows.append((cpu_now, mem_now, s.replicas))
@@ -200,7 +224,7 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
         "raw_series_to_strategist": round(strategist.cost(raw_points * RAW_TOKENS_PER_POINT, 0, out_tokens), 6),
     }
     return AnalysisResult(generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), mode=llm.mode,
-                          namespace=namespace, window_days=days, stats=stats,
+                          namespace=namespace, window_days=days, stats=stats, forecasts=forecasts,
                           tiers={name: t.label or name for name, t in llm.models.tiers.items()},
                           workloads=results, node_pool=node_pool,
                           ledger=ledger, notes=notes, llm_cost_usd=round(llm_cost, 6), baselines_usd=baselines)
@@ -232,8 +256,17 @@ def _plan_nodes(llm: LLMClient, catalog: SkuCatalog, stats: list[WorkloadStats],
     if choice.sku != current.sku:
         migrations = {f"{s.name}.migrate.yaml": render.migration(s.namespace, s.name, catalog.node_label, choice.sku)
                       for s in stats}
+    before_usd = costing.pool_monthly(current.sku, current.nodes, catalog)
+    after_usd = costing.pool_monthly(choice.sku, choice.nodes, catalog)
+    pct = costing.savings_pct(before_usd, after_usd)
+    if pct is not None:
+        notes.append(f"price improvement: {choice.nodes}x {choice.sku} is {abs(pct):.1f}% "
+                     f"{'cheaper' if pct >= 0 else 'more expensive'} than the current "
+                     f"{current.nodes}x {current.sku} pool (${before_usd:,.2f} -> ${after_usd:,.2f}/mo)")
     return NodePoolResult(before_sku=current.sku, before_nodes=current.nodes,
-                          before_monthly_usd=costing.pool_monthly(current.sku, current.nodes, catalog), choice=choice,
-                          after_monthly_usd=costing.pool_monthly(choice.sku, choice.nodes, catalog),
+                          before_monthly_usd=before_usd, choice=choice,
+                          after_monthly_usd=after_usd,
+                          monthly_savings_usd=round(before_usd - after_usd, 2),
+                          monthly_savings_pct=pct,
                           candidates=candidates, demand_before=before, demand_after=after,
                           node_label=catalog.node_label, migrations=migrations, notes=notes)

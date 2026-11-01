@@ -2,10 +2,18 @@
 from __future__ import annotations
 
 from kubesage.pipeline import AnalysisResult
+from kubesage.recommend.costing import savings_pct
 
 
 def _usd(v: float) -> str:
     return f"${v:,.4f}" if abs(v) < 1 else f"${v:,.2f}"
+
+
+def _pct(before: float, after: float) -> str:
+    pct = savings_pct(before, after)
+    if pct is None:
+        return "—"
+    return f"{'saves' if pct >= 0 else 'costs'} {abs(pct):.1f}%"
 
 
 def savings(r: AnalysisResult) -> tuple[float, float]:
@@ -17,7 +25,11 @@ def savings(r: AnalysisResult) -> tuple[float, float]:
 
 def title(r: AnalysisResult) -> str:
     alloc, pool = savings(r)
-    return f"kubesage: right-size {r.namespace} (~{_usd(max(alloc, pool))}/mo)"
+    before = sum(w.monthly_before_usd for w in r.workloads)
+    pool_before = r.node_pool.before_monthly_usd if r.node_pool else 0.0
+    pct = savings_pct(pool_before, pool_before - pool) if r.node_pool else savings_pct(before, before - alloc)
+    suffix = f", {abs(pct):.1f}%" if pct is not None else ""
+    return f"kubesage: right-size {r.namespace} (~{_usd(max(alloc, pool))}/mo{suffix})"
 
 
 def markdown(r: AnalysisResult) -> str:
@@ -28,19 +40,25 @@ def markdown(r: AnalysisResult) -> str:
         lines += ["> **Mock mode:** recommendations came from KubeSage's deterministic stand-ins, not an LLM, "
                   "and token costs are estimates.", ""]
     before = sum(w.monthly_before_usd for w in r.workloads)
-    lines += ["| | before | after | saves |", "|---|---|---|---|",
-              f"| Requested capacity (allocation view) | {_usd(before)}/mo | {_usd(before - alloc)}/mo | {_usd(alloc)}/mo |"]
+    lines += ["| | before | after | saves | saves % |", "|---|---|---|---|---|",
+              f"| Requested capacity (allocation view) | {_usd(before)}/mo | {_usd(before - alloc)}/mo | {_usd(alloc)}/mo | {_pct(before, before - alloc)} |"]
     if r.node_pool:
         n = r.node_pool
         lines.append(f"| Node pool (billing view) | {n.before_nodes}× {n.before_sku} {_usd(n.before_monthly_usd)}/mo | "
-                     f"{n.choice.nodes}× {n.choice.sku} {_usd(n.after_monthly_usd)}/mo | {_usd(pool)}/mo |")
+                     f"{n.choice.nodes}× {n.choice.sku} {_usd(n.after_monthly_usd)}/mo | {_usd(pool)}/mo | "
+                     f"{_pct(n.before_monthly_usd, n.after_monthly_usd)} |")
+    if r.forecasts:
+        lines += ["", "### Forecast (history + declared calendar)", ""]
+        for f in r.forecasts:
+            lines.append(f"- {f.summary} (confidence {f.confidence:.0%})")
     lines += ["", f"LLM cost of this analysis: **{_usd(r.llm_cost_usd)}**. The same calls all on the strategist tier "
                   f"would cost {_usd(r.baselines_usd['all_calls_on_strategist'])}.", "",
-              "### Workloads", "", "| workload | triage | model | $/mo before → after | risk |", "|---|---|---|---|---|"]
+              "### Workloads", "", "| workload | triage | model | $/mo before → after | saves % | risk |", "|---|---|---|---|---|---|"]
     for w in r.workloads:
         rec = w.recommendation
         lines.append(f"| `{w.id}` | {w.triage.status} | {models.get(w.id, '—')} | "
-                     f"{_usd(w.monthly_before_usd)} → {_usd(w.monthly_after_usd)} | {rec.risk if rec else '—'} |")
+                     f"{_usd(w.monthly_before_usd)} → {_usd(w.monthly_after_usd)} | "
+                     f"{_pct(w.monthly_before_usd, w.monthly_after_usd)} | {rec.risk if rec else '—'} |")
     for w in r.workloads:
         if not w.recommendation:
             continue

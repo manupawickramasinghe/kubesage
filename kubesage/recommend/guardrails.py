@@ -8,7 +8,8 @@ from __future__ import annotations
 import math
 import statistics
 
-from kubesage.llm.schemas import Recommendation, ScalingPlan
+from kubesage.forecast import WorkloadForecast
+from kubesage.llm.schemas import CronWindow, Recommendation, ScalingPlan
 from kubesage.metrics.stats import WorkloadStats
 from kubesage.recommend import cron
 
@@ -28,7 +29,7 @@ def _floor(value: int, floor: int, label: str, unit: str, why: str, notes: list[
     return value
 
 
-def apply(rec: Recommendation, s: WorkloadStats) -> tuple[Recommendation, list[str]]:
+def apply(rec: Recommendation, s: WorkloadStats, forecast: WorkloadForecast | None = None) -> tuple[Recommendation, list[str]]:
     rec = rec.model_copy(deep=True)
     rec.workload = s.id
     notes: list[str] = []
@@ -75,6 +76,7 @@ def apply(rec: Recommendation, s: WorkloadStats) -> tuple[Recommendation, list[s
         if plan.max_replicas > MAX_REPLICAS:
             notes.append(f"max replicas capped {plan.max_replicas} -> {MAX_REPLICAS}")
             plan.max_replicas = MAX_REPLICAS
+        _forecast_windows(plan, forecast, notes)
         _bounds(plan, notes)
 
     r = rec.resources
@@ -94,6 +96,30 @@ def apply(rec: Recommendation, s: WorkloadStats) -> tuple[Recommendation, list[s
                                    "CPU limit", "m", "p99 usage / request", notes)
     _aggregate(rec, s, notes)
     return rec, notes
+
+
+def _forecast_windows(plan: ScalingPlan, forecast: WorkloadForecast | None, notes: list[str]) -> None:
+    """A declared calendar rush must be pre-warmed even if the model forgot it: scale up *before* the
+    window opens, to at least the forecast replica count, and leave room above it. Dated events have no
+    weekly cron to enforce; they surface as follow-ups from the recommendation stage instead."""
+    if forecast is None:
+        return
+    have = {w.start for w in plan.cron_windows}
+    for window in forecast.windows:
+        if window.source != "calendar" or not window.cron_start or not window.cron_end:
+            continue
+        needed = min(window.replicas_needed, MAX_REPLICAS)
+        if window.cron_start not in have:
+            plan.cron_windows.append(CronWindow(start=window.cron_start, end=window.cron_end,
+                                                desired_replicas=max(needed, 1)))
+            notes.append(f"added calendar pre-warm window {window.cron_start} -> {window.cron_end} at "
+                         f"{needed} replica(s) ({window.event}: expected {window.multiplier:.1f}x normal traffic, "
+                         f"pre-warm {window.prewarm_time})")
+            have.add(window.cron_start)
+        if plan.max_replicas < needed:
+            notes.append(f"max replicas raised {plan.max_replicas} -> {needed} (forecast for {window.event} "
+                         f"needs {needed} replicas)")
+            plan.max_replicas = needed
 
 
 def _bounds(plan: ScalingPlan, notes: list[str]) -> None:

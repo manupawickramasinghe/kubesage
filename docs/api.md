@@ -122,13 +122,17 @@ Written to `out/<run>/report.json` and returned by `/api/report` and `/api/analy
 
 - `generated_at`, `mode`, `namespace`, `window_days`, `tiers` (tier → display label);
 - `stats[]`: the Stage 1 record per workload (see [pipeline.md](pipeline.md));
+- `forecasts[]`: the Stage 1.5 forecast per workload (see [calendar.md](calendar.md)): baseline and
+  expected peak CPU, `replicas_needed`, off-peak count, confidence, and windows (history or declared
+  calendar) with pre-warm times and, for weekly windows, KEDA cron start/end;
 - `workloads[]`:
   - `id`, `triage {status, summary}`, `tier`;
   - `recommendation {diagnosis, risk, resources, scaling, follow_ups}`;
-  - `guardrail_notes[]`, `monthly_before_usd`, `monthly_after_usd`, `manifests {file: yaml}`;
+  - `guardrail_notes[]`, `monthly_before_usd`, `monthly_after_usd`, `monthly_savings_usd`,
+    `monthly_savings_pct` (positive = cheaper, `null` with no baseline), `manifests {file: yaml}`;
 - `node_pool`:
   - `before_sku`, `before_nodes`, `before_monthly_usd`;
-  - `choice {sku, nodes, rationale}`, `after_monthly_usd`;
+  - `choice {sku, nodes, rationale}`, `after_monthly_usd`, `monthly_savings_usd`, `monthly_savings_pct`;
   - `candidates[]`, `demand_before`, `demand_after`, optional `demand_burst`;
   - `node_label`, `migrations {file: yaml}`, `notes[]`;
 - `ledger[]`: `{stage, workload, tier, model, input_tokens, cached_tokens, output_tokens, cost_usd}`;

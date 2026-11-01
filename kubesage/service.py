@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from kubesage.config import ModelsConfig, load_models, load_skus
+from kubesage.config import ModelsConfig, load_calendar, load_models, load_skus
 from kubesage.journal import log
 from kubesage.llm.client import LLMClient, LLMError
 from kubesage.metrics.client import PromClient, PromError
@@ -44,7 +44,8 @@ def analyze_now(*, vm: str, namespace: str, days: int, tz: str, mode: str,
     stats, raw_points = collect_stats(vm=vm, namespace=namespace, days=days, tz=tz, client=prom)
     try:
         llm = LLMClient(models, resolve_mode(mode, models))
-        result = analyze(stats, llm=llm, catalog=load_skus(), namespace=namespace, days=days, tz=tz, raw_points=raw_points)
+        result = analyze(stats, llm=llm, catalog=load_skus(), namespace=namespace, days=days, tz=tz,
+                         raw_points=raw_points, calendar=load_calendar())
     except LLMError as exc:
         raise AnalysisError(f"LLM call failed: {exc}") from exc
     run_dir = write_run(result, Path(out_dir) / datetime.now().strftime("%Y%m%d-%H%M%S-%f"), trace=prom.calls + llm.trace)

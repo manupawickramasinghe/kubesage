@@ -260,11 +260,13 @@ class Api:
                 if not isinstance(report, dict) or report.get("namespace") != self.s.namespace:
                     continue
                 pool = report.get("node_pool") or {}
+                before_pool, after_pool = pool.get("before_monthly_usd", 0), pool.get("after_monthly_usd", 0)
                 runs.append({"run": path.parent.name, "generated_at": report.get("generated_at"),
                              "mode": report.get("mode"), "namespace": report.get("namespace"),
                              "llm_cost_usd": report.get("llm_cost_usd"),
-                             "monthly_savings_usd": round(pool.get("before_monthly_usd", 0)
-                                                          - pool.get("after_monthly_usd", 0), 2)})
+                             "monthly_savings_usd": round(before_pool - after_pool, 2),
+                             "monthly_savings_pct": (round((before_pool - after_pool) / before_pool * 100, 1)
+                                                     if before_pool else None)})
             except (OSError, ValueError, TypeError):
                 continue  # an interrupted write must not hide the other completed runs
             if len(runs) == 50:

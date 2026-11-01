@@ -152,6 +152,14 @@ section[id] { scroll-margin-top: 90px; }
 .notice[data-kind="err"] { border-color: var(--crit); }
 .notice .btn { margin-left: auto; flex: none; }
 .notice p { margin: 0; }
+.forecast { margin-top: 16px; }
+.forecast:empty { display: none; }
+.forecast-head h3 { margin: 0 0 4px; font-size: 15px; }
+.forecast-head p { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+.forecast-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 9px 12px; margin-top: 8px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--secondary); font-size: 13px; overflow-wrap: anywhere; }
+.forecast-row .name { font-weight: 600; }
+.forecast-row .forecast-act { color: var(--muted); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 24px; }
 .toolbar label { font-size: 12px; color: var(--muted); }
 select, .search { height: 36px; max-width: 100%; padding: 0 10px; border: 1px solid var(--input); border-radius: 8px;

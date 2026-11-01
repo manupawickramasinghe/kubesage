@@ -16,6 +16,7 @@ It spends as little as possible on its own LLM calls, and shows every cent.
 | [cluster.md](cluster.md) | The real cluster: 8600G desktop + 3500U laptop, networking, setup, what was installed |
 | [architecture.md](architecture.md) | Components, data flow, design decisions, code map |
 | [pipeline.md](pipeline.md) | Stage 1 stats and signals, triage and routing, guardrails, manifests, cost model |
+| [calendar.md](calendar.md) | The business calendar (working hours, Black Friday, Christmas, sales), forecasting, pre-warm and quantified savings |
 | [operations.md](operations.md) | Runbook: start, after a reboot, demo-day checklist, fixes |
 | [cleanup.md](cleanup.md) | Tearing it all down: what `scripts/cleanup.sh` removes on each machine, and how to check |
 | [api.md](api.md) | The web server's HTTP API and `report.json` |

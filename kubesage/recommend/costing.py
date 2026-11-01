@@ -97,3 +97,21 @@ def node_candidates(demand: Demand, catalog: SkuCatalog) -> list[SkuCandidate]:
 
 def pool_monthly(sku: str, nodes: int, catalog: SkuCatalog) -> float:
     return round(nodes * catalog.get(sku).hourly_usd * catalog.hours_per_month, 2)
+
+
+def savings_pct(before_usd: float, after_usd: float) -> float | None:
+    """Percent saved going from before to after: positive means cheaper, negative means it costs more.
+
+    Returns None when there is no meaningful baseline (nothing was being spent), so callers can show
+    a dash instead of a made-up percentage.
+    """
+    if before_usd <= 0:
+        return None
+    return round((before_usd - after_usd) / before_usd * 100, 1)
+
+
+def price_improvement_pct(chosen_usd: float, alternative_usd: float) -> float | None:
+    """How much cheaper the chosen option is than an alternative, in percent of the alternative's price."""
+    if alternative_usd <= 0:
+        return None
+    return round((alternative_usd - chosen_usd) / alternative_usd * 100, 1)
