@@ -8,7 +8,7 @@ The dashboard now separates an immutable analysis snapshot from live Kubernetes 
 history, pinned Apply/GitOps actions, JSON/YAML downloads, searchable recommendations and field-level drift
 inspection. The plan review explains placement, guardrail adjustments and estimated costs before applying.
 
-![Updated dashboard, live cluster reset to the original state](images/ui-control-center.png)
+![Updated dashboard, live cluster reset to the original state](../demo/screenshots/ui-control-center.png)
 
 Validation checks Kubernetes without marking the plan applied. Live Deployment and ScaledObject fields
 determine application status across reloads; rollout readiness and available target-machine capacity are
@@ -20,7 +20,7 @@ linked to focused objects. Mobile charts use separate label/value and bar lines,
 together, and reduced motion disables animations. Inter and Instrument Serif remain local assets, with
 one script, no CDN and no build step.
 
-![Phone layout in dark mode](images/ui-control-center-phone.png)
+![Phone layout in dark mode](../demo/screenshots/ui-control-center-phone.png)
 
 ## Live verification
 

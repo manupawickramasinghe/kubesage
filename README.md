@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/logo.svg" width="72" height="72" alt="KubeSage logo">
+<img src="demo/images/logo.svg" width="72" height="72" alt="KubeSage logo">
 
 # KubeSage
 
@@ -13,14 +13,14 @@ ships every fix as a reviewable git commit.
 [![LLM](https://img.shields.io/badge/LLM-any%20OpenAI--compatible%20API-6e56cf)](docs/configuration.md)
 [![Tests](https://img.shields.io/badge/tests-153%20unit%20%C2%B7%2040%20browser-2ea44f)](docs/testing.md)
 
-[Quickstart](#quickstart) · [How it works](#how-it-works) · [Control Center](#the-ai-control-center) ·
-[Agent team](#the-agent-team) · [Documentation](#documentation)
+**[▶ Demo video](demo/video/kubesage-demo.mp4)** · [Quickstart](#quickstart) · [How it works](#how-it-works) ·
+[Control Center](#the-ai-control-center) · [Agent team](#the-agent-team) · [Documentation](#documentation)
 
 <br>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-demo-dark.png">
-  <img src="docs/images/readme-demo-light.png" alt="The KubeSage AI Control Center: the agent chat on the left, the demo pitch and live figures on the right">
+  <source media="(prefers-color-scheme: dark)" srcset="demo/screenshots/readme-demo-dark.png">
+  <img src="demo/screenshots/readme-demo-light.png" alt="The KubeSage AI Control Center: the agent chat on the left, the demo pitch and live figures on the right">
 </picture>
 
 </div>
@@ -48,6 +48,14 @@ sends a workload to an expensive model when a cheap one says it needs to.
 | **Scaling under load** | In one run on the desktop, `checkout-web` scaled 2 → 7 pods, and p95 latency fell from **377 ms to ~110 ms** with zero errors |
 
 Prices are Azure list prices: each real machine stands in for the cloud VM its `kubesage.io/sku` label names.
+
+### Demo video
+
+A narrated video under three minutes. Slides first: what's new (FinOps and SRE in one system, event-driven scaling for
+sale-day rushes, runs that cost cents, findings backed by evidence, a person in charge), a hypothetical customer cluster
+and how KubeSage works. Then under a minute of the dashboard right-sizing that cluster, riding out a flash sale and fixing
+an incident, simulated from runs recorded on the real cluster. **[Watch it](demo/video/kubesage-demo.mp4)**; the [demo folder](demo/README.md) has the chapters, the
+pictures made for it, every screenshot, and how the video was made.
 
 ## Why it's different
 
@@ -163,8 +171,8 @@ step and no CDN, and its fonts are vendored, so it works on venue Wi-Fi.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/readme-agents.png" alt="The Agent team view with the agent chat"></td>
-    <td width="50%"><img src="docs/images/readme-cluster.png" alt="The live cluster: each pod a glass box as tall as its CPU request"></td>
+    <td width="50%"><img src="demo/screenshots/readme-agents.png" alt="The Agent team view with the agent chat"></td>
+    <td width="50%"><img src="demo/screenshots/readme-cluster.png" alt="The live cluster: each pod a glass box as tall as its CPU request"></td>
   </tr>
   <tr>
     <td><b>Agent team.</b> The agent chat on the left shows each sub-agent's report to the Thinker, the Thinker's plan and the Executor's commit.</td>
@@ -254,6 +262,7 @@ tests/               pytest suite and browser checks
 | [API](docs/api.md) | The HTTP API and `report.json` |
 | [Testing](docs/testing.md) | The test suite, browser checks and manual checks with their last results |
 | [Cleanup](docs/cleanup.md) | What `scripts/cleanup.sh` removes on each machine, and what it never touches |
+| [Demo](demo/README.md) | The narrated demo video, its chapters, the slides and pictures made for it, every screenshot, and the tools that rebuild the video |
 | [Project review](docs/REVIEW_REPORT.md) | The 29 October review: validation results, the findings and their status |
 
 ## Testing

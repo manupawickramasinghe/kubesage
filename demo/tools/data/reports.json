@@ -1,0 +1,1 @@
+{"runs": [{"run": "20261029-114842-131212", "generated_at": "2026-10-29T06:18:42+00:00", "mode": "live", "namespace": "demo", "llm_cost_usd": 0.011073, "monthly_savings_usd": 33.58}, {"run": "20261028-233212-950994", "generated_at": "2026-10-28T18:02:12+00:00", "mode": "live", "namespace": "demo", "llm_cost_usd": 0.010985, "monthly_savings_usd": 33.58}]}

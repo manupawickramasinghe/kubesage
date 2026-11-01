@@ -1,0 +1,1 @@
+{"records": [{"seq": 8874, "ts": 1793210604.907238, "stream": "alerts", "text": "FIRING ContainerOOMKilled [critical] ledger-cache-6c47d5ccc7-kfr6x (ledger-cache) was OOM-killed in the last 10 minutes"}]}
