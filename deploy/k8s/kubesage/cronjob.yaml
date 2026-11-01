@@ -1,0 +1,51 @@
+# Scheduled analysis: runs before the working week, commits a right-sizing branch.
+# Flux applies it only after a human merges — see docs/in-cluster.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kubesage-analyze
+  namespace: kubesage
+  labels: {app: kubesage}
+spec:
+  schedule: "15 6 * * 1"  # Mondays 06:15 cluster time; edit to taste
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels: {app: kubesage}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: kubesage
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: analyze
+              image: ghcr.io/manupawickramasinghe/kubesage:latest  # build & push your own; see Dockerfile
+              command: [sh, /app/scripts/in-cluster-analyze.sh]
+              env:
+                - name: MODEL_API_KEY
+                  valueFrom:
+                    secretKeyRef: {name: kubesage-secrets, key: MODEL_API_KEY}
+                - {name: KUBESAGE_VM_URL, value: "http://victoriametrics.kubesage-metrics.svc:8428"}  # EDIT
+                - {name: KUBESAGE_TZ, value: "Asia/Colombo"}  # EDIT
+                - {name: KUBESAGE_TARGET_NAMESPACE, value: "demo"}  # EDIT: namespace to analyze
+                - {name: KUBESAGE_GITOPS_REPO_URL, value: "git@github.com:YOU/YOUR-GITOPS-REPO.git"}  # EDIT
+                - {name: KUBESAGE_KUSTOMIZE_BASE, value: "../base"}  # EDIT: overlay base in that repo
+              resources:
+                requests: {cpu: 250m, memory: 512Mi}
+                limits: {cpu: "1", memory: 1Gi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: {drop: [ALL]}
+              volumeMounts:
+                - {name: git-key, mountPath: /secrets/git, readOnly: true}
+          volumes:
+            - name: git-key
+              secret: {secretName: kubesage-git-key, defaultMode: 0o400}

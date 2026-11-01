@@ -83,6 +83,9 @@ KubeSage reads metrics; it does not install an agent in your cluster. You need:
    (`kubesage.calendar_import.parse_ics`), and recurring peaks you haven't declared are proposed —
    never added — by `kubesage.calendar_suggest`.
 
+Prefer to run KubeSage itself in the cluster? [in-cluster.md](in-cluster.md) deploys it as a
+container (CronJob analysis + UI) with read-only RBAC, where Flux applies merged changes.
+
 Apply stays a deliberate step: `kubesage apply --dry-run` first, and the agent team's Executor only
 ever opens pull requests when started with `--agent-prs`. Nothing writes to your cluster on its own.
 

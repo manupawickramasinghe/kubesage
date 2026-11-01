@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Flux or `kubectl apply -k deploy/k8s/kubesage`. The *.example.yaml files are NOT
+# resources: create the real Secrets (and optional ConfigMap) imperatively first,
+# per secret.example.yaml / configmap.example.yaml.
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - cronjob.yaml
+images:
+  - name: ghcr.io/manupawickramasinghe/kubesage
+    newName: ghcr.io/manupawickramasinghe/kubesage  # EDIT: your registry/repo
+    newTag: latest                                   # EDIT: pin a digest in production
