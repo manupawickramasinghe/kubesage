@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rebuild demo/video/kubesage-demo.mp4: voice-over, a recording of the slides and the dashboard against the replay
-# server, then ffmpeg. Needs Python with Playwright and Chromium (the repo's .venv plus `playwright install chromium`), ffmpeg, and
+# server, the background music (music.py, composed in code), then ffmpeg. Needs Python with Playwright and Chromium (the repo's .venv plus `playwright install chromium`), ffmpeg, and
 # Kokoro for the voice (installed into its own venv below, with its ~340 MB model). Nothing here touches a cluster or
 # calls a model API.
 set -euo pipefail
@@ -16,4 +16,5 @@ for f in kokoro-v1.0.onnx voices-v1.0.bin; do
 done
 "$WORK/tts/bin/python" tts.py
 "$PY" record.py          # under three minutes, in real time
+"$PY" music.py           # the background music, laid out on the recorded timeline
 "$PY" build.py "$OUT"

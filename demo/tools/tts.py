@@ -13,7 +13,7 @@ from kokoro_onnx import Kokoro
 HERE = Path(__file__).parent
 WORK = Path(os.environ.get("KUBESAGE_VIDEO_WORK", HERE / "build"))
 MODEL = Path(os.environ.get("KOKORO_DIR", WORK / "kokoro"))
-VOICE, SPEED = os.environ.get("KOKORO_VOICE", "af_heart"), float(os.environ.get("KOKORO_SPEED", "1.0"))
+VOICE, SPEED = os.environ.get("KOKORO_VOICE", "af_heart"), float(os.environ.get("KOKORO_SPEED", "1.15"))  # a brisk, energetic read
 SAY = {"ContainerOOMKilled": "Container O-O-M Killed", "KEDA": "Keda", "SRE": "S-R-E", "VM": "V-M"}
 
 kokoro = Kokoro(str(MODEL / "kokoro-v1.0.onnx"), str(MODEL / "voices-v1.0.bin"))

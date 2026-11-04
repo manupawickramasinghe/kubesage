@@ -1,15 +1,20 @@
 """Replay server for the KubeSage demo video.
 
 Serves the real dashboard/ (and the video's slides under /demo/) and answers the dashboard's API from data recorded on
-the lab cluster on 29 October 2026: the latest FinOps analysis and its trace, the cluster as it was, team run
+the lab cluster: the FinOps analysis of 1 November 2026 (run 20261101-211354-839221, on the Meta Muse models, with the
+business-calendar forecast) and its trace, the cluster as it was before that plan was applied, team run
 20261029-034845 and the ring lines it wrote, shown on the hypothetical cluster of scenario.py. The state moves on as the
-page presses its buttons (Analyze, Apply, Send traffic, Start test, Dry-run apply). Nothing here talks to a cluster or
-a model. Traffic replays the recorded 60 req/s run of 2026-10-27 (docs/testing.md) twenty times faster.
+page presses its buttons (Analyze, Apply, Start test, Dry-run apply). Nothing here talks to a cluster or a model.
+
+Apply plays what KubeSage's own Apply does with that plan: the resource patches and ScaledObjects land and the pods
+restart smaller on the same node, while the migrations to the planned 3x F4s_v2 pool are skipped, because no node
+carries that label yet (kubesage/apply.py). The plan's checks are KubeSage's own (kubesage.web.server._checks).
 """
 from __future__ import annotations
 
 import copy
 import json
+import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -18,16 +23,17 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import scenario
+import yaml
 
 DATA = Path(__file__).parent / "data"
 REPO = Path(__file__).resolve().parents[2]
 DASHBOARD, DEMO = REPO / "dashboard", REPO / "demo"
-TRAFFIC_S = 9           # the recorded 180 s run, shown in 9 s
-SPEED = 180 / TRAFFIC_S
-ANALYZE_S = 3           # a live analysis takes a few seconds: statistics, one triage call, then more reasoning
-ALERT_S = 0.5           # on the cluster the alert takes about a minute
+ANALYZE_S = 3           # the recorded analysis took about a minute: statistics, one triage call, then more reasoning
+ALERT_S = 1.5           # on the cluster the alert takes about a minute
 TEAM_WAIT_S = 0.3       # and the team then waits 45 s for related alerts
-APPLY_SPEED = 2         # Apply's rollout, twice as fast as the recorded one
+APPLY_SPEED = 2         # Apply's rollout, twice as fast as on the cluster
+sys.path.insert(0, str(REPO))
+from kubesage.web.server import _checks  # noqa: E402  KubeSage's own plan-versus-live comparison
 
 
 def load(name):
@@ -59,10 +65,10 @@ class Sim:
         self.ledger_lines = [x["text"] for x in tc if "ledger resident" in x["text"]][:5]
         self.alert_text = next(x["text"] for x in load("ring_alerts.json")["records"] if "ContainerOOMKilled" in x["text"])
         self.analyzed = False
-        self.apply_at = self.traffic_at = self.tc_at = self.alert_at = self.run_at = None
+        self.apply_at = self.tc_at = self.alert_at = self.run_at = None
         self.pending_until = None
         self.auto = True
-        self.job = "kubesage-spike-000"
+        self.manifests = {k["file"]: yaml.safe_load(k["manifest"]) for k in self.trace["kubectl"] if k["manifest"]}
         self.ring: list[dict] = []
         self.started = time.time()
         self._after_spec()
@@ -85,82 +91,84 @@ class Sim:
                 "mem_used_mi": sum(p["mem_used_mi"] or 0 for p in pods) / len(pods),
                 "scaling": sc}
 
-    def _pod(self, app, i, phase, used=True, cpu=None):
+    def _pod(self, app, i, phase, used=True):
         a = self.after[app]
-        return {"name": f"{app}-7d9f8c6b5-{'abcdefghjk'[i % 10]}{'xq2p4m7r9t'[i % 10]}{i}", "app": app, "phase": phase,
+        return {"name": f"{app}-5c8d7f9b6-{'abcdefghjk'[i % 10]}{'xq2p4m7r9t'[i % 10]}{i}", "app": app, "phase": phase,
                 "ready": phase == "Running", "cpu_request_m": float(a["cpu_request_m"]), "mem_request_mi": float(a["mem_request_mi"]),
-                "mem_limit_mi": float(a["mem_limit_mi"]), "cpu_used_m": (cpu if cpu is not None else round(a["cpu_used_m"], 1)) if used else None,
+                "mem_limit_mi": float(a["mem_limit_mi"]), "cpu_used_m": round(a["cpu_used_m"], 1) if used else None,
                 "mem_used_mi": round(a["mem_used_mi"], 1) if used else None, "restarts": 0}
 
-    def traffic_state(self, now):
-        """(recorded seconds into the run, replicas, CPU % of target) for the replayed 60 req/s run, or None."""
-        if self.traffic_at is None:
-            return None
-        r = (now - self.traffic_at) * SPEED
-        reps = 3 if r < 20 else 4 if r < 50 else 6
-        cpu = 10 if r >= 180 else 130 if r < 20 else 112 if r < 50 else 88 if r < 90 else 74
-        return r, reps, cpu
+    # ---- the plan, checked the way the Control Center checks it ----
+    def _live_spec(self, app, applied):
+        """A Deployment's spec as the cluster would report it, before or after Apply's patches (never its migration)."""
+        d = self.cluster0["deployments"][app]
+        res = {"requests": {"cpu": f"{d['cpu_request_m']:g}m", "memory": f"{d['mem_request_mi']:g}Mi"},
+               "limits": {"cpu": f"{d['cpu_limit_m']:g}m" if d.get("cpu_limit_m") else None,
+                          "memory": f"{d['mem_limit_mi']:g}Mi" if d.get("mem_limit_mi") else None}}
+        patch = self.manifests.get(f"{app}.patch.yaml") if applied else None
+        for c in ((patch or {}).get("spec", {}).get("template", {}).get("spec", {}).get("containers") or []):
+            for kind in ("requests", "limits"):
+                res[kind].update((c.get("resources") or {}).get(kind) or {})
+        return {"template": {"spec": {"nodeSelector": dict(d.get("node_selector") or {}),
+                                      "containers": [{"name": app, "resources": res}]}}}
+
+    def _plan(self, applied):
+        workloads = {}
+        for name, desired in sorted(self.manifests.items()):
+            if desired.get("kind") not in ("Deployment", "ScaledObject"):
+                continue
+            app = desired["spec"].get("scaleTargetRef", {}).get("name", desired["metadata"]["name"])
+            actual = (self._live_spec(app, applied) if desired["kind"] == "Deployment"
+                      else copy.deepcopy(desired["spec"]) if applied else None)
+            checks = _checks(desired["spec"], actual, desired["kind"])
+            if actual is None:
+                for chk in checks:
+                    chk["match"] = False
+            workloads.setdefault(app, {"checks": []})["checks"].extend(checks)
+        for w in workloads.values():
+            matched = sum(c["match"] for c in w["checks"])
+            w["state"] = "applied" if matched == len(w["checks"]) else "partial" if matched else "pending"
+        matched = sum(w["state"] == "applied" for w in workloads.values())
+        state = ("applied" if matched == len(workloads) else
+                 "partial" if any(w["state"] != "pending" for w in workloads.values()) else "pending")
+        pool = self.report["report"]["node_pool"]
+        capacity = {"sku": pool["choice"]["sku"], "required": pool["choice"]["nodes"], "ready": 0, "available": False}
+        return {"run": self.report["run"], "state": "partial" if state == "applied" else state, "matched": matched,
+                "total": len(workloads), "ready": False, "workloads": workloads, "capacity": capacity}
 
     def cluster(self, now):
         c = copy.deepcopy(self.cluster0)
         c["observed_at"], c["operation"], c["traffic"], c["active_jobs"] = iso(now), None, None, []
-        desk, lap = c["nodes"][0], c["nodes"][1]
-        plan = c["plan"]
+        node = c["nodes"][0]  # aks-system: the planned F4s_v2 pool doesn't exist yet, so nothing moves off it
         if not self.analyzed:
             c["plan"] = {"run": None, "state": "none", "matched": 0, "total": 0, "ready": False, "workloads": {}}
             return c
-        plan.update(state="pending", matched=0, ready=False)
-        if self.apply_at is None:
+        t = None if self.apply_at is None else (now - self.apply_at) * APPLY_SPEED
+        c["plan"] = self._plan(applied=t is not None and t >= 7)
+        if t is None:
             return c
-        t = (now - self.apply_at) * APPLY_SPEED
-        old = desk["pods"]
-        desk["pods"] = [] if t >= 7 else [dict(p, phase="Terminating") for p in old] if t >= 3 else old
-        tr = self.traffic_state(now)
-        pods = []
-        for app, a in self.after.items():
-            n = a["replicas"]
-            if app == "checkout-web" and tr:
-                n = tr[1]
-            for i in range(n):
-                fresh = app == "checkout-web" and tr and i >= 3 and tr[0] < (25 if i == 3 else 55)
-                cpu = round(a["cpu_request_m"] * tr[2] / 100, 1) if app == "checkout-web" and tr else None
-                pods.append(self._pod(app, i, "Pending" if t < 2.5 or fresh else "Running", used=t >= 4 and not fresh, cpu=cpu))
-        lap["pods"] = pods
-        if tr and tr[0] < 180:
-            lap["cpu_used_m"] = 4400.0
-        if t >= 7:
-            plan.update(state="applied", matched=plan.get("total", 5), ready=True)
-            for w in plan.get("workloads", {}).values():
-                for chk in w.get("checks", []):
-                    chk.update(actual=chk.get("expected"), match=True)
-                w["state"] = "applied"
-        elif t >= 3:
-            plan.update(state="partial", matched=3)
+        old = [p for p in node["pods"]]
+        new = [self._pod(app, i, "Pending" if t < 2.5 else "Running", used=t >= 4)
+               for app, a in self.after.items() for i in range(a["replicas"])]
+        node["pods"] = (old + new if t < 3 else [dict(p, phase="Terminating") for p in old] + new if t < 7 else new) if t >= 1 else old
         if t >= 1:
             for app, a in self.after.items():
                 d = c["deployments"].get(app)
                 if d:
-                    d.update(replicas=a["replicas"], ready=a["replicas"] if t >= 7 else 0, node_selector={"kubesage.io/sku": "F8s_v2"},
+                    d.update(replicas=a["replicas"], ready=a["replicas"] if t >= 7 else 0,
                              cpu_request_m=float(a["cpu_request_m"]), mem_request_mi=float(a["mem_request_mi"]))
-            web, rw = self.after["checkout-web"]["scaling"], self.after["report-worker"]["scaling"]
-            c["scaling"] = {
-                "checkout-web": {"min": web["min_replicas"], "max": web["max_replicas"], "triggers": ["cron", "cpu"],
-                                 "cpu_target": float(web["cpu_utilization_target"]), "current": tr[1] if tr else 3,
-                                 "desired": tr[1] if tr else 3, "cpu": tr[2] if tr else 9, "conditions": []},
-                "report-worker": {"min": 0, "max": rw["max_replicas"], "triggers": ["cron"]}}
-        if tr:
-            r = tr[0]
-            job = self.job
-            if r < 180:
-                c["active_jobs"] = [{"name": job, "ends_at": iso(self.traffic_at + TRAFFIC_S)}]
-            failed = 23 if r >= 80 else int(23 * r / 80)
-            done = r >= 180
-            p50, p95 = ((1200, 15000) if r < 30 else (420, 4200) if r < 60 else (120, 900) if r < 90
-                        else (75, 170 + int(r * 7) % 70))
-            c["traffic"] = {"job": job, "status": "completed" if done else "running",
-                            "succeeded_requests": 10777 if done else max(0, int(60 * r) - failed), "failed_requests": failed,
-                            "p50_ms": 75 if done else p50, "p95_ms": 210 if done else p95, "elapsed": 180 if done else int(r),
-                            "logs_available": True}
+            c["scaling"] = {}
+            for app, a in self.after.items():
+                sc = a["scaling"]
+                if not sc:
+                    continue
+                triggers = (["cron"] if sc.get("cron_windows") else []) + (["cpu"] if sc.get("cpu_utilization_target") else [])
+                row = {"min": sc["min_replicas"], "max": sc["max_replicas"], "triggers": triggers}
+                if sc.get("cpu_utilization_target"):
+                    row.update(cpu_target=float(sc["cpu_utilization_target"]), current=a["replicas"], desired=a["replicas"],
+                               cpu=round(100 * a["cpu_used_m"] / a["cpu_request_m"]) if a["cpu_request_m"] else None,
+                               conditions=[])
+                c["scaling"][app] = row
         return c
 
     # ---- the agent team ----
@@ -291,17 +299,19 @@ class Sim:
         with self.lock:
             if path == "/api/apply":
                 dry = bool(body.get("dry_run"))
-                files = [m for w in self.report["report"]["workloads"] for m in (w.get("manifests") or [])]
-                steps = [{"file": f, "ok": True, "skipped": None,
-                          "output": f"{'deployment.apps' if 'patch' in f else 'scaledobject.keda.sh'}/{f.split('.')[0]} "
-                                    f"{'configured (server dry run)' if dry else 'configured'}"} for f in files]
+                label, sku = self.report["report"]["node_pool"]["node_label"], self.report["report"]["node_pool"]["choice"]["sku"]
+                steps = []
+                for k in self.trace["kubectl"]:
+                    f = k["file"]
+                    if f.endswith(".migrate.yaml"):
+                        steps.append({"file": f, "ok": True, "skipped": f"no node labelled {label}={sku}", "output": ""})
+                        continue
+                    kind = "deployment.apps" if f.endswith(".patch.yaml") else "scaledobject.keda.sh"
+                    steps.append({"file": f, "ok": True, "skipped": None,
+                                  "output": f"{kind}/{f.split('.')[0]} {'configured (server dry run)' if dry else 'configured'}"})
                 if not dry and self.apply_at is None:
                     self.apply_at = now
                 return 200, {"run": body.get("run"), "ok": True, "dry_run": dry, "steps": steps}
-            if path == "/api/spike":
-                self.traffic_at, self.job = now, f"kubesage-spike-{int(now) % 1000:03d}"
-                return 200, {"job": self.job, "RPS": str(body.get("rps", 60)), "SECONDS": str(TRAFFIC_S),
-                             "WORK_MS": str(body.get("work_ms", 50)), "TARGET": "checkout-web"}
             if path == "/api/testcase":
                 if body.get("action") == "start":
                     self.tc_at = now

@@ -1,183 +1,219 @@
 1
-00:00:00,400 --> 00:00:03,848
-This is KubeSage, an AI SRE team for Kubernetes.
+00:00:00,400 --> 00:00:01,265
+Black Friday:
 
 2
-00:00:03,848 --> 00:00:07,010
-Here is what is new, in under three minutes.
+00:00:01,265 --> 00:00:02,931
+checkout traffic triples.
 
 3
-00:00:08,017 --> 00:00:09,319
-First, the summary.
+00:00:02,931 --> 00:00:06,528
+Pay for idle servers all year, or scramble on the day?
 
 4
-00:00:09,319 --> 00:00:12,267
-KubeSage puts FinOps and SRE in one system.
+00:00:06,528 --> 00:00:07,660
+This is KubeSage:
 
 5
-00:00:12,267 --> 00:00:16,722
-It plans the savings, scales for the rush, and fixes what breaks.
+00:00:07,660 --> 00:00:12,990
+an AI SRE team for Kubernetes, built for the Meta Global AI Developer Hackathon.
 
 6
-00:00:16,722 --> 00:00:20,492
-Small models do the legwork, and these runs cost cents.
+00:00:13,794 --> 00:00:15,713
+FinOps and SRE, in one system.
 
 7
-00:00:20,492 --> 00:00:22,754
-Every finding must cite evidence.
+00:00:15,713 --> 00:00:21,280
+It plans savings, forecasts rushes from usage and your calendar, and fixes what breaks.
 
 8
-00:00:22,754 --> 00:00:24,673
-Agent fixes are git commits.
+00:00:21,280 --> 00:00:24,352
+Small models do the legwork, so runs cost cents.
 
 9
-00:00:24,673 --> 00:00:29,197
-Plans and fixes reach the cluster only when a person applies them.
+00:00:24,352 --> 00:00:26,463
+Every finding must cite evidence.
 
 10
-00:00:30,199 --> 00:00:33,622
-Picture a hypothetical online store on Azure Kubernetes.
+00:00:26,463 --> 00:00:28,255
+Agent fixes are git commits.
 
 11
-00:00:33,622 --> 00:00:37,717
-Five services share one node at two hundred eighty dollars a month.
+00:00:28,255 --> 00:00:32,734
+And plans and fixes reach the cluster only when a person applies them.
 
 12
-00:00:37,717 --> 00:00:41,323
-Two of them reserve two cores each while using almost none.
+00:00:33,539 --> 00:00:34,431
+Meet shop-prod:
 
 13
-00:00:41,323 --> 00:00:46,030
-Checkout traffic peaks every weekday morning, and sale days are bigger still.
+00:00:34,431 --> 00:00:36,867
+a hypothetical store on Azure Kubernetes.
 
 14
-00:00:46,030 --> 00:00:49,269
-Tonight, a ledger cache ships with too little memory.
+00:00:36,867 --> 00:00:40,909
+Five services share one node, at two hundred eighty dollars a month.
 
 15
-00:00:50,276 --> 00:00:53,115
-Sales are where FinOps and engineering meet.
+00:00:40,909 --> 00:00:43,761
+Two reserve two cores each, and sit mostly idle.
 
 16
-00:00:53,115 --> 00:00:56,923
-From thirty days of usage, KubeSage finds the weekday rush.
+00:00:43,761 --> 00:00:45,960
+Checkout peaks every weekday morning.
 
 17
-00:00:56,923 --> 00:00:59,633
-Its KEDA rule adds pods ten minutes early.
+00:00:45,960 --> 00:00:47,862
+Black Friday is on the calendar.
 
 18
-00:00:59,633 --> 00:01:04,086
-A CPU trigger catches surges no schedule predicts, like a flash sale.
+00:00:47,862 --> 00:00:51,249
+And tonight, a ledger cache ships with too little memory.
 
 19
-00:01:04,086 --> 00:01:09,119
-For a date like Black Friday, engineers add their own window to the same rule.
+00:00:52,052 --> 00:00:55,142
+So FinOps and engineering keep one business calendar:
 
 20
-00:01:09,119 --> 00:01:13,056
-KubeSage also sizes the node pool for the peaks it schedules.
+00:00:55,142 --> 00:00:57,706
+working hours, Black Friday, Christmas week.
 
 21
-00:01:14,060 --> 00:01:16,583
-Finding the waste is cheap by design.
+00:00:57,706 --> 00:01:02,836
+KubeSage reads it with thirty days of usage, and forecasts each rush with no model call:
 
 22
-00:01:16,583 --> 00:01:21,763
-Statistics are free, and healthy workloads stop after one quick triage call.
+00:01:02,836 --> 00:01:04,935
+when to pre-warm, and how many pods.
 
 23
-00:01:21,763 --> 00:01:24,695
-Only harder cases get more model reasoning.
+00:01:04,935 --> 00:01:06,567
+A flash sale nobody planned?
 
 24
-00:01:24,695 --> 00:01:27,353
-Guardrails floor requests from history.
+00:01:06,567 --> 00:01:08,024
+A CPU trigger catches it.
 
 25
-00:01:27,353 --> 00:01:30,080
-This whole analysis cost about one cent.
+00:01:08,024 --> 00:01:12,512
+And for Black Friday, the plan asks for a one-day scale-up from seven thirty.
 
 26
-00:01:31,092 --> 00:01:35,415
-When an alert fires, four small agents gather evidence in parallel.
+00:01:13,322 --> 00:01:15,539
+Statistics and the forecast are free.
 
 27
-00:01:35,415 --> 00:01:38,706
-Findings that cite no collected signal are dropped.
+00:01:15,539 --> 00:01:18,117
+One Muse Spark call triages every workload.
 
 28
-00:01:38,706 --> 00:01:44,771
-A larger Thinker reads the rest, plus your team's plain-English rules, to find the root cause.
+00:01:18,117 --> 00:01:23,091
+Spark handles the routine fixes; Muse Wonder takes the hard case and the node pool.
 
 29
-00:01:44,771 --> 00:01:49,932
-An Executor writes the fix as a git commit, after policy checks limit each edit.
+00:01:23,091 --> 00:01:27,766
+Guardrails floor requests from history and restore dropped calendar pre-warms.
 
 30
-00:01:51,683 --> 00:01:53,800
-Here is the simulated cluster.
+00:01:27,766 --> 00:01:28,126
+Total:
 
 31
-00:01:53,800 --> 00:01:56,411
-Each glass is the CPU a pod reserves.
+00:01:28,126 --> 00:01:31,602
+twenty-seven cents, under half the price of all on Wonder.
 
 32
-00:01:56,411 --> 00:02:02,903
-Analyze estimates about thirty-four dollars in monthly savings, for one cent of model calls.
+00:01:32,404 --> 00:01:36,468
+When an alert fires, four small agents gather evidence in parallel.
 
 33
-00:02:03,514 --> 00:02:09,164
-Apply right-sizes the services, moves them to the cheaper node, and adds the KEDA scaling rule.
+00:01:36,468 --> 00:01:38,591
+A finding with no collected signal?
 
 34
-00:02:10,564 --> 00:02:11,804
-Now a flash sale:
+00:01:38,591 --> 00:01:39,076
+Dropped.
 
 35
-00:02:11,804 --> 00:02:14,649
-sixty requests a second, replayed fast.
+00:01:39,076 --> 00:01:44,900
+A larger Thinker reads the rest, plus your team's plain-English rules, and finds the root cause.
 
 36
-00:02:14,649 --> 00:02:19,244
-CPU passes its target, and checkout-web scales out to six pods.
+00:01:44,900 --> 00:01:49,814
+The Executor writes the fix as a git commit, after policy checks limit each edit.
 
 37
-00:02:19,863 --> 00:02:21,256
-Then the bad release:
+00:01:51,067 --> 00:01:52,830
+Here's the simulated cluster.
 
 38
-00:02:21,256 --> 00:02:26,033
-ledger-cache runs out of memory, and the ContainerOOMKilled alert fires.
+00:01:52,830 --> 00:01:55,079
+Each glass is the CPU a pod reserves.
 
 39
-00:02:26,662 --> 00:02:28,253
-The team starts on its own.
+00:01:55,079 --> 00:01:55,808
+Hit Analyze:
 
 40
-00:02:28,253 --> 00:02:33,322
-The sub-agents report, the Thinker finds the cause, and the chat shows every hand-off.
+00:01:55,808 --> 00:01:59,577
+seventy percent less reservation cost, for twenty-seven cents.
 
 41
-00:02:36,286 --> 00:02:37,693
-The fix is a commit:
+00:01:59,577 --> 00:02:04,440
+The forecast shows each service's biggest rush, with its pre-warm time and pods.
 
 42
-00:02:37,693 --> 00:02:43,391
-more memory, a proposal for a memory-optimised node pool, and two security fixes.
+00:02:04,440 --> 00:02:08,817
+And to fit scheduled peaks, the node pool costs thirty-two percent more.
 
 43
-00:02:43,391 --> 00:02:45,290
-Sixteen seconds, two cents.
+00:02:10,461 --> 00:02:13,729
+Apply right-sizes the services and adds the KEDA rules.
 
 44
-00:02:45,290 --> 00:02:46,486
-A person decides.
+00:02:13,729 --> 00:02:16,521
+It skips moving pods until the new nodes exist.
 
 45
-00:02:47,041 --> 00:02:48,212
-That is KubeSage:
+00:02:18,492 --> 00:02:19,866
+Then, the bad release:
 
 46
-00:02:48,212 --> 00:02:53,311
-FinOps and SRE in one system, built for the rush, with a person in charge.
+00:02:19,866 --> 00:02:24,362
+ledger-cache runs out of memory, and the ContainerOOMKilled alert fires.
+
+47
+00:02:25,942 --> 00:02:27,575
+The team jumps in on its own.
+
+48
+00:02:27,575 --> 00:02:32,192
+Sub-agents report, the Thinker finds the cause, and the chat shows every hand-off.
+
+49
+00:02:34,109 --> 00:02:35,432
+The fix is a commit:
+
+50
+00:02:35,432 --> 00:02:40,394
+more memory, a memory-optimised node pool proposal, and two security fixes.
+
+51
+00:02:40,394 --> 00:02:41,452
+Sixteen seconds.
+
+52
+00:02:41,452 --> 00:02:42,114
+Two cents.
+
+53
+00:02:42,114 --> 00:02:43,239
+A person decides.
+
+54
+00:02:44,132 --> 00:02:45,171
+That's KubeSage:
+
+55
+00:02:45,171 --> 00:02:51,082
+FinOps and SRE in one system, built on Muse Spark and Muse Wonder, with a person in charge.
