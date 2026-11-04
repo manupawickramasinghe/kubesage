@@ -1,31 +1,31 @@
 [
  {
   "id": "title",
-  "narration": "This is KubeSage, an AI SRE team for Kubernetes. Here is what is new."
+  "narration": "Black Friday: checkout traffic triples. Pay for idle servers all year, or scramble on the day? This is KubeSage: an AI SRE team for Kubernetes, built for the Meta Global AI Developer Hackathon."
  },
  {
   "id": "summary",
-  "narration": "KubeSage puts FinOps and SRE in one system. It plans savings, forecasts rushes from usage and your calendar, and fixes what breaks. Small models do the legwork, so these runs cost cents. Every finding must cite evidence. Agent fixes are git commits. Plans and fixes reach the cluster only when a person applies them."
+  "narration": "FinOps and SRE, in one system. It plans savings, forecasts rushes from usage and your calendar, and fixes what breaks. Small models do the legwork, so runs cost cents. Every finding must cite evidence. Agent fixes are git commits. And plans and fixes reach the cluster only when a person applies them."
  },
  {
   "id": "server",
-  "narration": "Picture a hypothetical store on Azure Kubernetes. Five services share one node at two hundred eighty dollars a month. Two services reserve two cores each and sit mostly idle. Checkout peaks every weekday morning. Black Friday is on the sales calendar. Tonight, a ledger cache ships with too little memory."
+  "narration": "Meet shop-prod: a hypothetical store on Azure Kubernetes. Five services share one node, at two hundred eighty dollars a month. Two reserve two cores each, and sit mostly idle. Checkout peaks every weekday morning. Black Friday is on the calendar. And tonight, a ledger cache ships with too little memory."
  },
  {
   "id": "rush",
-  "narration": "FinOps and engineering keep one business calendar: working hours, Black Friday, Christmas week. From it and thirty days of usage, KubeSage forecasts each rush with no model call: when to pre-warm, and how many pods. A CPU trigger still catches the flash sale nobody planned. For Black Friday, the plan asks for a one-day scale-up from seven thirty."
+  "narration": "So FinOps and engineering keep one business calendar: working hours, Black Friday, Christmas week. KubeSage reads it with thirty days of usage, and forecasts each rush with no model call: when to pre-warm, and how many pods. A flash sale nobody planned? A CPU trigger catches it. And for Black Friday, the plan asks for a one-day scale-up from seven thirty."
  },
  {
   "id": "finops",
-  "narration": "Statistics and the forecast are free. One Muse Spark call triages every workload. Spark handles the routine fixes; Muse Wonder takes the hard case and the node pool. Guardrails floor requests from history and restore dropped calendar pre-warms. The whole analysis cost twenty-seven cents, under half the price of all on Wonder."
+  "narration": "Statistics and the forecast are free. One Muse Spark call triages every workload. Spark handles the routine fixes; Muse Wonder takes the hard case and the node pool. Guardrails floor requests from history and restore dropped calendar pre-warms. Total: twenty-seven cents, under half the price of all on Wonder."
  },
  {
   "id": "team",
-  "narration": "When an alert fires, four small agents gather evidence in parallel. Findings that cite no collected signal are dropped. A larger Thinker reads the rest, plus your team's plain-English rules, to find the root cause. An Executor writes the fix as a git commit, after policy checks limit each edit."
+  "narration": "When an alert fires, four small agents gather evidence in parallel. A finding with no collected signal? Dropped. A larger Thinker reads the rest, plus your team's plain-English rules, and finds the root cause. The Executor writes the fix as a git commit, after policy checks limit each edit."
  },
  {
   "id": "d-analyze",
-  "narration": "In the simulated cluster, each glass shows the CPU a pod reserves. Analyze plans seventy percent less reservation cost, for twenty-seven cents. The forecast shows each service's biggest rush, with its pre-warm time and pods. To fit scheduled peaks, the node pool costs thirty-two percent more."
+  "narration": "Here's the simulated cluster. Each glass is the CPU a pod reserves. Hit Analyze: seventy percent less reservation cost, for twenty-seven cents. The forecast shows each service's biggest rush, with its pre-warm time and pods. And to fit scheduled peaks, the node pool costs thirty-two percent more."
  },
  {
   "id": "d-apply",
@@ -33,18 +33,18 @@
  },
  {
   "id": "d-incident",
-  "narration": "Then the bad release: ledger-cache runs out of memory, and the ContainerOOMKilled alert fires."
+  "narration": "Then, the bad release: ledger-cache runs out of memory, and the ContainerOOMKilled alert fires."
  },
  {
   "id": "d-team",
-  "narration": "The team starts on its own. The sub-agents report, the Thinker finds the cause, and the chat shows every hand-off."
+  "narration": "The team jumps in on its own. Sub-agents report, the Thinker finds the cause, and the chat shows every hand-off."
  },
  {
   "id": "d-fix",
-  "narration": "The fix is a commit: more memory, a memory-optimised node pool proposal, and two security fixes. Sixteen seconds, two cents. A person decides."
+  "narration": "The fix is a commit: more memory, a memory-optimised node pool proposal, and two security fixes. Sixteen seconds. Two cents. A person decides."
  },
  {
   "id": "close",
-  "narration": "That is KubeSage: FinOps and SRE in one system, built for the rush, with a person in charge."
+  "narration": "That's KubeSage: FinOps and SRE in one system, built on Muse Spark and Muse Wonder, with a person in charge."
  }
 ]

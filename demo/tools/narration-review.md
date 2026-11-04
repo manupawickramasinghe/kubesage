@@ -1,6 +1,11 @@
 # How the narration was written and checked
 
-This is the third version of the voice-over (4 November 2026). It replays the FinOps analysis of 1 November on the Meta
+This is the fourth version of the voice-over (4 November 2026). The third was rewritten to be punchier for the
+hackathon submission: a cold open (Black Friday: checkout traffic triples, as `config/calendar.yaml` declares), the
+hackathon named on the first and last slides, shorter sentences, and "built on Muse Spark and Muse Wonder" (the default
+profile) at the close. No fact or number changed from the checked third version, whose review follows.
+
+The third version replays the FinOps analysis of 1 November on the Meta
 Muse models, with the business-calendar forecast, and drops the flash-sale replay of earlier versions.
 
 1. **Draft** (Claude): one voice-over paragraph per scene, sized so the whole video stays under three minutes and the

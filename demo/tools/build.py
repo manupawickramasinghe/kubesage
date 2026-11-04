@@ -1,4 +1,4 @@
-"""Assemble the recorded frames, the voice-over and subtitles into demo/video/kubesage-demo.mp4."""
+"""Assemble the recorded frames, the voice-over, the music (music.py) and subtitles into demo/video/kubesage-demo.mp4."""
 import json
 import os
 import re
@@ -68,11 +68,29 @@ srt = "\n".join(f"{i}\n{stamp(a)} --> {stamp(b)}\n{text}\n" for i, (a, b, text) 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 (OUT.with_suffix(".srt")).write_text(srt)
 
+
+
+def lufs(path: Path) -> float:
+    out = subprocess.run(["ffmpeg", "-nostats", "-i", str(path), "-af", "ebur128", "-f", "null", "-"],
+                         capture_output=True, text=True).stderr
+    return float(re.findall(r"I:\s+(-?[\d.]+) LUFS", out)[-1])
+
+
+# Music (music.py), if there is any: set 6 LU under the voice, then ducked about 11 dB more while the voice speaks.
+# The mix is brought to the online-video speech level, whatever the voice's own.
+music = WORK / "music.wav"
+audio_in, audio = [], "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[aout]"
+if music.exists():
+    gain = (lufs(WORK / "voice.wav") - 6) - lufs(music)
+    audio_in = ["-i", str(music)]
+    audio = ("[1:a]aformat=sample_rates=48000:channel_layouts=stereo,asplit=2[vox][key];"
+             f"[3:a]aformat=sample_rates=48000:channel_layouts=stereo,volume={gain:.2f}dB[bed];"
+             "[bed][key]sidechaincompress=threshold=0.02:ratio=6:attack=25:release=450:knee=4[duck];"
+             "[vox][duck]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11[aout]")
 subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(WORK / "concat.txt"),
-                "-i", str(WORK / "voice.wav"), "-i", str(OUT.with_suffix(".srt")),
-                "-map", "0:v", "-map", "1:a", "-map", "2:s",
+                "-i", str(WORK / "voice.wav"), "-i", str(OUT.with_suffix(".srt")), *audio_in,
+                "-filter_complex", audio, "-map", "0:v", "-map", "[aout]", "-map", "2:s",
                 "-vf", "fps=30,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-tune", "stillimage",
-                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",  # online-video speech level, whatever the voice's own
                 "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-c:s", "mov_text", "-metadata:s:s:0", "language=eng",
                 "-metadata", "title=KubeSage: an AI SRE team for Kubernetes (simulated demo on a hypothetical cluster)",
                 "-movflags", "+faststart", "-t", f"{total:.2f}", str(OUT)], check=True)

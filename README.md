@@ -52,7 +52,7 @@ Prices are Azure list prices: each real machine stands in for the cloud VM its `
 
 ### Demo video
 
-A narrated video under three minutes. Slides first: what's new (FinOps and SRE in one system, scaling before the rush
+A narrated video under three minutes, made for the Meta Global AI Developer Hackathon. Slides first: what's new (FinOps and SRE in one system, scaling before the rush
 from your business calendar, runs that cost cents, findings backed by evidence, a person in charge), a hypothetical
 customer cluster and how KubeSage works. Then under a minute of the dashboard right-sizing that cluster with its
 calendar forecast on the Meta Muse models and fixing an incident, simulated from runs recorded on the real cluster. **[Watch it](demo/video/kubesage-demo.mp4)**; the [demo folder](demo/README.md) has the chapters, the

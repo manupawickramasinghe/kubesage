@@ -5,25 +5,28 @@ the docs, and the tools that rebuild the video.
 
 <a href="video/kubesage-demo.mp4"><img src="video/poster.png" alt="Play the KubeSage demo video: the title slide, KubeSage, an AI SRE team for Kubernetes" width="100%"></a>
 
-**[▶ Watch the demo video](video/kubesage-demo.mp4)**: 2 min 53 s, 1600×900, narrated (Kokoro voice), with English subtitles
+**[▶ Watch the demo video](video/kubesage-demo.mp4)**: 2 min 53 s, 1600×900, narrated (Kokoro voice) over original music, with English subtitles
 ([`kubesage-demo.srt`](video/kubesage-demo.srt)).
 
 ## What the video shows
 
-Slides first: the summary of what is new, a hypothetical customer cluster, scaling before the rush from a business
-calendar, and how KubeSage finds waste and fixes incidents. Then 51 seconds of the real dashboard on that cluster, and a
-closing slide. The website does not appear until the summary has been shown.
+Made for the **Meta Global AI Developer Hackathon** (hosted by Meta and Cerebral Valley), which asks for a demo of
+three minutes at most. A cold open (Black Friday: pay for idle servers all year, or scramble on the day?), the title,
+then slides: the summary of what is new, a hypothetical customer cluster, scaling before the rush from a business
+calendar, and how KubeSage finds waste and fixes incidents. Then 53 seconds of the real dashboard on that cluster, with
+the camera moving to what the voice describes and the key numbers popping up, and a closing slide. The website does
+not appear until the summary has been shown.
 
 | time | chapter | what happens |
 |---|---|---|
-| 0:00 | Title | KubeSage, an AI SRE team for Kubernetes |
-| 0:06 | What's new | Five points: FinOps and SRE in one system, built for the rush, cents not dollars, evidence or it's dropped, a person decides; and the results: −70% reservation cost, +32% node pool so the scheduled peaks fit, a 16 s team run |
-| 0:28 | The scenario | *shop-prod*, a hypothetical online store on Azure Kubernetes: a D8s_v5 node running five services, an F8s_v2 node for test releases, a weekday-morning rush, Black Friday on the sales calendar, and a ledger cache about to ship with too little memory |
-| 0:48 | Built for the rush | The business calendar (`config/calendar.yaml`) and an illustrative week of checkout traffic: the forecast pre-warms 8 pods at 08:45 on weekdays, a CPU trigger catches a flash sale, and the plan asks for a one-day Black Friday scale-up from 07:30 |
-| 1:11 | Finding the waste, for cents | The FinOps pipeline: free statistics and forecast, one Muse Spark triage call, Spark for routine fixes and Muse Wonder for the hard case and the node pool, guardrails, the plan ($0.27 for the whole analysis, 55% less than all on Wonder) |
-| 1:33 | How the team fixes incidents | An alert, four sub-agents, the evidence check, the Thinker and your rules, the Executor, the policy check, the commit, a person |
-| 1:53 | **The website, under a minute** | The cluster · Analyze ($168.73 → $50.65/mo reservation cost, the node pool +32%, for $0.27) · the Forecast panel · Apply (the move to the new pool skipped until its nodes exist) · the bad release (`ContainerOOMKilled`) · the agent team, with its chat · the fix as a commit and its diff (16 s, $0.02) |
-| 2:44 | Close | The repository, and how to run it yourself |
+| 0:00 | Cold open and title | Black Friday triples checkout traffic: idle servers all year, or a scramble on the day? Then KubeSage, an AI SRE team for Kubernetes, built for the Meta Global AI Developer Hackathon with Muse Spark and Muse Wonder |
+| 0:13 | What's new | Five points: FinOps and SRE in one system, built for the rush, cents not dollars, evidence or it's dropped, a person decides; and the results: −70% reservation cost, +32% node pool so the scheduled peaks fit, a 16 s team run |
+| 0:33 | The scenario | *shop-prod*, a hypothetical online store on Azure Kubernetes: a D8s_v5 node running five services, an F8s_v2 node for test releases, a weekday-morning rush, Black Friday on the sales calendar, and a ledger cache about to ship with too little memory |
+| 0:52 | Built for the rush | The business calendar (`config/calendar.yaml`) and an illustrative week of checkout traffic: the forecast pre-warms 8 pods at 08:45 on weekdays, a CPU trigger catches a flash sale, and the plan asks for a one-day Black Friday scale-up from 07:30 |
+| 1:13 | Finding the waste, for cents | The FinOps pipeline: free statistics and forecast, one Muse Spark triage call, Spark for routine fixes and Muse Wonder for the hard case and the node pool, guardrails, the plan ($0.27 for the whole analysis, 55% less than all on Wonder) |
+| 1:32 | How the team fixes incidents | An alert, four sub-agents, the evidence check, the Thinker and your rules, the Executor, the policy check, the commit, a person |
+| 1:51 | **The website, under a minute** | The cluster · Analyze ($168.73 → $50.65/mo reservation cost, the node pool +32%, for $0.27) · the Forecast panel · Apply (the move to the new pool skipped until its nodes exist) · the bad release (`ContainerOOMKilled`) · the agent team, with its chat · the fix as a commit and its diff (16 s, $0.02) |
+| 2:44 | Close | The results, the repository, how to run it yourself, and the hackathon |
 
 ## What is real, and what is hypothetical
 
@@ -56,6 +59,12 @@ closing slide. The website does not appear until the summary has been shown.
   recorded plan's. The flash sale is not part of the recording. The Black Friday scale-up is a follow-up in the recorded
   plan: the analysis was made before KubeSage rendered dated events as timed jobs.
 
+**Sound and motion.** The voice is Kokoro (`af_heart`) at 1.15× speed. The music is an original 124 BPM track composed
+in code by [tools/music.py](tools/music.py) (no samples, nothing downloaded, so no licence to clear): it builds under
+the cold open, drops as the title appears, whooshes at every slide change and lifts into the website part; the build
+ducks it about 13 dB under the voice while she speaks. Slides wipe in, their parts spring in sentence by sentence and
+their numbers count up; on the website the camera zooms in on what the voice describes.
+
 The voice-over was drafted by Claude, edited for clarity by **agy** (Gemini 4 Argon High) and fact-checked read-only
 against the repository and the recorded data; the corrections are in it: [tools/narration-review.md](tools/narration-review.md).
 
@@ -76,13 +85,13 @@ appear as the voice-over reaches them.
 | [`images/`](images) | the logo, and the generated pictures in `generated/` |
 | [`screenshots/`](screenshots) | every screenshot the README and the docs use (`ui-*`, `readme-*`), taken from the live lab cluster |
 | [`screenshots/simulation/`](screenshots/simulation) | 14 stills from the video, one per slide and per website moment, at full resolution |
-| [`tools/`](tools) | the slides, the replay server and its scenario, the recorder, the voice-over and the build script, with the recorded data |
+| [`tools/`](tools) | the slides, the replay server and its scenario, the recorder, the voice-over, the music and the build script, with the recorded data |
 
 ## Rebuild the video
 
 ```bash
 .venv/bin/pip install playwright && .venv/bin/python -m playwright install chromium   # once
-demo/tools/make_video.sh                  # ~4 minutes: voice-over, recording, encoding
+demo/tools/make_video.sh                  # ~5 minutes: voice-over, recording, music, encoding
 ```
 
 `make_video.sh` installs [Kokoro](https://github.com/thewh1teagle/kokoro-onnx), an open text-to-speech model that
