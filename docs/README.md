@@ -12,6 +12,7 @@ It spends as little as possible on its own LLM calls, and shows every cent.
 | document | read it for |
 |---|---|
 | [getting-started.md](getting-started.md) | **Running it yourself:** no-key demo, your API key (any OpenAI-compatible provider), or your own cluster — in that order |
+| [in-cluster.md](in-cluster.md) | Running KubeSage in the cluster as a container, with Flux applying merged changes |
 | [ui-guide.md](ui-guide.md) | **Start here.** What every part of the Control Center means, and the 3-step demo |
 | [agents.md](agents.md) | The agent team (sub-agents → Thinker → Executor), the live test cases, alerts, the RAM ring and tmux view, PRs |
 | [cluster.md](cluster.md) | The real cluster: 8600G desktop + 3500U laptop, networking, setup, what was installed |

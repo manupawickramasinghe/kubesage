@@ -1,0 +1,33 @@
+# Read-only by design (see docs/in-cluster.md): the pod may look, never touch.
+# All changes flow through git commits that Flux reconciles after a human merge.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubesage
+  namespace: kubesage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubesage-readonly
+rules:
+  - apiGroups: [""]
+    resources: [pods, nodes, services, namespaces, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [keda.sh]
+    resources: [scaledobjects]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubesage-readonly
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: kubesage-readonly}
+subjects:
+  - {kind: ServiceAccount, name: kubesage, namespace: kubesage}

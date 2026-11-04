@@ -1,0 +1,11 @@
+# EXAMPLE: Flux source for KubeSage itself. Apply once (after Flux is installed),
+# then Flux keeps the KubeSage Deployment/CronJob reconciled from git.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: kubesage
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/manupawickramasinghe/kubesage  # your fork
+  ref: {branch: main}

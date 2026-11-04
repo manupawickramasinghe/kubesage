@@ -1,0 +1,20 @@
+# OPTIONAL override: the image bakes in config/ (models, skus, calendar). To use YOUR
+# prices/calendar without rebuilding, create this ConfigMap with your files and mount
+# it over /app/config in deployment.yaml + cronjob.yaml, e.g.:
+#   volumeMounts: [{name: config, mountPath: /app/config}]
+#   volumes: [{name: config, configMap: {name: kubesage-config}}]
+# Generate from your edited files:
+#   kubectl -n kubesage create configmap kubesage-config \
+#     --from-file=models.yaml=config/models.yaml \
+#     --from-file=skus.yaml=config/skus.yaml \
+#     --from-file=calendar.yaml=config/calendar.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubesage-config
+  namespace: kubesage
+data:
+  calendar.yaml: |
+    # Declare YOUR working hours, sales and holidays here — see docs/calendar.md.
+    prewarm_minutes: 15
+    events: []

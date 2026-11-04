@@ -1,0 +1,10 @@
+# Analysis runs (report.json + manifests + trace.json). Small: reports are JSON, not metrics.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kubesage-runs
+  namespace: kubesage
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: {storage: 1Gi}

@@ -1,0 +1,48 @@
+# The Control Center. In-cluster it is observe-and-analyze: analysis writes reports to
+# the PVC, but Apply cannot write to the cluster (read-only SA) — merging the GitOps
+# branch the CronJob pushes is how changes land, via Flux.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubesage
+  namespace: kubesage
+  labels: {app: kubesage}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: kubesage}}
+  template:
+    metadata:
+      labels: {app: kubesage}
+    spec:
+      serviceAccountName: kubesage
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: kubesage
+          image: ghcr.io/manupawickramasinghe/kubesage:latest  # build & push your own; see Dockerfile
+          args: [serve, --host, 0.0.0.0, --port, "8600"]
+          ports: [{name: http, containerPort: 8600}]
+          env:
+            - name: MODEL_API_KEY
+              valueFrom:
+                secretKeyRef: {name: kubesage-secrets, key: MODEL_API_KEY, optional: true}
+            - {name: KUBESAGE_VM_URL, value: "http://victoriametrics.kubesage-metrics.svc:8428"}  # EDIT: your Prometheus/VM service
+            - {name: KUBESAGE_TZ, value: "Asia/Colombo"}  # EDIT: your workloads' timezone
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /api/config, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: runs, mountPath: /app/out}
+      volumes:
+        - name: runs
+          persistentVolumeClaim: {claimName: kubesage-runs}
