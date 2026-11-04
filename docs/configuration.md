@@ -68,6 +68,14 @@ threads and 14 GiB.
 | `KUBESAGE_AGENTS_BASE` | serve, agents | the branch Executor branches start from (default the executor's `settings.base_branch`, `main`) |
 | `KUBESAGE_ALERTMANAGER_URL` | serve, agents | default `http://localhost:9193` |
 | `KUBESAGE_RING`, `KUBESAGE_RING_MB` | serve, ring, tmux | the RAM ring's path (default `/dev/shm/kubesage-ring`) and size in MiB (default 500) |
+| `KUBESAGE_EXECUTOR_SSH_KEY` | agents (Executor) | path to a deploy-key private key **outside** the repo for the Executor's git pushes; validated before use (in-repo, missing, `.pub` or world-readable keys are refused). Unset: the operator's SSH agent. See [agents.md](agents.md) |
+| `KUBECTL` | apply, serve | kubectl binary; default `.bin/kubectl` if present, else `kubectl` on PATH |
+| `GH_TOKEN` | agents (Executor PRs) | GitHub CLI token for opening PRs without an interactive `gh auth login` |
+| `BIND_ADDR` | docker compose | `127.0.0.1` (default) or `0.0.0.0` to reach Grafana/VictoriaMetrics from another machine |
+| `GRAFANA_ADMIN_PASSWORD` | docker compose | Grafana admin password, default `admin` — change it if you bind beyond localhost |
+
+Running on your own machine/cluster for the first time? [getting-started.md](getting-started.md)
+walks the three paths (no key, your key, your cluster) in order.
 
 ## CLI flags shared by `stats`, `analyze`, `serve`, `simulate`
 
