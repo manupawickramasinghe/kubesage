@@ -11,7 +11,7 @@ ships every fix as a reviewable git commit.
 [![Kubernetes](https://img.shields.io/badge/kubernetes-k3s%20%C2%B7%20k3d-326CE5?logo=kubernetes&logoColor=white)](docs/cluster.md)
 [![KEDA](https://img.shields.io/badge/autoscaling-KEDA-0b6bcb)](docs/pipeline.md)
 [![LLM](https://img.shields.io/badge/LLM-any%20OpenAI--compatible%20API-6e56cf)](docs/configuration.md)
-[![Tests](https://img.shields.io/badge/tests-201%20unit%20%C2%B7%2040%20browser-2ea44f)](docs/testing.md)
+[![Tests](https://img.shields.io/badge/tests-205%20unit%20%C2%B7%2040%20browser-2ea44f)](docs/testing.md)
 
 **[▶ Demo video](demo/video/kubesage-demo.mp4)** · [Quickstart](#quickstart) · [How it works](#how-it-works) ·
 [Control Center](#the-ai-control-center) · [Agent team](#the-agent-team) · [Documentation](#documentation)
@@ -78,13 +78,16 @@ docker compose up -d                  # VictoriaMetrics :8428, Grafana :3300, vm
 .venv/bin/kubesage serve              # the AI Control Center on http://127.0.0.1:8600
 ```
 
-To call a real model, put a key in `.env` (gitignored) and pick a provider profile:
+To call a real model, put a Meta Muse key in `.env` (gitignored) — the default profile is already
+Meta, so no profile selection is needed:
 
 ```bash
-echo 'CEREBRAS_API_KEY=...' > .env
+echo 'MODEL_API_KEY=...' > .env   # Meta Model API key from https://dev.meta.ai
 set -a; . ./.env; set +a
-KUBESAGE_MODELS=cerebras .venv/bin/kubesage serve
+.venv/bin/kubesage serve          # Spark triages, Wonder handles the hard cases
 ```
+
+(Cerebras also ships: `CEREBRAS_API_KEY=...` plus `KUBESAGE_MODELS=cerebras`.)
 
 **Your key, your cluster:** any OpenAI-compatible endpoint works (copy a profile in `config/models.*.yaml`
 and edit the base URL, model IDs and prices), and KubeSage reads any Prometheus/VictoriaMetrics plus your
@@ -215,10 +218,10 @@ Every part of every view is explained in the [UI guide](docs/ui-guide.md).
 | Business calendar (working hours, sales, holidays) | [`config/calendar.yaml`](config/calendar.yaml), see [docs/calendar.md](docs/calendar.md) |
 | Platform rules for the agents | [`agents/rules/`](agents/rules/), plain English |
 
-Any OpenAI-compatible endpoint works. Two profiles ship: Cerebras (`gpt-oss-120b`, `qwen-3.8-27b`) and the Meta
-Model API. Model IDs and prices change, so check them before relying on the cost figures. Some of the Meta
-profile's are marked unverified in the file. [docs/configuration.md](docs/configuration.md) lists every
-environment variable.
+Any OpenAI-compatible endpoint works. Two profiles ship: Meta Muse (default: `muse-spark-1.3` +
+`muse-wonder-1.0` on the Meta Model API) and Cerebras (`gpt-oss-120b`, `qwen-3.8-27b`). Model IDs and
+prices change, so check them before relying on the cost figures. [docs/configuration.md](docs/configuration.md)
+lists every environment variable.
 
 ## Command line
 
@@ -277,7 +280,7 @@ tests/               pytest suite and browser checks
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest -q                                          # 201 tests, no cluster or API key needed
+.venv/bin/python -m pytest -q                                          # 205 tests, no cluster or API key needed
 .venv/bin/pip install playwright && .venv/bin/python -m playwright install chromium
 .venv/bin/python tests/browser_smoke.py --output-dir /tmp/kubesage-browser   # 40 UI checks against a mocked API
 ```

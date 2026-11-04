@@ -164,7 +164,8 @@ rehearse once, Reset again.
 - No authentication on the Control Center (see rule 6).
 - With the Cerebras profile every tier is `gpt-oss-120b` at a different reasoning effort, so the "all on the
   strategist" baseline equals the routed cost.
-- The Meta Model API profile's model IDs and prices are unverified.
+- The Meta Model API profile (default; judges use Muse) was fixed Nov 2026: Glimmer is not an API model,
+  so triage/small run on Muse Spark 1.3 and the strategist/large on Muse Wonder 1.0, prices verified.
 - `scripts/cleanup.sh`'s laptop path (`leave-node.sh`) has never been run for real.
   [cleanup.md](cleanup.md) has a leave-and-rejoin test.
 - The project review's findings are all fixed (PR #20). [REVIEW_REPORT.md](REVIEW_REPORT.md) section 12 has the

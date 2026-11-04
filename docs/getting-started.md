@@ -17,21 +17,36 @@ docker compose up -d                    # VictoriaMetrics :8428 + Grafana :3300 
 Mock mode is deterministic and clearly labelled in the UI. It exercises everything — statistics,
 forecast, guardrails, manifests, node-pool math — except real model judgement.
 
-## Path B — your API key (real model reasoning)
+## Path B — your Meta Muse key (real model reasoning)
 
-Any OpenAI-compatible `/chat/completions` endpoint works. The fastest verified route:
+KubeSage's default profile *is* Meta Muse on the Meta Model API — no profile to select.
+Get a key at [dev.meta.ai](https://dev.meta.ai) (keys look like `LLM|...`), then:
 
 ```bash
 cp .env.example .env                    # then edit it (it is gitignored; chmod 600 it)
-# in .env set:  CEREBRAS_API_KEY=<your key>     (free tier at https://cloud.cerebras.ai)
+# in .env set:  MODEL_API_KEY=<your Meta Model API key>   (leave KUBESAGE_MODELS blank)
 set -a; . ./.env; set +a
-KUBESAGE_MODELS=cerebras .venv/bin/kubesage analyze --mode live
+.venv/bin/kubesage analyze --mode live  # live is also auto-detected when the key is set
+.venv/bin/kubesage serve                # dashboard at http://127.0.0.1:8600
 ```
 
-A full live Analyze costs about **$0.01** on Cerebras at the prices in `config/models.cerebras.yaml`.
+What runs: triage and routine work on **Muse Spark 1.3** (`muse-spark-1.3`, $1.25/$4.25 per 1M
+tokens), hard cases and the node-pool plan on **Muse Wonder 1.0** (`muse-wonder-1.0`,
+$4.00/$20.00). That split is the cost-aware router: only workloads Spark flags as COMPLEX ever
+reach Wonder, and every run prints its exact token cost from these prices. Expect a few cents
+per full Analyze — the report shows the real figure, not an estimate. Note there is no hosted
+Glimmer tier: Muse Glimmer is open-weight only and is not served on `api.meta.ai`.
 
-**A different provider** (OpenAI, Together, local vLLM, …): copy the profile and edit four things —
-this is the whole integration surface:
+Want cheaper triage? Set the triage tier's model in `config/models.yaml` to
+`muse-spark-1.3-contributor` ($0.10/$0.20) — Contributor terms let Meta train on inputs,
+so only do this if that is acceptable for cluster-statistics payloads.
+
+**Cerebras instead:** set `CEREBRAS_API_KEY` in `.env` and run with
+`KUBESAGE_MODELS=cerebras` (a full Analyze costs about **$0.01** there).
+
+**A different provider** (OpenAI, Together, local vLLM, …): any OpenAI-compatible
+`/chat/completions` endpoint works. Copy the profile and edit four things — this is the
+whole integration surface:
 
 ```bash
 cp config/models.cerebras.yaml config/models.mine.yaml
@@ -41,8 +56,7 @@ KUBESAGE_MODELS=mine .venv/bin/kubesage analyze
 ```
 
 The three tier keys (`triage`, `worker`, `strategist`) are fixed; the client asks for JSON output and
-retries rate limits and schema-invalid answers. The default profile (`config/models.yaml`, Meta) has
-some model IDs marked **UNVERIFIED** in the file — the Cerebras profile is the one we run daily.
+retries rate limits and schema-invalid answers.
 
 ## Path C — your cluster, your metrics
 
@@ -77,6 +91,7 @@ ever opens pull requests when started with `--agent-prs`. Nothing writes to your
 | thing | cost |
 |---|---|
 | Mock mode (no key) | $0 |
+| Live Analyze (Meta Muse: Spark + Wonder) | a few cents per run; exact cost printed per run |
 | Live Analyze (Cerebras) | ~$0.01 per run |
 | VictoriaMetrics/Grafana (compose) | local Docker only |
 | The demo cluster (`scripts/cluster-up.sh`) | local k3d; optional, Path C replaces it |
@@ -87,7 +102,7 @@ ever opens pull requests when started with `--agent-prs`. Nothing writes to your
 |---|---|
 | `analyze` finds no workloads | VM has no data for that namespace/series — run `kubesage stats` and check the series names above; if you used the compose stack, did `simulate` finish? |
 | Everything says "mock" despite a key | the profile's `api_key_env` variable isn't in the *shell* environment — `set -a; . ./.env; set +a`, and check `KUBESAGE_MODELS` names the profile you edited |
-| 401/404 from the model endpoint | `base_url` or model ID wrong for your provider; the Meta default profile's unverified IDs are the usual suspect — start from the Cerebras profile shape |
+| 401/404 from the model endpoint | `MODEL_API_KEY` missing/invalid, or `KUBESAGE_MODELS` set to a profile you didn't mean (leave it blank for Meta Muse). A 404 model means the ID isn't served — on Meta only `muse-spark-1.3` and `muse-wonder-1.0` are; Glimmer is open-weight only |
 | Forecasts mention Black Friday in your June report | our demo `config/calendar.yaml` is still in place — declare your own events (Path C, step 4) |
 | Savings look huge/tiny | `config/skus.yaml` still prices our machines — set your instance types and `current_pool` (Path C, step 3) |
 | `apply` can't reach the cluster | `KUBECONFIG` unset and no `.bin/kubeconfig` (that's only created by `scripts/cluster-up.sh`) |
