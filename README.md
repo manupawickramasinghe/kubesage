@@ -44,6 +44,7 @@ sends a workload to an expensive model when a cheap one says it needs to.
 | scenario | result |
 |---|---|
 | **Right-sizing analysis** | Node pool `D8s_v5` → `F8s_v2`: **$280.32 → $246.74 a month** at list prices (a modelled saving, not an invoice), 4 of 5 workloads changed. The analysis cost **$0.0111** in model calls |
+| **Right-sizing with the business calendar** (Meta Muse, 1 November) | Reservation cost **$168.73 → $50.65 a month** (−70%). The node pool goes from 1× `D8s_v5` to 3× `F4s_v2`, **$280.32 → $370.11** (+32%), so the scheduled peaks fit; the forecast pre-warms them from `config/calendar.yaml`. The analysis cost **$0.27** in model calls, against $0.59 with every call on Muse Wonder |
 | **Live incident** (`ContainerOOMKilled`) | Team run from start to diagnosis and commit in **16 s** for **$0.0200**: 4 issues, 4 actions, 3 files changed. Applying the fix and the recovery are separate steps, not included in that time |
 | **Scaling under load** | In one run on the desktop, `checkout-web` scaled 2 → 7 pods, and p95 latency fell from **377 ms to ~110 ms** with zero errors |
 
@@ -51,10 +52,10 @@ Prices are Azure list prices: each real machine stands in for the cloud VM its `
 
 ### Demo video
 
-A narrated video under three minutes. Slides first: what's new (FinOps and SRE in one system, event-driven scaling for
-sale-day rushes, runs that cost cents, findings backed by evidence, a person in charge), a hypothetical customer cluster
-and how KubeSage works. Then under a minute of the dashboard right-sizing that cluster, riding out a flash sale and fixing
-an incident, simulated from runs recorded on the real cluster. **[Watch it](demo/video/kubesage-demo.mp4)**; the [demo folder](demo/README.md) has the chapters, the
+A narrated video under three minutes. Slides first: what's new (FinOps and SRE in one system, scaling before the rush
+from your business calendar, runs that cost cents, findings backed by evidence, a person in charge), a hypothetical
+customer cluster and how KubeSage works. Then under a minute of the dashboard right-sizing that cluster with its
+calendar forecast on the Meta Muse models and fixing an incident, simulated from runs recorded on the real cluster. **[Watch it](demo/video/kubesage-demo.mp4)**; the [demo folder](demo/README.md) has the chapters, the
 pictures made for it, every screenshot, and how the video was made.
 
 ## Why it's different

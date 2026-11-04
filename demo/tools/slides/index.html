@@ -100,8 +100,13 @@ img.pic { -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000
 .legend { position: absolute; left: 88px; bottom: 86px; display: flex; gap: 26px; font-size: 15px; color: var(--fg-2); }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--c); margin-right: 8px; vertical-align: -1px; }
 
-#s-rush .pic { position: absolute; right: 70px; top: 30px; width: 380px; border-radius: 18px; }
-#s-rush .diagram { position: absolute; left: 88px; top: 290px; width: 1424px; height: 500px; }
+#s-rush .cal { position: absolute; right: 88px; top: 70px; width: 470px; padding: 16px 22px 10px; background: var(--paper);
+  border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 2px rgba(34, 34, 31, .05); }
+#s-rush .cal .m { font: 600 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+#s-rush .cal div { display: grid; grid-template-columns: 1fr auto 46px; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 15.5px; }
+#s-rush .cal b { font-weight: 600; } #s-rush .cal span { color: var(--fg-2); font: 500 14px/1.6 var(--mono); } #s-rush .cal i { font-style: normal; font-weight: 700; text-align: right; }
+#s-rush .cal .hot b, #s-rush .cal .hot i { color: #c4501f; }
+#s-rush .diagram { position: absolute; left: 88px; top: 300px; width: 1424px; height: 500px; }
 #rush-pods path { transition: opacity .6s ease; }
 #rush-pods .draw { transition: stroke-dashoffset 2.4s ease-in-out, opacity .6s ease; }
 /* Close */
@@ -114,6 +119,7 @@ img.pic { -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000
 #s-close .result { padding: 14px 24px; }
 #s-close .result b { font-size: 44px; }
 #s-close .url { margin-top: 30px; font: 600 22px var(--mono); }
+#s-close .run { margin-top: 8px; font-size: 18px; color: var(--fg-2); }
 
 /* The website, in a frame over the slides */
 #app { position: absolute; inset: 0; width: 1600px; height: 900px; border: 0; opacity: 0; transition: opacity .8s ease; pointer-events: none; z-index: 5; background: #fdfdfc; }
@@ -147,30 +153,31 @@ body.app #app { opacity: 1; pointer-events: auto; }
   <p class="kicker" data-cue="0">The summary</p>
   <h2 data-cue="0">What's new in <em>KubeSage</em></h2>
   <div class="cards five">
-    <div class="card" data-cue="1" style="--c: var(--rec)">
+    <div class="card" data-cue="0" style="--c: var(--rec)">
       <div class="ico"><svg viewBox="0 0 36 36"><path d="M8 18a10 10 0 0 1 17-7"/><path d="m26 6-1 5-5-1"/><path d="M28 18a10 10 0 0 1-17 7"/><path d="m10 30 1-5 5 1"/></svg></div>
       <div class="n">01</div><h3>FinOps + SRE, one system</h3>
       <p>The tool that plans your savings also fixes what breaks.</p></div>
-    <div class="card" data-cue="2" style="--c: var(--teal)">
+    <div class="card" data-cue="1" style="--c: var(--teal)">
       <div class="ico"><svg viewBox="0 0 36 36"><path d="M4 28h28"/><path d="M6 24c4 0 5-12 9-12s4 8 7 8 4-14 8-14"/><path d="M24 6h6v6"/></svg></div>
       <div class="n">02</div><h3>Built for the rush</h3>
-      <p>Learns your peaks, adds pods before them, scales out on surges.</p></div>
-    <div class="card" data-cue="3" style="--c: var(--amber)">
+      <p>Your sales calendar plus 30 days of usage: pods ready before the rush.</p></div>
+    <div class="card" data-cue="2" style="--c: var(--amber)">
       <div class="ico"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="12"/><path d="M21.5 13.5c-1-1.3-2.3-2-3.8-2-2.3 0-3.7 1.2-3.7 3s1.6 2.5 3.8 3 4 1.3 4 3.3-1.6 3.2-4 3.2c-1.7 0-3.2-.8-4.2-2.2M18 9v2.5M18 24.5V27"/></svg></div>
       <div class="n">03</div><h3>Cents, not dollars</h3>
-      <p>Free statistics first. More model reasoning only for the hard cases.</p></div>
-    <div class="card" data-cue="4" style="--c: var(--blue)">
+      <p>Free statistics and forecast first. The bigger model only where it's needed.</p></div>
+    <div class="card" data-cue="3" style="--c: var(--blue)">
       <div class="ico"><svg viewBox="0 0 36 36"><circle cx="16" cy="16" r="9"/><path d="m23 23 8 8"/><path d="m12 16 3 3 5-6"/></svg></div>
       <div class="n">04</div><h3>Evidence or it's dropped</h3>
       <p>Every finding must cite a signal an agent collected.</p></div>
-    <div class="card" data-cue="5" style="--c: var(--coral)">
+    <div class="card" data-cue="4" style="--c: var(--coral)">
       <div class="ico"><svg viewBox="0 0 36 36"><circle cx="14" cy="11" r="5"/><path d="M5 30c0-6 4-10 9-10 2.2 0 4.2.7 5.7 2"/><path d="m21 26 4 4 7-8"/></svg></div>
       <div class="n">05</div><h3>A person decides</h3>
       <p>Agent fixes are git commits. Plans and fixes deploy only when a person applies them.</p></div>
   </div>
-  <p class="results-l" data-cue="7">From the simulated walkthrough in this video</p>
-  <div class="results" data-cue="7">
-    <div class="result"><b>$33.58<small>/mo</small></b><span>potential savings from replacing one node, at Azure list prices, found for $0.011 of model calls</span></div>
+  <p class="results-l" data-cue="5">From the simulated walkthrough in this video · Azure list prices</p>
+  <div class="results" data-cue="5">
+    <div class="result"><b>−70%</b><span>reservation cost, $168.73 → $50.65/mo, planned for $0.27 of model calls</span></div>
+    <div class="result"><b>+32%</b><span>node pool cost, so the scheduled peaks fit: 3× F4s_v2</span></div>
     <div class="result"><b>16 s · $0.02</b><span>one agent-team run, from its start to a fix commit</span></div>
   </div>
 </section>
@@ -199,6 +206,10 @@ body.app #app { opacity: 1; pointer-events: auto; }
       <line x1="44" x2="486" y1="392" y2="392" stroke="#22221f" stroke-width="1.5"/>
       <g class="s" id="pod-legend" transform="translate(48 426)"></g>
     </g>
+    <g data-cue="4">
+      <rect x="48" y="184" width="330" height="44" rx="12" fill="#fdf0e8" stroke="#eb6834" stroke-width="1.5"/>
+      <text class="s" x="64" y="212" style="fill:#b5481c;font-weight:650">Sales calendar: Black Friday, 3× traffic</text>
+    </g>
     <g data-cue="3">
       <path d="M130 318 V286" stroke="#1baf7a" stroke-width="1.5" fill="none"/>
       <rect x="48" y="242" width="330" height="44" rx="12" fill="#e8f7f0" stroke="#1baf7a" stroke-width="1.5"/>
@@ -211,7 +222,7 @@ body.app #app { opacity: 1; pointer-events: auto; }
       <text class="s" x="548" y="134">F8s_v2 · 8 vCPU · 16 GiB</text>
       <text class="t" x="548" y="172">$246.74<tspan class="s" dx="2">/mo</tspan></text>
       <rect x="566" y="250" width="138" height="120" rx="10" fill="none" stroke="#cfc5ae" stroke-dasharray="4 5"/>
-      <text class="s" x="635" y="316" text-anchor="middle" font-style="italic">standing ready</text>
+      <text class="s" x="635" y="316" text-anchor="middle" font-style="italic">test releases</text>
     </g>
     <g data-cue="2">
       <text class="m" x="26" y="526">RESERVED VS USED, 30-DAY p95 · CPU CORES</text>
@@ -226,7 +237,7 @@ body.app #app { opacity: 1; pointer-events: auto; }
       <text class="m" x="26" y="672">ALL FIVE SERVICES RESERVE 6.25 CORES</text>
     </g>
   </svg>
-  <div class="incident" data-cue="4">
+  <div class="incident" data-cue="5">
     <img src="../../images/generated/incident.jpg" alt="">
     <div><b>Tonight: a new ledger-cache ships</b><span>memory limit 512 MiB<br>needs about 700 MiB</span></div>
   </div>
@@ -237,26 +248,31 @@ body.app #app { opacity: 1; pointer-events: auto; }
 <section class="slide" id="s-rush">
   <div class="brand"><svg viewBox="0 0 24 24"><use href="#logo"/></svg>KubeSage</div><div class="section">What's new · event-driven scaling</div>
   <p class="kicker" data-cue="0">Built for the rush</p>
-  <h2 data-cue="0">Pay for the <em>rush</em>, not all week</h2>
-  <p class="lede" data-cue="0" style="max-width:800px">KEDA scales checkout-web on a schedule KubeSage learned and on live CPU. Engineers add the dates they know.</p>
-  <img class="pic" data-cue="0" src="../../images/generated/rush.jpg" alt="">
+  <h2 data-cue="0">Scale <em>before</em> the rush</h2>
+  <p class="lede" data-cue="0" style="max-width:780px">Your business calendar plus 30 days of usage becomes a forecast: when to pre-warm, and how many pods. No model call.</p>
+  <div class="cal" data-cue="0">
+    <p class="m">config/calendar.yaml</p>
+    <div><b>Weekday working hours</b><span>Mon–Fri 09–17</span><i>1.8×</i></div>
+    <div class="hot"><b>Black Friday sale</b><span>27 Nov 08–22</span><i>3×</i></div>
+    <div><b>Christmas shopping peak</b><span>20–26 Dec</span><i>2.2×</i></div>
+    <div><b>New Year sale</b><span>1 Jan</span><i>2×</i></div>
+  </div>
   <svg class="diagram" viewBox="0 0 1424 500">
     <g data-cue="0" id="rush-base"></g>
     <g id="rush-pods"></g>
     <g data-cue="1" id="call-1"></g>
-    <g data-cue="3" id="call-2"></g>
-    <g data-cue="4" id="call-3"></g>
+    <g data-cue="2" id="call-2"></g>
+    <g data-cue="3" id="call-3"></g>
   </svg>
-  <p class="foot" data-cue="5" style="bottom:52px;color:var(--fg);font-size:17px">KubeSage sizes the node pool for the peaks it schedules, and checks it against every autoscaler at its maximum.</p>
-  <p class="foot" data-cue="0">An illustrative week for checkout-web. The 08:50–11:10 weekday window, the 70% CPU target and 3 to 6 pods are from the recorded plan.</p>
+  <p class="foot" data-cue="0">An illustrative week for checkout-web. The 08:45 pre-warm to 8 pods, 1 pod off-peak, up to 10 on the 70% CPU target and the Black Friday scale-up from 07:30 are from the recorded plan.</p>
 </section>
 
 <!-- 5 · How it finds the waste -->
 <section class="slide" id="s-finops">
   <div class="brand"><svg viewBox="0 0 24 24"><use href="#logo"/></svg>KubeSage</div><div class="section">What's new · cents, not dollars</div>
   <p class="kicker" data-cue="0">FinOps pipeline</p>
-  <h2 data-cue="0">Finding the waste, <em>for a cent</em></h2>
-  <p class="lede" data-cue="0" style="max-width:900px">Cheap steps first. Model reasoning only where a workload needs it.</p>
+  <h2 data-cue="0">Finding the waste, <em>for cents</em></h2>
+  <p class="lede" data-cue="0" style="max-width:900px">Free statistics and forecast first. The bigger model only where it is needed.</p>
   <svg class="diagram" viewBox="0 0 1424 470">
     <g id="stages"></g>
     <g data-cue="1">
@@ -267,16 +283,17 @@ body.app #app { opacity: 1; pointer-events: auto; }
     <g data-cue="2">
       <path class="wire" d="M832 190 V244" marker-end="url(#arr)"/>
       <rect class="box" x="732" y="250" width="200" height="52" rx="14"/>
-      <text class="s" x="832" y="282" text-anchor="middle" style="font-weight:600">Worker · medium</text>
+      <text class="s" x="832" y="282" text-anchor="middle" style="font-weight:600">Worker · Muse Spark</text>
       <rect class="box" x="732" y="314" width="200" height="52" rx="14" style="stroke:#7c5cff"/>
-      <text class="s" x="832" y="346" text-anchor="middle" style="font-weight:600;fill:#5a3fd6">Strategist · high</text>
+      <text class="s" x="832" y="346" text-anchor="middle" style="font-weight:600;fill:#5a3fd6">Strategist · Muse Wonder</text>
     </g>
     <g id="dots"></g>
     <g data-cue="4">
-      <text x="1424" y="300" text-anchor="end" style="font:400 64px var(--serif)">$0.0111</text>
-      <text class="s" x="1424" y="332" text-anchor="end">the whole analysis: 6 model calls</text>
+      <text x="1424" y="300" text-anchor="end" style="font:400 64px var(--serif)">$0.27</text>
+      <text class="s" x="1424" y="332" text-anchor="end">the whole analysis: 7 model calls</text>
+      <text class="s" x="1424" y="356" text-anchor="end">55% less than all on Muse Wonder ($0.59)</text>
     </g>
-    <text class="m" x="0" y="440" data-cue="4">EVERY TIER IS GPT-OSS-120B AT LOW, MEDIUM OR HIGH REASONING EFFORT</text>
+    <text class="m" x="0" y="440" data-cue="2">MUSE SPARK 1.3 TRIAGES AND PLANS ROUTINE WORKLOADS · MUSE WONDER 1.0 TAKES THE HARD CASE AND THE NODE POOL</text>
   </svg>
   <div class="legend" data-cue="0" id="finops-legend"></div>
 </section>
@@ -296,7 +313,7 @@ body.app #app { opacity: 1; pointer-events: auto; }
       <text class="m" x="62" y="218" style="fill:#c4501f;font-weight:700">ALERT</text>
       <text x="20" y="258" style="font:700 14.5px var(--mono)">ContainerOOMKilled</text>
       <text class="s" x="22" y="284">from Alertmanager</text>
-      <text class="m" x="262" y="22">4 SUB-AGENTS · QWEN 3.8 27B · IN PARALLEL</text>
+      <text class="m" x="262" y="22">4 SUB-AGENTS · SMALL MODEL · IN PARALLEL</text>
       <g id="subs"></g>
     </g>
     <g data-cue="1">
@@ -306,7 +323,7 @@ body.app #app { opacity: 1; pointer-events: auto; }
     <g data-cue="2">
       <rect class="box" x="600" y="138" width="260" height="200" rx="20" style="stroke:#7c5cff;stroke-width:2"/>
       <text class="t" x="626" y="186" style="font-size:28px">Thinker</text>
-      <text class="s" x="626" y="214">gpt-oss-120b · high reasoning</text>
+      <text class="s" x="626" y="214">large model · Muse Wonder</text>
       <text class="s" x="626" y="256">reads every finding,</text>
       <text class="s" x="626" y="278">finds the root causes,</text>
       <text class="s" x="626" y="300">decides the actions</text>
@@ -319,7 +336,7 @@ body.app #app { opacity: 1; pointer-events: auto; }
       <path class="wire flow" d="M860 238 H930" marker-end="url(#arr-v)"/>
       <rect class="box" x="936" y="168" width="210" height="140" rx="18"/>
       <text class="t" x="958" y="210">Executor</text>
-      <text class="s" x="958" y="236">gpt-oss-120b · medium</text>
+      <text class="s" x="958" y="236">medium · Muse Spark</text>
       <text class="s" x="958" y="276">edits under gitops/</text>
     </g>
     <g data-cue="3">
@@ -339,7 +356,7 @@ body.app #app { opacity: 1; pointer-events: auto; }
       <text class="s" x="1232" y="432">or open a pull request</text>
     </g>
   </svg>
-  <p class="foot" data-cue="3">The recorded run behind this video: 4 issues, 4 actions, 3 files changed, 16 seconds, $0.02 of model calls.</p>
+  <p class="foot" data-cue="3">Default models: Muse Spark (small, medium) and Muse Wonder (large). The recorded run behind this video used the Cerebras profile: 4 issues, 4 actions, 3 files changed, 16 seconds, $0.02.</p>
 </section>
 
 <!-- 7 · Close -->
@@ -350,10 +367,11 @@ body.app #app { opacity: 1; pointer-events: auto; }
     <h1>KubeSage</h1>
     <div class="tagline" data-cue="0">FinOps and SRE in one system.<br><em>Built for the rush.</em> A person decides.</div>
     <div class="results" data-cue="0">
-      <div class="result"><b>$33.58<small>/mo</small></b><span>a cheaper node, found for $0.011</span></div>
+      <div class="result"><b>−70%</b><span>reservation cost, planned for $0.27; the node pool costs 32% more to fit the scheduled peaks</span></div>
       <div class="result"><b>16 s · $0.02</b><span>an incident, from evidence to fix commit</span></div>
     </div>
     <div class="url" data-cue="0">github.com/manupawickramasinghe/kubesage</div>
+    <div class="run" data-cue="0">Your key, your cluster: docs/getting-started.md</div>
   </div>
   <p class="foot" data-cue="0" style="left:110px">Hypothetical cluster. The walkthrough is simulated from KubeSage's recorded runs.</p>
 </section>
@@ -396,12 +414,12 @@ const PODS = [["checkout-web", .5, .39], ["checkout-web", .5, .39], ["checkout-w
 
 // The FinOps pipeline: six stages, and one dot per workload that travels as the voice-over explains each step.
 const STAGES = [["Usage history", "30 days of usage", "from VictoriaMetrics", "#2a78d6"],
-  ["Statistics", "p95, peaks and growth", "free: no model call", "#2a78d6"],
-  ["Triage", "one cheap call", "low reasoning", "#1baf7a"],
-  ["Router", "routine → worker", "complex → strategist", "#7c5cff"],
-  ["Guardrails", "floors from history", "scaling within bounds", "#eb6834"],
-  ["Plan", "requests · KEDA scaling", "a cheaper node pool", "#22221f"]];
-const STAGE_CUE = [0, 1, 1, 2, 3, 4];
+  ["Stats + forecast", "peaks + your calendar", "free: no model call", "#2a78d6"],
+  ["Triage", "one Muse Spark call", "every workload at once", "#1baf7a"],
+  ["Router", "routine → Spark", "complex → Wonder", "#7c5cff"],
+  ["Guardrails", "floors from history", "pre-warm windows kept", "#eb6834"],
+  ["Plan", "requests · KEDA rules", "a node-pool proposal", "#22221f"]];
+const STAGE_CUE = [0, 0, 1, 2, 3, 4];
 {
   const g = $("#stages");
   STAGES.forEach(([t, a, b, c], i) => {
@@ -417,14 +435,14 @@ const STAGE_CUE = [0, 1, 1, 2, 3, 4];
   const lg = $("#finops-legend");
   lg.innerHTML = Object.entries(C).map(([k, c]) => `<span><i style="--c:${c}"></i>${k}</span>`).join("");
 }
-// Where each workload's dot sits after each cue: catalog-api is healthy, auth-api complex, the rest routine (report.json).
+// Where each workload's dot sits after each cue: auth-api is complex, the other four routine (report.json).
 const BOX = (i, k) => [i * 244 + 40 + k * 30, 210];
 const DOTS = {
-  "catalog-api": [BOX(0, 0), [588, 340], [588, 340], [588, 340], [588, 340]],
-  "checkout-web": [BOX(0, 1), BOX(2, 1), [790, 276], BOX(4, 0), BOX(5, 0)],
-  "payment-service": [BOX(0, 2), BOX(2, 2), [820, 276], BOX(4, 1), BOX(5, 1)],
-  "report-worker": [BOX(0, 3), BOX(2, 3), [850, 276], BOX(4, 2), BOX(5, 2)],
-  "auth-api": [BOX(0, 4), BOX(2, 4), [820, 382], BOX(4, 3), BOX(5, 3)],
+  "catalog-api": [BOX(1, 0), BOX(2, 0), [775, 276], BOX(4, 0), BOX(5, 0)],
+  "checkout-web": [BOX(1, 1), BOX(2, 1), [805, 276], BOX(4, 1), BOX(5, 1)],
+  "payment-service": [BOX(1, 2), BOX(2, 2), [835, 276], BOX(4, 2), BOX(5, 2)],
+  "report-worker": [BOX(1, 3), BOX(2, 3), [865, 276], BOX(4, 3), BOX(5, 3)],
+  "auth-api": [BOX(1, 4), BOX(2, 4), [820, 382], BOX(4, 4), BOX(5, 4)],
 };
 const dots = Object.entries(DOTS).map(([app, at]) => {
   const d = el("circle", {class: "dot", cx: 0, cy: 0, r: 9, fill: C[app], stroke: "#fffdf8", "stroke-width": 2}, $("#dots"));
@@ -448,24 +466,27 @@ placeDots(0);
 }
 
 
-// Built for the rush: an illustrative week of checkout-web traffic and the pods KEDA runs for it. One point per
-// 10 minutes; values are a share of the plot height, and 6 pods is the level that covers the weekday rush.
+// Built for the rush: an illustrative week of checkout-web traffic and the pods KEDA runs for it, from the recorded
+// plan: pre-warm 08:45 to 8 pods on weekdays, 1 pod off-peak, up to 10 on the 70% CPU target, and Black Friday's
+// one-day scale-up to 8 pods from 07:30. One point per 10 minutes; heights are pods (POD per pod) and traffic in pods' worth.
 {
-  const X0 = 70, X1 = 1400, Y0 = 380, H = 300, WEEK = 7 * 1440, POD = .12;
+  const X0 = 70, X1 = 1400, Y0 = 380, H = 300, WEEK = 7 * 1440, POD = .06;
   const x = (t) => X0 + (t / WEEK) * (X1 - X0), y = (v) => Y0 - v * H;
   const ramp = (m, a, b, r) => Math.max(0, Math.min(1, (m - a + r) / r, (b + r - m) / r));
   const demand = (t) => {
     const d = Math.floor(t / 1440), m = t % 1440;
-    let v = (d < 5 ? .2 : .14) + (m > 360 && m < 1320 ? .06 * Math.sin(Math.PI * (m - 360) / 960) : 0);
-    if (d < 5) v += .36 * ramp(m, 540, 660, 25);
-    if (d === 2 && m >= 900) v += .44 * Math.exp(-(m - 906) / 45) * Math.min(1, (m - 900) / 6);
-    if (d === 4) v = Math.max(v, .2 + .4 * ramp(m, 420, 1260, 60));
-    return Math.min(.68, v);
+    let v = .035 + (m > 420 && m < 1320 ? .045 * Math.sin(Math.PI * (m - 420) / 900) : 0);
+    if (d < 5) v += .13 * ramp(m, 540, 1020, 40) + .25 * ramp(m, 545, 660, 25);
+    if (d === 2 && m >= 1140) v += .5 * Math.exp(-(m - 1146) / 50) * Math.min(1, (m - 1140) / 6);
+    if (d === 4) v = Math.max(v, .06 + .34 * ramp(m, 480, 1320, 50));
+    return Math.min(.58, v);
   };
   const pods = (t, k) => {
     const d = Math.floor(t / 1440), m = t % 1440;
-    const on = (d < 5 && m >= 530 && m < 670) || (k >= 2 && d === 2 && m >= 905 && m < 990) || (k >= 3 && d === 4 && m >= 380 && m < 1290);
-    return on ? 6 : 3;
+    if (k >= 3 && d === 4 && m >= 450 && m < 1320) return 8;            // Black Friday: 07:30-22:00
+    if (k >= 2 && d === 2 && m >= 1145 && m < 1240) return 10;          // the flash sale: CPU scales out to the max
+    if (k >= 2 && d === 2 && m >= 1240 && m < 1270) return 4;
+    return d < 5 && m >= 525 && m < 1020 ? 8 : 1;                       // weekdays 08:45-17:00, else 1
   };
   const base = $("#rush-base"), podsG = $("#rush-pods");
   for (let d = 0; d <= 7; d++) el("line", {x1: x(d * 1440), x2: x(d * 1440), y1: 60, y2: Y0, stroke: "#e2dac8", "stroke-width": 1}, base);
@@ -475,16 +496,15 @@ placeDots(0);
   let area = `M${x(0)} ${Y0}`;
   for (let t = 0; t <= WEEK; t += 10) area += ` L${x(t).toFixed(1)} ${y(demand(Math.min(t, WEEK - 1))).toFixed(1)}`;
   el("path", {d: area + ` L${x(WEEK)} ${Y0} Z`, fill: "color-mix(in srgb, #7c5cff 16%, transparent)", stroke: "#7c5cff", "stroke-width": 1.6}, base);
-  el("line", {x1: X0, x2: X1, y1: y(6 * POD), y2: y(6 * POD), stroke: "#8d8d86", "stroke-width": 1.5, "stroke-dasharray": "7 7"}, base);
-  el("text", {class: "s", x: X1, y: y(6 * POD) - 10, "text-anchor": "end", style: "fill:#75756e"}, base, "sized for the peak, all week");
+  el("line", {x1: X0, x2: X1, y1: y(8 * POD), y2: y(8 * POD), stroke: "#8d8d86", "stroke-width": 1.5, "stroke-dasharray": "7 7"}, base);
   const lg = el("g", {transform: `translate(${X0} 452)`}, base);
-  [["#7c5cff", "traffic", ""], ["#1baf7a", "pods KEDA runs", ""], ["#8d8d86", "the alternative", "7 7"]].forEach(([c, t, dash], i) => {
+  [["#7c5cff", "traffic", ""], ["#1baf7a", "pods KEDA runs", ""], ["#8d8d86", "sized for the peak, all week", "7 7"]].forEach(([c, t, dash], i) => {
     el("line", {x1: i * 230, x2: i * 230 + 28, y1: -5, y2: -5, stroke: c, "stroke-width": 3, "stroke-dasharray": dash}, lg);
     el("text", {class: "s", x: i * 230 + 38, y: 0}, lg, t);
   });
   [1, 2, 3].forEach((k) => {
     let d = "", prev = null;
-    for (let t = 0; t < WEEK; t += 10) {
+    for (let t = 0; t < WEEK; t += 5) {
       const v = y(pods(t, k) * POD);
       d += prev == null ? `M${x(t).toFixed(1)} ${v}` : v !== prev ? ` H${x(t).toFixed(1)} V${v}` : "";
       prev = v;
@@ -498,17 +518,17 @@ placeDots(0);
     el("text", {class: "s", x: bx + 16, y: by + 26, style: "font-weight:650;fill:#22221f"}, g, title);
     el("text", {class: "s", x: bx + 16, y: by + 48}, g, sub);
   };
-  call($("#call-1"), [x(1440 + 530), y(6 * POD)], 150, 6, 380, "Weekday rush, learned from 30 days", "KEDA adds pods at 08:50, removes them at 11:10", "#1baf7a");
-  call($("#call-2"), [x(2 * 1440 + 905), y(6 * POD)], 560, 70, 330, "Flash sale: no schedule predicts it", "CPU passes 70%: scale out to 6 pods", "#7c5cff");
-  call($("#call-3"), [x(4 * 1440 + 700), y(6 * POD)], 940, 6, 380, "Black Friday: a date you know", "your engineers add a window to the same rule", "#eb6834");
+  call($("#call-1"), [x(1440 + 525), y(8 * POD)], 120, 4, 400, "Weekday working hours, forecast", "pre-warm 08:45 to 8 pods, back to 1 after 17:00", "#1baf7a");
+  call($("#call-2"), [x(2 * 1440 + 1145), y(10 * POD)], 560, 4, 330, "Flash sale: nobody planned it", "CPU passes 70%: KEDA scales out to 10", "#7c5cff");
+  call($("#call-3"), [x(4 * 1440 + 450), y(8 * POD)], 930, 4, 420, "Black Friday, 27 Nov: 3× normal traffic", "the plan: a one-day scale-up to 8 from 07:30", "#eb6834");
 }
 const rushPods = (n) => document.querySelectorAll("#rush-pods path").forEach((p) => {
-  const k = +p.dataset.k, top = n >= 4 ? 3 : n >= 3 ? 2 : 1;
-  p.setAttribute("opacity", n >= 2 && k === top ? 1 : 0);
+  const k = +p.dataset.k, top = n >= 3 ? 3 : n >= 2 ? 2 : 1;
+  p.setAttribute("opacity", n >= 1 && k === top ? 1 : 0);
   if (p.classList.contains("draw")) {
     const L = p.getTotalLength();
     p.style.strokeDasharray = L;
-    p.style.strokeDashoffset = n >= 2 ? 0 : L;
+    p.style.strokeDashoffset = n >= 1 ? 0 : L;
   }
 });
 let current = null;

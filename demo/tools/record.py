@@ -1,5 +1,6 @@
-"""Record the KubeSage demo video against the replay server. Slides first (title, the summary, the hypothetical cluster
-and how KubeSage works), then one minute of the real dashboard on that cluster in the slides' #app frame, then a
+"""Record the KubeSage demo video against the replay server. Slides first (title, the summary, the hypothetical cluster,
+the business-calendar forecast and how KubeSage works), then under a minute of the real dashboard on that cluster in the
+slides' #app frame, then a
 closing slide. Chrome's own screencast frames (1600x900) are saved while each scene is held for its voice-over; each
 slide's parts appear sentence by sentence. Writes frames/, frames.json (frame timestamps) and scenes.json (scene start
 times, for the audio and subtitles)."""
@@ -24,18 +25,18 @@ DUR = {s["id"]: s["seconds"] for s in json.loads((WORK / "audio" / "durations.js
 SAY = {s["id"]: s["narration"] for s in json.loads((HERE / "narration.json").read_text())}
 URL = "http://127.0.0.1:8700/"
 LEAD = 0.4       # the voice starts this long after its scene (build.py)
-PAD = 0.6        # silence after a slide's voice-over
+PAD = 0.5        # silence after a slide's voice-over
 DEMO_PAD = 0.15  # and after each step of the one-minute demo
 DEMO_MAX = 60.0
 
-# The dashboard's Demo mode, cut to the six steps the minute shows, with captions for the hypothetical cluster.
+# The dashboard's Demo mode, cut to the steps the minute shows, with captions for the hypothetical cluster.
 STEPS = """() => {
   const keep = [[0, "The cluster", "shop-prod, a hypothetical online store on two Azure nodes. Each glass is the CPU a pod "
       + "reserves; the block inside is what it uses."],
-    [1, "Find the waste", "Free statistics first, one cheap triage call, and more reasoning only for the harder workloads."],
-    [3, "Apply the plan", "Right-sized requests, the KEDA scaling rule, and the cheaper F8s_v2 node."],
-    [4, "A flash sale", "The recorded 60 req/s load test, replayed at SPEED× speed: CPU passes its 70% target and KEDA scales "
-      + "checkout-web out."],
+    [1, "Find the waste", "Free statistics and a forecast from the business calendar, one Muse Spark triage call, and Muse Wonder "
+      + "only for the hard case."],
+    [3, "Apply the plan", "Right-sized requests and KEDA rules with the calendar's pre-warm windows. Moving pods to the planned "
+      + "3× F4s_v2 pool is skipped until those nodes exist."],
     [5, "A bad release", "ledger-cache needs about 700 MiB under a 512 MiB limit, so it is OOM-killed. Alertmanager fires an alert."],
     [6, "The team investigates", "Four small agents gather evidence at once; the Thinker finds the root cause."],
     [7, "Ship the fix", "The Executor writes the fix as a git commit. A person decides whether it ships."]];
@@ -103,7 +104,7 @@ def main():
                                "return f && f.document.readyState === 'complete' && f.document.fonts.status === 'loaded' && typeof f.goStep === 'function'; }")
         app = page.frame(name="app")
         app.wait_for_function("() => document.querySelector('#mode').textContent.includes('LLM')")
-        app.evaluate(STEPS.replace("SPEED", f"{sim_server.SPEED:g}"))
+        app.evaluate(STEPS)
         app.evaluate(SCRUB)
         fr = page.frame_locator("#app")
         page.evaluate("show('s-title')")
@@ -155,31 +156,25 @@ def main():
         page.wait_for_timeout(700)
         demo_at = time.time()
         page.evaluate("app(true)")
-        t0, end = scene("d-analyze", DEMO_PAD)               # The cluster, then Find the waste
+        t0, end = scene("d-analyze", DEMO_PAD)               # The cluster, then Find the waste and the forecast
         app.evaluate("() => $('#btn-analyze').click()")
         page.wait_for_timeout(2200)
         mark("demo-cluster")
-        until(end, [(cue_times("d-analyze", t0)[2], nxt)])  # as the voice reaches Analyze
+        cues = cue_times("d-analyze", t0)
+        forecast = lambda: app.evaluate("() => $('#forecast').scrollIntoView({behavior: 'smooth', block: 'center'})")
+        until(end, [(cues[1], nxt), (cues[2], forecast)])  # as the voice reaches Analyze, then the forecast
         mark("demo-analysis")
 
         nxt()                                              # Apply the plan
         _, end = scene("d-apply", DEMO_PAD, hold=7.0)
         page.wait_for_timeout(300)
         act()
-        page.wait_for_timeout(6500)
-        mark("demo-applied")
-        until(end)
-
-        nxt()                                              # A flash sale
-        _, end = scene("d-flash", DEMO_PAD, hold=sim_server.TRAFFIC_S - 0.5)
-        page.wait_for_timeout(300)
-        act()
-        page.wait_for_timeout(5500)
-        mark("demo-flash")
-        until(end - 2.5)
-        # The bad release ships as the sale winds down, so the team has its commit by the time the minute ends.
+        page.wait_for_timeout(500)
+        # The bad release ships during the rollout, so the team's recorded run has its commit as the minute ends.
         app.evaluate("() => { $('#tc-select').value = 'memory';"
                      " Promise.resolve(tcAction('start', 'memory')).then(() => { $('#toast').hidden = true; }); }")  # no pop-up
+        page.wait_for_timeout(6000)
+        mark("demo-applied")
         until(end)
 
         nxt()                                              # A bad release
@@ -208,7 +203,7 @@ def main():
 
         page.evaluate("app(false)")
         page.evaluate("show('s-close')")
-        _, end = scene("close", pad=1.8)
+        _, end = scene("close", pad=1.5)
         page.wait_for_timeout(2500)
         mark("close")
         until(end)

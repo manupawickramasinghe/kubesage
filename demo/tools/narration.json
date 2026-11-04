@@ -1,23 +1,23 @@
 [
  {
   "id": "title",
-  "narration": "This is KubeSage, an AI SRE team for Kubernetes. Here is what is new, in under three minutes."
+  "narration": "This is KubeSage, an AI SRE team for Kubernetes. Here is what is new."
  },
  {
   "id": "summary",
-  "narration": "First, the summary. KubeSage puts FinOps and SRE in one system. It plans the savings, scales for the rush, and fixes what breaks. Small models do the legwork, and these runs cost cents. Every finding must cite evidence. Agent fixes are git commits. Plans and fixes reach the cluster only when a person applies them."
+  "narration": "KubeSage puts FinOps and SRE in one system. It plans savings, forecasts rushes from usage and your calendar, and fixes what breaks. Small models do the legwork, so these runs cost cents. Every finding must cite evidence. Agent fixes are git commits. Plans and fixes reach the cluster only when a person applies them."
  },
  {
   "id": "server",
-  "narration": "Picture a hypothetical online store on Azure Kubernetes. Five services share one node at two hundred eighty dollars a month. Two of them reserve two cores each while using almost none. Checkout traffic peaks every weekday morning, and sale days are bigger still. Tonight, a ledger cache ships with too little memory."
+  "narration": "Picture a hypothetical store on Azure Kubernetes. Five services share one node at two hundred eighty dollars a month. Two services reserve two cores each and sit mostly idle. Checkout peaks every weekday morning. Black Friday is on the sales calendar. Tonight, a ledger cache ships with too little memory."
  },
  {
   "id": "rush",
-  "narration": "Sales are where FinOps and engineering meet. From thirty days of usage, KubeSage finds the weekday rush. Its KEDA rule adds pods ten minutes early. A CPU trigger catches surges no schedule predicts, like a flash sale. For a date like Black Friday, engineers add their own window to the same rule. KubeSage also sizes the node pool for the peaks it schedules."
+  "narration": "FinOps and engineering keep one business calendar: working hours, Black Friday, Christmas week. From it and thirty days of usage, KubeSage forecasts each rush with no model call: when to pre-warm, and how many pods. A CPU trigger still catches the flash sale nobody planned. For Black Friday, the plan asks for a one-day scale-up from seven thirty."
  },
  {
   "id": "finops",
-  "narration": "Finding the waste is cheap by design. Statistics are free, and healthy workloads stop after one quick triage call. Only harder cases get more model reasoning. Guardrails floor requests from history. This whole analysis cost about one cent."
+  "narration": "Statistics and the forecast are free. One Muse Spark call triages every workload. Spark handles the routine fixes; Muse Wonder takes the hard case and the node pool. Guardrails floor requests from history and restore dropped calendar pre-warms. The whole analysis cost twenty-seven cents, under half the price of all on Wonder."
  },
  {
   "id": "team",
@@ -25,15 +25,11 @@
  },
  {
   "id": "d-analyze",
-  "narration": "Here is the simulated cluster. Each glass is the CPU a pod reserves. Analyze estimates about thirty-four dollars in monthly savings, for one cent of model calls."
+  "narration": "In the simulated cluster, each glass shows the CPU a pod reserves. Analyze plans seventy percent less reservation cost, for twenty-seven cents. The forecast shows each service's biggest rush, with its pre-warm time and pods. To fit scheduled peaks, the node pool costs thirty-two percent more."
  },
  {
   "id": "d-apply",
-  "narration": "Apply right-sizes the services, moves them to the cheaper node, and adds the KEDA scaling rule."
- },
- {
-  "id": "d-flash",
-  "narration": "Now a flash sale: sixty requests a second, replayed fast. CPU passes its target, and checkout-web scales out to six pods."
+  "narration": "Apply right-sizes the services and adds the KEDA rules. It skips moving pods until the new nodes exist."
  },
  {
   "id": "d-incident",
@@ -45,7 +41,7 @@
  },
  {
   "id": "d-fix",
-  "narration": "The fix is a commit: more memory, a proposal for a memory-optimised node pool, and two security fixes. Sixteen seconds, two cents. A person decides."
+  "narration": "The fix is a commit: more memory, a memory-optimised node pool proposal, and two security fixes. Sixteen seconds, two cents. A person decides."
  },
  {
   "id": "close",
