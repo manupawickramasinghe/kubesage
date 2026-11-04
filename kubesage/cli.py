@@ -126,7 +126,11 @@ def cmd_serve(args: argparse.Namespace) -> None:
     server = serve(settings, args.host, args.port, background=True)
     console.print(f"KubeSage AI Control Center on http://{args.host}:{args.port}  (Ctrl+C to stop)")
     if args.host not in ("127.0.0.1", "localhost", "::1"):
-        console.print("[yellow]warning[/] anyone who can reach this address can apply changes to the cluster")
+        if os.environ.get("KUBESAGE_API_TOKEN"):
+            console.print("[yellow]note[/] non-loopback bind: mutating POSTs require the KUBESAGE_API_TOKEN")
+        else:
+            console.print("[red]warning[/] anyone who can reach this address can apply changes to the cluster; "
+                          "set KUBESAGE_API_TOKEN to require a token for changes")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

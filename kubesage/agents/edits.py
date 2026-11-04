@@ -41,7 +41,10 @@ def apply_edit(text: str | None, edit: Edit) -> str:
         raise EditError(f"{edit.path}: no such file")
     count = text.count(edit.find)
     if count == 1:
-        return text.replace(edit.find, edit.replace, 1)
+        new = text.replace(edit.find, edit.replace, 1)
+        if new == text:
+            raise EditError(f"{edit.path}: edit changes nothing (find == replace)")
+        return new
     if count == 0 and (fixed := _reindented(text, edit)) is not None:
         return fixed
     raise EditError(f"{edit.path}: find text occurs {count} times, must occur exactly once")
@@ -88,6 +91,21 @@ def validate_file(path: str, text: str, skus: set[str]) -> None:
         for size in re.findall(r'vm_size\s*=\s*"([^"]+)"', text):
             if not size.startswith("Standard_") or size.removeprefix("Standard_") not in skus:
                 raise EditError(f"{path}: vm_size {size} is not in config/skus.yaml")
+    else:
+        raise EditError(f"{path}: unsupported file type; only .yaml/.yml, .py and .tf edits are allowed")
+
+
+def _int_param(p: dict, key: str, default=None):
+    """A model-supplied integer, or EditError: a bad param rejects the action, never crashes the run."""
+    value = p.get(key, default)
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise EditError(f"param {key}={value!r} is not an integer")
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise EditError(f"param {key}={value!r} is not an integer") from exc
 
 
 # ---- deterministic edits ----
@@ -145,7 +163,7 @@ def deterministic(action: Action, files: dict[str, str]) -> list[Edit]:
         new = block
         for key in ("node_count", "max_pods"):
             if p.get(key):
-                new = re.sub(rf"({key}\s*= )\d+", lambda m: f"{m.group(1)}{int(p[key])}", new)
+                new = re.sub(rf"({key}\s*= )\d+", lambda m: f"{m.group(1)}{_int_param(p, key)}", new)
         return [Edit(path=tf, find=block, replace=new, action=action.id)] if new != block else []
     size = p.get("size_limit") or p.get("sizeLimit") or p.get("size")
     if action.type == "storage" and dep in files and size:
@@ -165,7 +183,7 @@ def deterministic(action: Action, files: dict[str, str]) -> list[Edit]:
             out.append(Edit(path=kust, find=m.group(0), replace=f"resources: [{m.group(1)}, scaledobject.yaml]", action=action.id))
         return out
     if action.type == "spread_pods" and dep in files and p.get("replicas"):
-        e = _line_edit(dep, files[dep], r"^  replicas: \d+$", f"  replicas: {int(p['replicas'])}", action.id)
+        e = _line_edit(dep, files[dep], r"^  replicas: \d+$", f"  replicas: {_int_param(p, 'replicas')}", action.id)
         return [e] if e else []
     if action.type == "security_hardening" and target.startswith("namespace/"):
         path = "gitops/apps/namespace.yaml"
@@ -205,10 +223,10 @@ metadata:
   labels: {{app: {name}, app.kubernetes.io/managed-by: kubesage}}
 spec:
   scaleTargetRef: {{name: {name}}}
-  minReplicaCount: {int(p.get('min_replicas', 1))}
-  maxReplicaCount: {int(p.get('max_replicas', 4))}
+  minReplicaCount: {_int_param(p, 'min_replicas', 1)}
+  maxReplicaCount: {_int_param(p, 'max_replicas', 4)}
   triggers:
     - type: cpu
       metricType: Utilization
-      metadata: {{value: "{int(threshold)}"}}
+      metadata: {{value: "{_int_param({'threshold': threshold}, 'threshold')}"}}
 """

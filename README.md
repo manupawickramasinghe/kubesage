@@ -11,7 +11,7 @@ ships every fix as a reviewable git commit.
 [![Kubernetes](https://img.shields.io/badge/kubernetes-k3s%20%C2%B7%20k3d-326CE5?logo=kubernetes&logoColor=white)](docs/cluster.md)
 [![KEDA](https://img.shields.io/badge/autoscaling-KEDA-0b6bcb)](docs/pipeline.md)
 [![LLM](https://img.shields.io/badge/LLM-any%20OpenAI--compatible%20API-6e56cf)](docs/configuration.md)
-[![Tests](https://img.shields.io/badge/tests-210%20unit%20%C2%B7%2040%20browser-2ea44f)](docs/testing.md)
+[![Tests](https://img.shields.io/badge/tests-226%20unit%20%C2%B7%2040%20browser-2ea44f)](docs/testing.md)
 
 **[▶ Demo video](demo/video/kubesage-demo.mp4)** · [Quickstart](#quickstart) · [How it works](#how-it-works) ·
 [Control Center](#the-ai-control-center) · [Agent team](#the-agent-team) · [Documentation](#documentation)
@@ -280,7 +280,7 @@ tests/               pytest suite and browser checks
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest -q                                          # 210 tests, no cluster or API key needed
+.venv/bin/python -m pytest -q                                          # 226 tests, no cluster or API key needed
 .venv/bin/pip install playwright && .venv/bin/python -m playwright install chromium
 .venv/bin/python tests/browser_smoke.py --output-dir /tmp/kubesage-browser   # 40 UI checks against a mocked API
 ```

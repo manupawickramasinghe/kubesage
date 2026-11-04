@@ -18,7 +18,7 @@ from kubesage.llm import mock, prompts
 from kubesage.llm.client import LedgerEntry, LLMClient
 from kubesage.llm.schemas import Recommendation, SkuChoice, TriageItem, TriageReport
 from kubesage.metrics.stats import WorkloadStats
-from kubesage.recommend import costing, guardrails, render
+from kubesage.recommend import costing, guardrails, render, timed
 
 ROUTE = {"ROUTINE": "worker", "COMPLEX": "strategist"}
 RAW_TOKENS_PER_POINT = 7  # "1761552000,0.1234\n" style CSV row, used only for the naive-baseline estimate
@@ -191,11 +191,15 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
             after = costing.allocation_monthly(cpu_new, mem_new, costing.average_replicas(rec.scaling, s.replicas), catalog)
             after_rows.append((cpu_new, mem_new, costing.peak_replicas(rec.scaling, s.replicas)))
             burst_rows.append((cpu_new, mem_new, costing.burst_replicas(rec.scaling, s.replicas)))
+            manifests = render.render(rec, namespace=s.namespace, name=s.name, container=s.name, tz=tz)
+            # Dated calendar events (Black Friday) cannot be KEDA crons: their timed
+            # CronJobs ship in the same run, or the forecast's promise is never applied.
+            manifests.update(timed.timed_manifests(forecast_by_id[s.id], namespace=s.namespace, deployment=s.name))
             result = result.model_copy(update=dict(
                 tier=tier, recommendation=rec, guardrail_notes=gnotes, monthly_after_usd=round(after, 2),
                 monthly_savings_usd=round(before - after, 2),
                 monthly_savings_pct=costing.savings_pct(before, after),
-                manifests=render.render(rec, namespace=s.namespace, name=s.name, container=s.name, tz=tz)))
+                manifests=manifests))
         else:
             after_rows.append((cpu_now, mem_now, s.replicas))
             burst_rows.append((cpu_now, mem_now, s.replicas))

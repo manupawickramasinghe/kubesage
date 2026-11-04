@@ -35,6 +35,7 @@ class CronWindow(BaseModel):
 class ScalingPlan(BaseModel):
     min_replicas: int = Field(ge=0, description="0 allows scale-to-zero outside cron windows")
     max_replicas: int = Field(ge=1)
+
     cron_windows: list[CronWindow] = Field(default_factory=list)
     cpu_utilization_target: int | None = Field(default=None, description="percent of CPU request; null for none")
 

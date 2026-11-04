@@ -1,7 +1,7 @@
 """Apply an analysis run's manifests to a cluster with kubectl.
 
 Order: resource patches (each after removing an autoscaler it replaces), then node-pool migrations, then
-ScaledObjects. A migration is skipped unless some node carries the target SKU label, so pods never go Pending on a
+ScaledObjects, then timed-event CronJobs. A migration is skipped unless some node carries the target SKU label, so pods never go Pending on a
 cluster that lacks the cheaper nodes.
 """
 from __future__ import annotations
@@ -117,6 +117,7 @@ def plan(run_dir: Path, *, dry_run: bool = False, kubectl: list[str] | None = No
             step.skipped = f"no node labelled {label}={sku} (start the cluster with TWO_NODE=1)"
         steps.append(step)
     steps += [Step(f, [*kubectl, "apply", "-f", str(f), *extra]) for f in sorted(manifests.glob("*.keda.yaml"))]
+    steps += [Step(f, [*kubectl, "apply", "-f", str(f), *extra]) for f in sorted(manifests.glob("*.timed.yaml"))]
     return steps
 
 

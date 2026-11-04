@@ -146,6 +146,8 @@ def recommend(s: WorkloadStats, item: TriageItem, forecast: WorkloadForecast | N
 
 
 def sku_choice(candidates: list[SkuCandidate], sustained_load: bool) -> SkuChoice:
+    if not candidates:
+        raise ValueError("sku_choice needs at least one candidate; the pipeline checks capacity first")
     pool = [c for c in candidates if not (sustained_load and c.family == "burstable")] or candidates
     best = pool[0]
     why = "cheapest candidate that fits"

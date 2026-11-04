@@ -13,10 +13,10 @@ CONFIG_DIR = Path(os.environ.get("KUBESAGE_CONFIG_DIR", Path(__file__).resolve()
 class TierConfig(BaseModel):
     model: str
     label: str = ""  # short display name for the tier, e.g. "Spark"; defaults to the tier key
-    input_per_mtok: float
-    output_per_mtok: float
-    cached_input_per_mtok: float | None = None
-    max_output_tokens: int = 2000
+    input_per_mtok: float = Field(ge=0)
+    output_per_mtok: float = Field(ge=0)
+    cached_input_per_mtok: float | None = Field(default=None, ge=0)
+    max_output_tokens: int = Field(default=2000, ge=1)
     temperature: float = 0.1
     extra_body: dict = Field(default_factory=dict)
 
@@ -42,7 +42,7 @@ class Sku(BaseModel):
     family: str
     vcpu: int
     memory_gib: float
-    hourly_usd: float
+    hourly_usd: float = Field(ge=0)
     local_nvme_gib: float | None = None
     planner: bool = True  # False: offered to the agent team, but not to the right-sizing node-pool planner
 
@@ -109,6 +109,9 @@ class CalendarEvent(BaseModel):
             raise ValueError(f"calendar event {self.name!r} needs exactly one of days, date or start_date/end_date")
         if self.start_date is not None and self.end_date is None:
             raise ValueError(f"calendar event {self.name!r} needs end_date with start_date")
+        if self.days is not None and not _valid_days(self.days):
+            raise ValueError(f"calendar event {self.name!r} has bad days {self.days!r} "
+                             "(cron day-of-week: '*', a day 0-6, a range like 1-5, or a list like 0,6)")
         for label, value in (("start_time", self.start_time), ("end_time", self.end_time)):
             hour, _, minute = value.partition(":")
             if not (hour.isdigit() and minute.isdigit() and 0 <= int(hour) < 24 and 0 <= int(minute) < 60):
@@ -118,6 +121,19 @@ class CalendarEvent(BaseModel):
     def weekly(self) -> bool:
         """Weekly events fit the KEDA cron subset; dated events are forecast-only (see forecast.py)."""
         return self.days is not None
+
+
+def _valid_days(field: str) -> bool:
+    """The KEDA cron day-of-week subset: '*', single days, ranges and lists, Sunday=0..Saturday=6."""
+    if field == "*":
+        return True
+    for part in field.split(","):
+        lo, dash, hi = part.partition("-")
+        if not lo.isdigit() or (dash and not hi.isdigit()):
+            return False
+        if not (0 <= int(lo) <= (int(hi) if dash else int(lo)) <= 6):
+            return False
+    return True
 
 
 class BusinessCalendar(BaseModel):
