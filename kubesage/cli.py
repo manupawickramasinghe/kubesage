@@ -123,6 +123,119 @@ def cmd_budgets(args: argparse.Namespace) -> None:
         sys.exit(f"{len(over)} budget(s) over: {', '.join(f'{b.scope} {b.name}' for b in over)}")
 
 
+def _stats(args: argparse.Namespace):
+    from kubesage.service import AnalysisError, collect_stats
+
+    try:
+        return collect_stats(vm=args.vm, namespace=args.namespace, days=args.days, tz=args.tz)[0]
+    except AnalysisError as exc:
+        sys.exit(str(exc))
+
+
+def cmd_whatif(args: argparse.Namespace) -> None:
+    """What a different traffic multiplier would need and cost. Deterministic: no model call."""
+    from rich.table import Table
+
+    from kubesage.config import load_calendar
+    from kubesage.whatif import simulate
+
+    calendar = load_calendar()
+    if args.event and args.event not in {e.name for e in calendar.events}:
+        sys.exit(f"no event named {args.event!r} in config/calendar.yaml; it has: "
+                 + ", ".join(repr(e.name) for e in calendar.events))
+    rows = simulate(_stats(args), calendar, multiplier=args.multiplier, catalog=load_skus(), event_name=args.event)
+    if args.json:
+        print("[" + ",".join(r.model_dump_json() for r in rows) + "]")
+        return
+    if not rows:
+        sys.exit("nothing to simulate: no calendar event or recurring peak touches these workloads")
+    t = Table(title=f"What if traffic were {args.multiplier:g}× normal? ($0.00, no LLM)", title_justify="left")
+    for col in ("workload", "event", "cores", "replicas", "held all month", "scheduled", "scheduling saves"):
+        t.add_column(col, justify="left" if col in ("workload", "event") else "right", overflow="fold")
+    for r in rows:
+        saves = "—" if r.scheduled_savings_pct is None else f"{r.scheduled_savings_pct:.1f}%"
+        t.add_row(r.workload, r.event, f"{r.baseline_total_cpu:.2f} → {r.expected_total_cpu:.2f}",
+                  f"{r.replicas_now} → {r.replicas_needed}", f"${r.monthly_at_peak_usd:,.2f}",
+                  f"${r.monthly_scheduled_usd:,.2f}", saves)
+    console.print(t)
+    for note in dict.fromkeys(r.note for r in rows if r.note):
+        console.print(f"[dim]note: {note}[/]")
+
+
+def cmd_calendar(args: argparse.Namespace) -> None:
+    """Draft business-calendar events from the metrics or from an .ics file. Nothing is written without --approve."""
+    import yaml
+
+    from kubesage import config
+    from kubesage.calendar_suggest import append_event, suggest_events
+
+    path = config.CONFIG_DIR / "calendar.yaml"
+    if args.action == "suggest":
+        events, skipped = suggest_events(_stats(args), config.load_calendar()), []
+    else:
+        from kubesage.calendar_import import parse_ics
+
+        if not args.file:
+            sys.exit("usage: kubesage calendar import FILE.ics")
+        try:
+            events, skipped = parse_ics(Path(args.file).read_text(), default_multiplier=args.multiplier)
+        except OSError as exc:
+            sys.exit(f"cannot read {args.file}: {exc}")
+    for reason in skipped:
+        console.print(f"[yellow]skipped[/] {reason}")
+    if not events:
+        console.print("no events to add")
+        return
+    if args.approve:
+        wanted = events if args.approve == ["all"] else [e for e in events if e.name in args.approve]
+        missing = [] if args.approve == ["all"] else sorted(set(args.approve) - {e.name for e in events})
+        if missing:
+            sys.exit(f"no drafted event named: {', '.join(missing)}")
+        for e in wanted:
+            try:
+                append_event(path, e, approved=True)
+            except ValueError as exc:
+                sys.exit(str(exc))
+            console.print(f"[green]added[/] {e.name} to {path}")
+        return
+    print(yaml.safe_dump({"events": [e.model_dump(exclude_none=True) for e in events]}, sort_keys=False), end="")
+    console.print(f"[dim]{len(events)} draft event(s); nothing was written. Review the multipliers, then re-run with "
+                  f"--approve all, or --approve 'NAME' for one.[/]")
+
+
+def cmd_realized(args: argparse.Namespace) -> None:
+    """Did the saving an analysis promised show up? Compares the run's snapshot with the cluster now."""
+    import json
+
+    from rich.table import Table
+
+    from kubesage import apply
+    from kubesage.metrics.stats import WorkloadStats
+    from kubesage.realized import realized_savings
+
+    try:
+        run_dir = Path(args.run) if args.run else apply.latest_run(args.out_dir)
+        report = json.loads((run_dir / "report.json").read_text())
+    except (FileNotFoundError, ValueError) as exc:
+        sys.exit(f"no analysis run to compare with: {exc}")
+    args.namespace = report.get("namespace", args.namespace)
+    before = [WorkloadStats.model_validate(s) for s in report["stats"]]
+    predicted = {w["id"]: w.get("monthly_savings_pct") for w in report["workloads"]}
+    result = realized_savings(before, _stats(args), catalog=load_skus(), predicted_pct=predicted)
+    if args.json:
+        print(result.model_dump_json(indent=2))
+        return
+    pct = lambda v: "—" if v is None else f"{v:+.1f}%" if v < 0 else f"{v:.1f}%"
+    t = Table(title=f"Realized savings since run {run_dir.name} (reservation cost, $0.00, no LLM)", title_justify="left")
+    for col in ("workload", "before", "now", "realized", "predicted", "gap"):
+        t.add_column(col, justify="left" if col == "workload" else "right")
+    for r in result.rows:
+        t.add_row(r.workload, f"${r.monthly_before_usd:,.2f}", f"${r.monthly_after_usd:,.2f}", pct(r.realized_savings_pct),
+                  pct(r.predicted_savings_pct), "—" if r.prediction_gap_pct is None else f"{r.prediction_gap_pct:+.1f} pts")
+    console.print(t)
+    console.print(result.summary)
+
+
 def cmd_analyze(args: argparse.Namespace) -> None:
     from kubesage.report import print_analysis
     from kubesage.service import AnalysisError, analyze_now
@@ -372,6 +485,33 @@ def main(argv: list[str] | None = None) -> None:
     co.add_argument("--json", action="store_true", help="the whole report as JSON")
     co.add_argument("--prometheus", action="store_true", help="Prometheus exposition text, as served on /metrics")
     co.set_defaults(func=cmd_costs)
+
+    wi = sub.add_parser("whatif", help="what a bigger rush would need and cost: replicas and dollars for a "
+                                       "traffic multiplier, per calendar event or recurring peak (no LLM)")
+    _common(wi)
+    wi.add_argument("--multiplier", type=float, required=True, help="traffic against normal load, e.g. 5 for five times")
+    wi.add_argument("--event", help="only this event from config/calendar.yaml")
+    wi.add_argument("--json", action="store_true")
+    wi.set_defaults(func=cmd_whatif)
+
+    ca = sub.add_parser("calendar", help="draft business-calendar events from the metrics (suggest) or an "
+                                         ".ics export (import); writes only with --approve")
+    _common(ca)
+    ca.add_argument("action", choices=("suggest", "import"))
+    ca.add_argument("file", nargs="?", help="import: the .ics file")
+    ca.add_argument("--multiplier", type=float, default=1.5,
+                    help="import: placeholder traffic multiplier for every event (an .ics knows when, not how much)")
+    ca.add_argument("--approve", nargs="+", metavar="NAME",
+                    help="append these drafted events to config/calendar.yaml ('all' for every one)")
+    ca.set_defaults(func=cmd_calendar)
+
+    rl = sub.add_parser("realized", help="did the promised saving show up? compares an analysis run's snapshot "
+                                         "with the cluster now (no LLM)")
+    _common(rl)
+    rl.add_argument("run", nargs="?", help="run directory (default: the latest under --out-dir)")
+    rl.add_argument("--out-dir", default="out")
+    rl.add_argument("--json", action="store_true")
+    rl.set_defaults(func=cmd_realized)
 
     bu = sub.add_parser("budgets", help="check config/costs.yaml budgets; exits 1 when one is over")
     _cluster_wide(bu)
