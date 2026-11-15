@@ -1,75 +1,86 @@
-"""Timed scale-up for dated calendar events: the part a weekly KEDA cron cannot express.
+"""Dated calendar events as KEDA cron triggers: the part a weekly cron window cannot express.
 
-A Black Friday on 2026-11-27 is not "every Friday". For those forecast windows KubeSage renders a pair
-of one-date Kubernetes CronJobs (their schedule carries day-of-month and month, which the KEDA cron
-subset deliberately does not): one scales the Deployment up at the pre-warm time, one scales it back
-down after the window plus cooldown. The jobs only run `kubectl scale`, they carry the event name in
-their labels, and their schedule repeats yearly only when the calendar event says `repeat_yearly`; the
-rendered YAML says so plainly so nobody mistakes a one-off for a weekly trigger.
+A Black Friday on 2026-11-27 is not "every Friday", and a model must not be the one to schedule it. KEDA's
+cron scaler takes a full five-field cron, so a dated event becomes one more trigger on the workload's own
+ScaledObject, with the day of the month and the month filled in:
+
+    start: "30 7 27 11 *"    # pre-warm, 07:30 on 27 November
+    end:   "0 23 27 11 *"    # the window's end plus its cooldown
+
+A range of days (20-26 December, 09:00-21:00) becomes one trigger that opens and closes every day of the range;
+a range that crosses a month end becomes one trigger per month.
+
+Earlier versions rendered a pair of `kubectl scale` CronJobs instead. Those needed an image and RBAC that were
+never shipped, were overruled by the autoscaler they scaled behind the back of, covered only the first day of a
+range and had names the API rejects. A trigger on the ScaledObject has none of those problems: KEDA takes the
+largest active trigger, so the event raises the floor for its hours and nothing else changes.
+
+A cron repeats every year. For a one-off event that is wrong after the date, so the ScaledObject says so in an
+annotation, and the next Analyze drops the trigger once the date has passed.
 """
 from __future__ import annotations
 
-import re
-from datetime import date
+from datetime import date, timedelta
 
-from kubesage.forecast import WorkloadForecast
+from pydantic import BaseModel
 
-
-def _slug(text: str, limit: int = 30) -> str:
-    """DNS-1123-safe slug: an event name is operator text, never a path or label fragment."""
-    return re.sub(r"[^a-z0-9-]+", "-", text.lower()).strip("-")[:limit].strip("-") or "event"
-
-IMAGE = "bitnami/kubectl:latest"  # operators pin this in production; the manifest names it in one place
+from kubesage.forecast import ForecastWindow, WorkloadForecast
 
 
-def _date_parts(window_schedule: str, today: date) -> tuple[int, int, int]:
-    """(day, month, year) for a dated window. Range events (Dec 20-26) use their start date."""
-    head = window_schedule.split(" ")[0]
-    if "-" in head and len(head) == 5:  # "MM-DD" yearly range
-        month, day = (int(p) for p in head.split("-"))
-        year = today.year if (month, day) >= (today.month, today.day) else today.year + 1
-        return day, month, year
-    when = date.fromisoformat(head)
-    return when.day, when.month, when.year
+class DatedTrigger(BaseModel):
+    event: str
+    start: str  # five-field cron in the cluster timezone
+    end: str
+    replicas: int
+    label: str  # for the annotation: what, when, and whether it is a one-off
+    one_off: bool = False
 
 
-def _job(name: str, namespace: str, deployment: str, replicas: int, schedule: str, event: str) -> dict:
-    return {
-        "apiVersion": "batch/v1", "kind": "CronJob",
-        "metadata": {"name": name, "namespace": namespace,
-                     "labels": {"kubesage.io/event": _slug(event, 40),
-                                "kubesage.io/managed-by": "kubesage"}},
-        "spec": {"schedule": schedule, "jobTemplate": {"spec": {"template": {"spec": {
-            "restartPolicy": "Never",
-            "containers": [{"name": "scale", "image": IMAGE,
-                            "command": ["kubectl", "scale", f"deployment/{deployment}",
-                                        f"--replicas={replicas}", "-n", namespace]}]}}}}},
-    }
+def _minutes(value: str) -> int:
+    hour, _, minute = value.partition(":")
+    return int(hour) * 60 + int(minute)
 
 
-def timed_manifests(forecast: WorkloadForecast, *, namespace: str, deployment: str,
-                    today: date | None = None) -> dict[str, str]:
-    """filename -> YAML for every dated (non-weekly) forecast window. Weekly windows return nothing:
-    KEDA already owns them. One-off schedules repeat yearly in cron terms; the header says to delete
-    the CronJob after the event for non-yearly events."""
-    import yaml
-
-    today = today or date.today()
-    out: dict[str, str] = {}
-    for window in forecast.windows:
-        if window.source != "calendar" or window.cron_start is not None:
-            continue
-        day, month, _year = _date_parts(window.schedule, today)
-        pre_h, pre_m = (int(p) for p in window.prewarm_time.split(":"))
-        end_h, end_m = (int(p) for p in window.end_time.split(":"))
-        slug = _slug(window.event)
-        up = _job(f"kubesage-{deployment}-{slug}-up"[:63], namespace, deployment, window.replicas_needed,
-                  f"{pre_m} {pre_h} {day} {month} *", window.event)
-        down = _job(f"kubesage-{deployment}-{slug}-down"[:63], namespace, deployment,
-                    forecast.offpeak_replicas, f"{end_m} {end_h} {day} {month} *", window.event)
-        header = (f"# KubeSage timed event: {window.event} ({window.schedule})\n"
-                  f"# Scales {deployment} to {window.replicas_needed} at {window.prewarm_time} "
-                  f"(pre-warm) and back to {forecast.offpeak_replicas} at {window.end_time}.\n"
-                  f"# Cron repeats yearly: for a one-off event, delete these CronJobs after it passes.\n")
-        out[f"{deployment}.{slug}.timed.yaml"] = header + yaml.safe_dump(up, sort_keys=False) + "---\n" + yaml.safe_dump(down, sort_keys=False)
+def _days_by_month(first: date, last: date) -> list[tuple[int, int, int]]:
+    """(month, first day, last day) for each calendar month a range touches, in order."""
+    out, day = [], first
+    while day <= last:
+        month_end = (day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        stop = min(last, month_end)
+        out.append((day.month, day.day, stop.day))
+        day = stop + timedelta(days=1)
     return out
+
+
+def _window_triggers(window: ForecastWindow, today: date) -> list[DatedTrigger]:
+    if window.source != "calendar" or window.cron_start is not None or not window.first_day or not window.last_day:
+        return []
+    first, last = date.fromisoformat(window.first_day), date.fromisoformat(window.last_day)
+    if last < today and not window.repeat_yearly:
+        return []  # a one-off that has passed: a cron would bring it back next year
+    # The pre-warm and the cooldown stay inside the day: a window is never carried across midnight, where a
+    # daily start/end pair would no longer bracket one day's rush.
+    start = max(0, _minutes(window.start_time) - window.prewarm_minutes)
+    end = min(23 * 60 + 59, _minutes(window.end_time) + window.cooldown_minutes)
+    if end <= start:
+        end = 23 * 60 + 59
+    one_off = not window.repeat_yearly
+    when = window.first_day if first == last else f"{window.first_day} to {window.last_day}"
+    label = (f"{window.event}: {window.replicas_needed} replica{'' if window.replicas_needed == 1 else 's'}, {when}, {start // 60:02d}:{start % 60:02d}-"
+             f"{end // 60:02d}:{end % 60:02d}" + (" (one-off: re-run Analyze after it, or it repeats next year)" if one_off
+                                                 else " (yearly)"))
+    out = []
+    for month, d1, d2 in _days_by_month(first, last):
+        days = str(d1) if d1 == d2 else f"{d1}-{d2}"
+        out.append(DatedTrigger(event=window.event, start=f"{start % 60} {start // 60} {days} {month} *",
+                                end=f"{end % 60} {end // 60} {days} {month} *", replicas=window.replicas_needed,
+                                label=label, one_off=one_off))
+    return out
+
+
+def dated_triggers(forecast: WorkloadForecast | None, *, today: date | None = None) -> list[DatedTrigger]:
+    """One trigger per dated calendar window and month. Weekly windows return nothing: the scaling plan owns them."""
+    if forecast is None:
+        return []
+    today = today or date.today()
+    return [t for window in forecast.windows for t in _window_triggers(window, today)]

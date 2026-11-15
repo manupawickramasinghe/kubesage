@@ -1,6 +1,7 @@
 """Regression tests for the Nov 2026 flawlessness audit (workflow + critic findings)."""
 import json
 import threading
+from datetime import date, timedelta
 import urllib.error
 import urllib.request
 
@@ -13,7 +14,7 @@ from kubesage.agents.schemas import Action
 from kubesage.config import BusinessCalendar, CalendarEvent, ModelsConfig, ProviderConfig, TierConfig
 from kubesage.llm import mock
 from kubesage.llm.schemas import ScalingPlan
-from kubesage.recommend.timed import timed_manifests
+from kubesage.recommend.timed import dated_triggers
 from kubesage.forecast import forecast_workload
 
 
@@ -32,19 +33,17 @@ def test_scaled_object_rejects_non_numeric_threshold():
         E.scaled_object("web", {"threshold": "high"})
 
 
-# ---- HIGH3: timed manifests are valid, sanitised, and wired in ----
+# ---- HIGH3: dated events are valid, sanitised, and wired in ----
 
-def test_timed_slug_is_dns_safe(stats):
+def test_event_names_never_reach_a_cron_field(stats):
     s = stats["checkout-web"].model_copy(update={"name": "checkout-web"})
     cal = BusinessCalendar(events=[CalendarEvent(name="Sale: Black/Friday!", date="2026-11-27",
                                                  start_time="08:00", end_time="22:00", traffic_multiplier=3.0)])
-    files = timed_manifests(forecast_workload(s, cal), namespace="demo", deployment="checkout-web")
-    assert files, "dated event must render timed manifests"
-    for name, text in files.items():
-        assert "/" not in name.removesuffix(".timed.yaml").split(".", 1)[-1] or True
-        for doc in yaml.safe_load_all(text):
-            if doc:
-                assert doc["metadata"]["name"].replace("-", "").isalnum()
+    dated = dated_triggers(forecast_workload(s, cal, today=date(2026, 11, 1)), today=date(2026, 11, 1))
+    assert dated, "a dated event must become a trigger"
+    for t in dated:  # operator text stays in the annotation; the cron fields are digits, dashes and stars only
+        assert set(t.start + t.end) <= set("0123456789-* ")
+        assert "Sale: Black/Friday!" in t.label
 
 
 # ---- Pipeline validation gaps ----
@@ -191,16 +190,28 @@ def test_loader_rejects_duplicate_agent_names(tmp_path):
         load_team(dst)
 
 
-def test_pipeline_ships_timed_manifests_for_dated_events(stats):
+def test_pipeline_ships_dated_triggers_for_dated_events(stats):
     from kubesage.config import load_models, load_skus
     from kubesage.llm.client import LLMClient
     from kubesage.pipeline import analyze
-    cal = BusinessCalendar(events=[CalendarEvent(name="Black Friday sale", date="2026-11-27",
+    soon = (date.today() + timedelta(days=20)).isoformat()
+    cal = BusinessCalendar(events=[CalendarEvent(name="Black Friday sale", date=soon,
                                                  start_time="08:00", end_time="22:00", traffic_multiplier=3.0)])
     llm = LLMClient(load_models(), "mock")
     result = analyze(list(stats.values()), llm=llm, catalog=load_skus(), namespace="demo", days=30,
                      tz="Asia/Colombo", raw_points=1000, calendar=cal)
-    timed_files = [n for w in result.workloads for n in w.manifests if n.endswith(".timed.yaml")]
-    assert timed_files, "dated calendar events must produce timed manifests in the run"
-    text = next(txt for w in result.workloads for n, txt in w.manifests.items() if n.endswith(".timed.yaml"))
-    assert "kind: CronJob" in text and "kubectl" in text
+    names = [n for w in result.workloads for n in w.manifests]
+    assert not [n for n in names if n.endswith(".timed.yaml")], "no CronJobs: the ScaledObject carries the date"
+    day, month = int(soon[8:]), int(soon[5:7])
+    scaled = {n: yaml.safe_load(t) for w in result.workloads for n, t in w.manifests.items() if n.endswith(".keda.yaml")}
+    dated = {n: [t for t in so["spec"]["triggers"] if t["type"] == "cron" and t["metadata"]["start"].endswith(f" {day} {month} *")]
+             for n, so in scaled.items()}
+    assert len(dated["checkout-web.keda.yaml"]) == 1, dated  # the workload the sale triples, once
+    for name, triggers in dated.items():  # an event that needs no extra replicas adds nothing, anywhere
+        so = scaled[name]
+        assert len(triggers) <= 1
+        if triggers:
+            assert "Black Friday sale" in so["metadata"]["annotations"]["kubesage.io/dated-events"]
+            assert so["spec"]["minReplicaCount"] < int(triggers[0]["metadata"]["desiredReplicas"]) <= so["spec"]["maxReplicaCount"]
+        else:
+            assert "annotations" not in so["metadata"]

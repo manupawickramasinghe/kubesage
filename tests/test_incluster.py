@@ -56,6 +56,18 @@ def test_ui_and_cronjob_share_image_env_and_pinned_requests():
     assert job["spec"]["concurrencyPolicy"] == "Forbid"
 
 
+def test_the_non_root_user_can_read_its_git_key_and_write_its_runs():
+    dep = next(d for d in _docs("deployment.yaml") if d["kind"] == "Deployment")["spec"]["template"]["spec"]
+    job = next(d for d in _docs("cronjob.yaml") if d["kind"] == "CronJob")["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    for pod in (dep, job):
+        ctx = pod["securityContext"]
+        assert ctx["runAsNonRoot"] and ctx["fsGroup"] == ctx["runAsUser"] == 10001
+    key = next(v for v in job["volumes"] if v["name"] == "git-key")["secret"]
+    # Root-owned and group-readable: the group is fsGroup. Owner-only (0400) is unreadable by uid 10001, and a
+    # key the user owned itself would be refused by ssh for being group-readable.
+    assert key["defaultMode"] == 0o440
+
+
 def test_secrets_are_placeholders_and_flux_examples_are_valid():
     for name in ("secret.example.yaml", "configmap.example.yaml"):
         text = (DEPLOY / name).read_text()

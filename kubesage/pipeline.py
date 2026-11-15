@@ -191,10 +191,10 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
             after = costing.allocation_monthly(cpu_new, mem_new, costing.average_replicas(rec.scaling, s.replicas), catalog)
             after_rows.append((cpu_new, mem_new, costing.peak_replicas(rec.scaling, s.replicas)))
             burst_rows.append((cpu_new, mem_new, costing.burst_replicas(rec.scaling, s.replicas)))
-            manifests = render.render(rec, namespace=s.namespace, name=s.name, container=s.name, tz=tz)
-            # Dated calendar events (Black Friday) cannot be KEDA crons: their timed
-            # CronJobs ship in the same run, or the forecast's promise is never applied.
-            manifests.update(timed.timed_manifests(forecast_by_id[s.id], namespace=s.namespace, deployment=s.name))
+            # Dated calendar events (Black Friday) are not the model's to schedule: they join the ScaledObject as
+            # cron triggers with a date, in the same run, or the forecast's promise is never applied.
+            manifests = render.render(rec, namespace=s.namespace, name=s.name, container=s.name, tz=tz,
+                                      dated=timed.dated_triggers(forecast_by_id[s.id]), current_replicas=s.replicas)
             result = result.model_copy(update=dict(
                 tier=tier, recommendation=rec, guardrail_notes=gnotes, monthly_after_usd=round(after, 2),
                 monthly_savings_usd=round(before - after, 2),

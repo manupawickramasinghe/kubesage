@@ -53,9 +53,10 @@ Rules:
   rush, not during it: for a weekly forecast window use its cron_start (already pre-warm time) and at
   least its replicas_needed, and scale back down outside working hours / after the window closes. Explain
   the business reason in the diagnosis, citing the event name, the expected multiplier and the saving.
-  Dated events (cron_start is null, for example a specific sale day) cannot be a weekly KEDA cron: do not
-  fake one. Cover them with max_replicas headroom plus a CPU target, and put "apply the timed scale-up
-  before <date>" in follow_ups. Never invent or move a calendar event.
+  Dated events (cron_start is null, for example a specific sale day) are not weekly: do not fake a weekly
+  cron window for one. KubeSage adds a dated cron trigger for each of them itself. Keep max_replicas at or
+  above their replicas_needed, and say in follow_ups that the node pool must have room for them on that
+  date. Never invent or move a calendar event.
 - Quantify the money: the diagnosis should state the expected effect in plain terms (KubeSage computes the
   exact dollars and percent); call out when a change costs more for forecast capacity rather than saving.
 - min_replicas 0 ONLY when the workload's signals include "batch-pattern" (idle between runs). Never scale a
