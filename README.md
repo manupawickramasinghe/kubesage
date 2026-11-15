@@ -12,7 +12,7 @@ use, diagnoses live incidents, and ships every fix as a reviewable git commit.
 [![KEDA](https://img.shields.io/badge/autoscaling-KEDA-0b6bcb)](docs/pipeline.md)
 [![LLM](https://img.shields.io/badge/LLM-any%20OpenAI--compatible%20API-6e56cf)](docs/configuration.md)
 [![Tests](https://github.com/manupawickramasinghe/kubesage/actions/workflows/tests.yml/badge.svg)](https://github.com/manupawickramasinghe/kubesage/actions/workflows/tests.yml)
-[![Suite](https://img.shields.io/badge/tests-260%20unit%20%C2%B7%2043%20browser-2ea44f)](docs/testing.md)
+[![Suite](https://img.shields.io/badge/tests-261%20unit%20%C2%B7%2043%20browser-2ea44f)](docs/testing.md)
 
 **[▶ Demo video](demo/video/kubesage-demo.mp4)** · [Quickstart](#quickstart) · [How it works](#how-it-works) ·
 [Cost allocation](#cost-allocation-where-the-money-goes) · [KubeSage and Kubecost](#kubesage-and-kubecost) ·
@@ -226,7 +226,7 @@ into changes a person can review, and on the things a cost tool does not do at a
 | From finding to change | Mostly yours to make | Patches, ScaledObjects and a GitOps pull request; a person applies |
 | Checking its own predictions | Partly | `kubesage realized` compares what a plan promised with what the cluster now reserves |
 | Incidents | No | An agent team gathers evidence, finds the root cause and writes the fix as a commit |
-| Maturity | Years in production at large companies | A hackathon project: 260 tests, one small real cluster, simulated data for cost allocation |
+| Maturity | Years in production at large companies | A hackathon project: 261 tests, one small real cluster, simulated data for cost allocation |
 
 The two can run side by side: KubeSage reads the same Prometheus and installs nothing in the cluster.
 

@@ -60,9 +60,24 @@ def start_branch(clone: Path, base: str, branch: str) -> str:
     return base_sha
 
 
+def _identity(clone: Path) -> list[str]:
+    """`-c` options that give a commit an author where git has none configured: a container, a CI runner, a fresh
+    machine. A configured identity is left alone. KUBESAGE_GIT_USER_NAME / _EMAIL name the fallback."""
+    out = []
+    for key, env, default in (("user.name", "KUBESAGE_GIT_USER_NAME", "KubeSage Executor"),
+                              ("user.email", "KUBESAGE_GIT_USER_EMAIL", "kubesage@localhost")):
+        try:
+            configured = git(clone, "config", "--get", key)
+        except RepoError:  # git exits 1 when the key is unset
+            configured = ""
+        if not configured:
+            out += ["-c", f"{key}={os.environ.get(env) or default}"]
+    return out
+
+
 def commit(clone: Path, message: str) -> str:
     git(clone, "add", "-A", "gitops")
-    git(clone, "commit", "--quiet", "-m", message)
+    git(clone, *_identity(clone), "commit", "--quiet", "-m", message)
     return git(clone, "rev-parse", "HEAD")
 
 

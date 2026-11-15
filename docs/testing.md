@@ -1,6 +1,6 @@
 # Testing
 
-**15 November 2026:** `260 passed` (pytest) and `43/43` browser scenarios on the cost-allocation branch, plus the
+**15 November 2026:** `261 passed` (pytest) and `43/43` browser scenarios on the cost-allocation branch, plus the
 end-to-end script against a real VictoriaMetrics. The same three jobs run on every push and pull request
 (`.github/workflows/tests.yml`): `unit` on Python 3.11 and 3.13, `end-to-end` and `browser`.
 

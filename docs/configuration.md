@@ -70,6 +70,7 @@ threads and 14 GiB.
 | `KUBESAGE_ALERTMANAGER_URL` | serve, agents | default `http://localhost:9193` |
 | `KUBESAGE_RING`, `KUBESAGE_RING_MB` | serve, ring, tmux | the RAM ring's path (default `/dev/shm/kubesage-ring`) and size in MiB (default 500) |
 | `KUBESAGE_EXECUTOR_SSH_KEY` | agents (Executor) | path to a deploy-key private key **outside** the repo for the Executor's git pushes; validated before use (in-repo, missing, `.pub` or world-readable keys are refused). Unset: the operator's SSH agent. See [agents.md](agents.md) |
+| `KUBESAGE_GIT_USER_NAME`, `KUBESAGE_GIT_USER_EMAIL` | agents (Executor), in-cluster analysis | the author of KubeSage's commits where git has no identity configured (a container, a CI runner). Default `KubeSage Executor <kubesage@localhost>`. A configured `user.name` / `user.email` is used as it is |
 | `KUBECTL` | apply, serve | kubectl binary; default `.bin/kubectl` if present, else `kubectl` on PATH |
 | `GH_TOKEN` | agents (Executor PRs) | GitHub CLI token for opening PRs without an interactive `gh auth login` |
 | `BIND_ADDR` | docker compose | `127.0.0.1` (default) or `0.0.0.0` to reach Grafana/VictoriaMetrics from another machine |
