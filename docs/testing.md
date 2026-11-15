@@ -1,5 +1,21 @@
 # Testing
 
+**15 November 2026:** `260 passed` (pytest) and `43/43` browser scenarios on the cost-allocation branch, plus the
+end-to-end script against a real VictoriaMetrics. The same three jobs run on every push and pull request
+(`.github/workflows/tests.yml`): `unit` on Python 3.11 and 3.13, `end-to-end` and `browser`.
+
+```bash
+.venv/bin/python -m pytest -q                                   # unit: no cluster, database or network
+docker compose up -d victoriametrics && scripts/ci-e2e.sh       # end to end: simulate, costs, budgets, analyze
+.venv/bin/python tests/browser_smoke.py                         # browser: needs Playwright and Chromium
+```
+
+`scripts/ci-e2e.sh` simulates 30 days of a six-namespace cluster, then checks the cost report (the node bill, the
+"with shared" column adding up to it, the five baked-in findings, controller kinds), the Prometheus exposition, the
+budget exit code, and that a mock analysis renders dated events as triggers and no CronJobs. No model is called.
+
+The history below is from the October reviews.
+
 Fresh verification on **29 October 2026** covered two pinned revisions:
 
 | Revision | pytest | Chromium scenarios |
@@ -30,6 +46,9 @@ KUBESAGE_RING="$review_ring_dir/ring" KUBESAGE_RING_MB=4 .venv/bin/python -m pyt
 | `tests/conftest.py` | session fixtures: the five demo scenarios reduced to Stage 1 stats, a mock-mode analysis, and a private RAM ring so tests never write into a live server's `/dev/shm` ring |
 | `test_pipeline.py` | Stage 1 signals, routing, recommendations, resource/replica guardrails, replica cuts against the measured total, a note for every bound the guardrails move, CPU scaling headroom, node sizing at CPU maximum replicas and by packing pods onto nodes, invalid and overnight cron windows, overlapping schedule costs; a plan the 20-replica cap can't make cover the measured total gets bigger pods, or is marked high risk with a follow-up |
 | `test_apply.py` | Patch ordering, Ready/schedulable target node capacity, migration skips, removing the autoscaler a fixed replica count replaces, apply timeouts and stopping after failures, ignoring incomplete runs |
+| `test_costs.py` | Cost allocation: a pod billed for the larger of request and use, idle per resource, the "with shared" column adding up to the bill, days without data left out of the run rate, node pricing by label, by size and by the configured pool, pods rolled up to controllers, team from pod, namespace then config, volumes billed to the workload that mounts them, budgets graded against the run rate, one finding for each problem in the simulated cluster and none for a new or departed workload, the queries (whole days, optional metadata failing as a note), the Prometheus text, `/api/costs` and `/metrics`, the `costs` and `budgets` commands, and that the live scrape keeps every series the queries read |
+| `test_timed.py` | Dated calendar events as KEDA cron triggers: the date, pre-warm and cooldown, a range of days and a month end, one-offs dropped once past, windows kept inside their day; triggers joining the plan's ScaledObject, a fixed replica count becoming a ScaledObject only when an event needs more |
+| `test_cli_tools.py` | `kubesage whatif`, `calendar suggest` and `calendar import` (nothing written without `--approve`), `realized` |
 | `test_service.py` | Atomic report publication, failed writes preserve the previous report, existing runs cannot be overwritten |
 | `test_demo_manifests.py` | demo manifests match the simulated scenarios and start on the current pool |
 | `test_demo_app.py` | the demo app's `/work` endpoint burns CPU; the spike Job uses the demo app image and gets a unique name |
@@ -53,7 +72,8 @@ APIs, so it spends no LLM credit and makes no cluster changes:
 ```
 
 It checks selection, validation/apply/reload, traffic/reset, history-pinned actions, downloads, filters,
-failure states, measured traffic success/errors/latency, the agent team panel (untrusted model text stays text),
+failure states, the Costs view (figures, the daily chart and its tooltip, the three breakdowns, budgets, nodes,
+findings, CSV download, names from the cluster kept as text, read-only, phone width, a failed read), measured traffic success/errors/latency, the agent team panel (untrusted model text stays text),
 the tmux mirror (no input elements, never POSTs, panes visible at phone width, quiet panes keep their lines on first
 load), the tmux panel beside the other views (beside, not over, the view; own window and zoom; remembered after a
 reload; a sheet on a tablet; the header keeps its rows; with the chat, the view keeps at least 560 px), the agent chat (every hand-off in order, guardrail refusals,

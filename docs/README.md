@@ -1,6 +1,7 @@
 # KubeSage documentation
 
-KubeSage finds money a Kubernetes cluster wastes and fixes it:
+KubeSage shows where a Kubernetes cluster's money goes, finds what is wasted and fixes it:
+- cost by namespace, workload and team, with idle capacity, budgets and waste findings;
 - right-sized requests;
 - autoscaling for known peaks and for surprises;
 - a cheaper machine pool.
@@ -18,6 +19,7 @@ It spends as little as possible on its own LLM calls, and shows every cent.
 | [cluster.md](cluster.md) | The real cluster: 8600G desktop + 3500U laptop, networking, setup, what was installed |
 | [architecture.md](architecture.md) | Components, data flow, design decisions, code map |
 | [pipeline.md](pipeline.md) | Stage 1 stats and signals, triage and routing, guardrails, manifests, cost model |
+| [costs.md](costs.md) | Cost allocation: how a pod is billed, idle and shared costs, teams, budgets, findings, `/metrics`, and the limits |
 | [calendar.md](calendar.md) | The business calendar (working hours, Black Friday, Christmas, sales), forecasting, pre-warm and quantified savings |
 | [operations.md](operations.md) | Runbook: start, after a reboot, demo-day checklist, fixes |
 | [cleanup.md](cleanup.md) | Tearing it all down: what `scripts/cleanup.sh` removes on each machine, and how to check |

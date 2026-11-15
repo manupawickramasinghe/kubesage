@@ -63,5 +63,7 @@ Deployment is stateless apart from its reports PVC.
   and Apply actions that write are laptop/GitOps flows, not pod flows.
 - CronJob analysis costs one live Analyze per run (Meta Muse: ~\$0.27 at the
   prices in `config/models.yaml`, measured Nov 2026).
-- One-off dated events (Black Friday) still use the timed CronJobs KubeSage
-  renders — Flux applies them like any other manifest in the overlay.
+- Dated events (Black Friday) are cron triggers on the workload's ScaledObject, so Flux applies
+  them with the rest of the overlay and nothing extra runs in the cluster.
+- The analysis CronJob reads its git key as uid 10001 through `fsGroup`; keep `defaultMode: 0440`
+  on the key's Secret volume, or `git clone` fails with a permissions error.

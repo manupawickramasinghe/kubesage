@@ -439,3 +439,33 @@ def test_costs_config_defaults_and_validation(tmp_path, monkeypatch):
         config.load_costs()
     (tmp_path / "costs.yaml").write_text("")
     assert config.load_costs() == CostsConfig()
+
+
+def test_the_live_scrape_keeps_every_series_the_cost_queries_read():
+    """deploy/k8s/monitoring drops every series it isn't told to keep. A metric the cost queries read and the
+    scrape drops would silently turn into 'no owners' or 'no nodes' on a real cluster."""
+    import re
+    from pathlib import Path
+
+    import yaml
+
+    docs = [d for d in yaml.safe_load_all((Path(__file__).parents[1] / "deploy/k8s/monitoring/monitoring.yaml").read_text()) if d]
+    scrape = yaml.safe_load(next(d for d in docs if d["kind"] == "ConfigMap" and d["metadata"]["name"] == "vmagent-scrape")["data"]["scrape.yml"])
+    kept = {job["job_name"]: re.compile(job["metric_relabel_configs"][0]["regex"]) for job in scrape["scrape_configs"]
+            if job.get("metric_relabel_configs")}
+    client = Recorder()
+    costs.fetch(client, days=1, end=END, cfg=CostsConfig(), catalog=CATALOG)
+    read = set(re.findall(r"\b(container_[a-z_]+|kube_[a-z_]+)\b", "\n".join(client.asked)))
+    assert len(read) >= 12
+    for metric in read:
+        job = "kubelet" if metric.startswith("container_") else "kube-state-metrics"
+        assert kept[job].fullmatch(metric), f"{metric} is read by kubesage costs but dropped by the {job} scrape"
+    ksm = next(d for d in docs if d["kind"] == "Deployment" and d["metadata"]["name"] == "kube-state-metrics")
+    args = " ".join(ksm["spec"]["template"]["spec"]["containers"][0]["args"])
+    for resource in ("namespaces", "replicasets", "statefulsets", "daemonsets", "jobs", "persistentvolumeclaims"):
+        assert resource in args.split("--resources=")[1].split()[0].split(",")
+    assert "pods=[team]" in args and "namespaces=[team]" in args and CATALOG.node_label in args
+    rules = next(d for d in docs if d["kind"] == "ClusterRole" and d["metadata"]["name"] == "kubesage-kube-state-metrics")["rules"]
+    allowed = {r for rule in rules for r in rule["resources"]}
+    assert {"namespaces", "persistentvolumeclaims", "replicasets", "statefulsets", "daemonsets", "jobs", "cronjobs"} <= allowed
+    assert all(rule["verbs"] == ["list", "watch"] for rule in rules)  # still read-only

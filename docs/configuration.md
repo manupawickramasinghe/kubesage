@@ -8,6 +8,7 @@
 | `config/models.<name>.yaml` | other profiles, picked with `KUBESAGE_MODELS=<name>`. `cerebras` ships with the repo. |
 | `config/skus.yaml` | the cost model: SKU catalog with Azure-like list prices, reference SKU for unit prices, allocatable fractions, `min_nodes`, the "before" pool, and the node label used for pools |
 | `config/calendar.yaml` | the business calendar the forecast reasons about: working hours, sales and holiday events with traffic multipliers and pre-warm minutes. See [calendar.md](calendar.md) |
+| `config/costs.yaml` | cost allocation: the team label, namespace-to-team fallbacks, shared namespaces, the storage price, budgets and finding thresholds. Optional. See [costs.md](costs.md) |
 | `scripts/versions.sh` | pinned k3d, kubectl, k3s image and KEDA versions, and the cluster name |
 | `deploy/k8s/demo/` | the demo workloads and their "before" requests (kustomize) |
 | `agents/` | The agent team: `models.yaml` (sizes per profile), `rules/*.txt` (custom rules), one folder per agent. See [agents.md](agents.md). |
