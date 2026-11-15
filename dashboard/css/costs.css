@@ -1,0 +1,69 @@
+/* The Costs view: allocation table, daily stacked chart, budgets, nodes and findings. */
+.costs .lab-actions { align-items: center; }
+.costs .lab-actions select { height: 32px; }
+.costs .figures { margin-top: 8px; }
+.costs .card-head h2 { margin: 0; font: 600 16px/1.3 var(--sans); letter-spacing: -.01em; }
+.costs .card-head p { margin: 4px 0 0; font-size: 13px; max-width: 720px; }
+.costs .card-head .legend { margin-top: 0; }
+.costs .chips { display: flex; gap: 6px; }
+.costs code { font: 12px var(--mono); }
+
+.costs-trend { min-height: 220px; }
+.costs-trend svg { display: block; max-width: 100%; }
+.costs-trend .grid { stroke: var(--border); stroke-width: 1; }
+.costs-trend .hit { fill: transparent; }
+.costs-trend g[data-tip]:hover .hit, .costs-trend g[data-tip]:focus-visible .hit { fill: var(--glass); }
+.costs-trend g[data-tip] { outline: none; }
+.costs-trend rect.idle { stroke: var(--input); stroke-width: 1; }
+.costs-key { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--fg-2); white-space: nowrap; }
+.costs-key i { width: 10px; height: 10px; border-radius: 3px; border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
+
+.costs-scroll { overflow-x: auto; }
+.costs-table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.costs-table th, .costs-table td { padding: 9px 10px; border-top: 1px solid var(--border); text-align: left; vertical-align: middle; white-space: nowrap; }
+.costs-table thead th { border-top: 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+.costs-table tbody th { font-weight: 500; }
+.costs-table .n { text-align: right; }
+.costs-table .nm { display: block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.costs-table th .muted { display: block; font-size: 12px; font-weight: 400; }
+.costs-table td .muted { font-size: 12px; }
+.costs-table .money { position: relative; font-weight: 600; min-width: 120px; }
+.costs-table .mbar { position: absolute; left: 10px; right: 10px; bottom: 4px; height: 2px; border-radius: 2px;
+  background: linear-gradient(to left, var(--rec) var(--v), transparent var(--v)); }
+.eff { display: inline-block; width: 44px; height: 6px; margin-right: 8px; border-radius: 3px; background: var(--track); vertical-align: 1px; overflow: hidden; }
+.eff i { display: block; width: var(--v); height: 100%; background: var(--fg-2); border-radius: 3px; }
+.costs-unit { margin: 12px 0 0; font-size: 12.5px; }
+#costs-nodes .nm { max-width: 170px; }
+#costs-nodes .costs-table th, #costs-nodes .costs-table td { padding-left: 6px; padding-right: 6px; }
+
+.costs-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; }
+.budget { padding: 10px 0; border-top: 1px solid var(--border); }
+.budget:first-child { border-top: 0; padding-top: 0; }
+.budget-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.budget-h .badge { margin-left: auto; }
+.budget-bar { height: 8px; margin: 8px 0 6px; border-radius: 4px; background: var(--track); overflow: hidden; }
+.budget-bar i { display: block; height: 100%; border-radius: 4px; }
+.budget-f { font-size: 12.5px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+
+.finding { padding: 14px 0; border-top: 1px solid var(--border); }
+.finding:first-child { border-top: 0; padding-top: 0; }
+.finding-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.finding-h b { overflow-wrap: anywhere; }
+.finding-usd { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.finding-usd small { font-weight: 400; color: var(--muted); }
+.finding p { margin: 6px 0 0; max-width: 860px; font-size: 13.5px; }
+.costs-notes { margin: 18px 0 0; padding-left: 18px; font-size: 12.5px; }
+.costs-notes li { margin-top: 4px; max-width: 900px; }
+
+@media (max-width: 860px) {
+  .costs-two { grid-template-columns: minmax(0, 1fr); }
+  .costs .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .costs .figures .fig:nth-child(3) { border-left: 0; }
+  .costs .figures .fig:nth-child(n+3) { border-top: 1px solid var(--border); }
+}
+@media (max-width: 520px) {
+  .costs .figures { grid-template-columns: minmax(0, 1fr); }
+  .costs .figures .fig { border-left: 0; border-top: 1px solid var(--border); }
+  .costs .figures .fig:first-child { border-top: 0; }
+  .costs-table th, .costs-table td { padding: 8px 8px; }
+}

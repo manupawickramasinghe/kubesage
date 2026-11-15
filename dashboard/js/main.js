@@ -1,9 +1,9 @@
 "use strict";
 // View switching and start-up. Loaded last: it calls into every other file.
 
-const VIEWS = ["demo", "dashboard", "agents", "lab", "tmux"];
-const PANELS = {demo: "#demo", dashboard: "#main", agents: "#agents", lab: "#lab", tmux: "#tmuxview"};
-const TITLES = {demo: "KubeSage · Demo", dashboard: "KubeSage · FinOps", agents: "KubeSage · Agent team",
+const VIEWS = ["demo", "dashboard", "costs", "agents", "lab", "tmux"];
+const PANELS = {demo: "#demo", dashboard: "#main", costs: "#costs", agents: "#agents", lab: "#lab", tmux: "#tmuxview"};
+const TITLES = {demo: "KubeSage · Demo", dashboard: "KubeSage · FinOps", costs: "KubeSage · Costs", agents: "KubeSage · Agent team",
   lab: "KubeSage · Under the hood", tmux: "KubeSage · tmux"};
 let view = null;
 
@@ -21,6 +21,7 @@ function showView(next) {
   document.title = TITLES[next];
   $(".skip").href = PANELS[next];
   if (next === "lab") startLab(); else stopLab();
+  if (next === "costs") startCosts(); else stopCosts();
   syncTeam();
   syncTx();  // the tmux view, or the tmux panel beside this one
   if (next === "agents" && team.data) renderTeam();
@@ -103,5 +104,6 @@ initTeam();
 initDemo();
 initTx();
 initChat();
+initCosts();
 initViews();
 showView(viewFromHash());

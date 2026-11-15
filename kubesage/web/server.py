@@ -209,6 +209,47 @@ class Api:
         self._traffic_logged = None
         self._backfill_trace: list[dict] | None = None
         self._traffic_cached = None
+        self._costs_lock = threading.Lock()
+        self._costs_cached: dict[int, tuple[float, dict]] = {}
+
+    def costs(self, days: str | None = None) -> tuple[int, dict]:
+        """Cost allocation for every namespace (kubesage/costs.py). Read-only and LLM-free; the queries cover the
+        whole window, so a report is kept for a minute rather than recomputed on every poll."""
+        from kubesage import costs
+        from kubesage.config import load_costs
+
+        try:
+            n = self.s.days if days is None else int(days)
+        except ValueError:
+            return 400, {"error": "days must be a whole number from 1 to 90"}
+        if not 1 <= n <= 90:
+            return 400, {"error": "days must be a whole number from 1 to 90"}
+        with self._costs_lock:
+            cached = self._costs_cached.get(n)
+            if cached and time.monotonic() - cached[0] < 60:
+                return 200, cached[1]
+            try:
+                cfg = load_costs()
+                report = costs.costs_now(vm=self.s.vm, days=n, tz=self.s.tz, end=time.time(), cfg=cfg, catalog=load_skus(),
+                                         client=shell.PromClient(self.s.vm, timeout=60, journal=False))
+            except shell.PromError as exc:
+                return 502, {"error": f"metrics query failed: {exc}"}
+            except (OSError, ValueError) as exc:  # an unreadable or invalid config/costs.yaml
+                return 500, {"error": f"config/costs.yaml: {exc}"}
+            payload = {"report": json.loads(report.model_dump_json()),
+                       "config": {"team_label": cfg.team_label, "shared_namespaces": cfg.shared_namespaces,
+                                  "budgets": len(cfg.budgets)}}
+            self._costs_cached = {n: (time.monotonic(), payload)}
+            return 200, payload
+
+    def metrics_text(self) -> str:
+        """Prometheus exposition of the cost report, for Grafana panels and budget alerts."""
+        from kubesage import costs
+
+        status, payload = self.costs()
+        if status != 200:
+            return f"# kubesage: {payload.get('error', 'no cost report')}\n"
+        return costs.prometheus_text(costs.CostReport.model_validate(payload["report"]))
 
     def config(self) -> tuple[int, dict]:
         models = load_models()
@@ -796,9 +837,15 @@ def make_handler(api: Api):
                       "/api/testcases": api.team.testcases, "/api/agents": api.team.overview,
                       "/api/agents/run": lambda: api.team.get_run(query.get("id", [None])[0]),
                       "/api/ring": lambda: api.team.ring_read(*(query.get(k, [None])[0] for k in ("after", "streams", "limit", "tail"))),
-                      "/api/ring/stat": api.team.ring_stat}
+                      "/api/ring/stat": api.team.ring_stat,
+                      "/api/costs": lambda: api.costs(query.get("days", [None])[0])}
             if path.path == "/api/ring/dump":
                 self._dump(query)
+            elif path.path == "/metrics":
+                try:
+                    self._send(200, api.metrics_text().encode(), "text/plain; version=0.0.4; charset=utf-8")
+                except Exception as exc:
+                    self._send(502, {"error": f"{type(exc).__name__}: {exc}"})
             elif path.path in routes:
                 try:
                     self._send(*routes[path.path]())

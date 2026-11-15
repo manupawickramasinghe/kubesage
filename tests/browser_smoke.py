@@ -24,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from conftest import result, stats  # noqa: E402; reuse the deterministic pipeline fixture
+from costs_fixture import TZ, simulated_cluster  # noqa: E402; the simulated cluster, without a database
+from kubesage.config import load_costs, load_skus  # noqa: E402
+from kubesage.costs import build_report  # noqa: E402
 from playwright.sync_api import expect, sync_playwright  # noqa: E402
 
 LATEST = "20260102-000000"
@@ -58,6 +61,11 @@ def fixtures():
     return report, old, cluster
 
 
+def costs_fixture():
+    report = json.loads(build_report(simulated_cluster(), load_costs(), load_skus(), tz=TZ).model_dump_json())
+    return {"report": report, "config": {"team_label": "team", "shared_namespaces": ["kube-system", "monitoring"], "budgets": 4}}
+
+
 class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -76,6 +84,7 @@ class MockApi:
         self.runs, self.analyze_run = [LATEST, OLDER], LATEST
         self.ring = ring_fixture()
         self.gitops = True
+        self.costs = costs_fixture()
 
     def route(self, route):
         request = route.request
@@ -142,6 +151,8 @@ class MockApi:
             recs = [r for r in self.ring if not want or any(r["stream"].startswith(p) for p in want)]
             recs = [r for r in recs if r["seq"] > int(query["after"])] if "after" in query else recs[-int(query.get("tail", 200)):]
             status, value = 200, {"records": recs, "last": self.ring[-1]["seq"]}
+        elif url.path == "/api/costs":
+            status, value = 200, self.costs
         elif url.path == "/api/ring/stat":
             status, value = 200, {"used_bytes": 2 ** 20, "capacity_bytes": 500 * 2 ** 20, "records": 9, "wrapped": False, "oldest_ts": 1.79e9}
         else:
@@ -888,6 +899,69 @@ def run(args):
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
             scenario("panels-leave-room-for-the-view", panels_leave_room_for_the_view)
+
+            def costs_view(page, mock):
+                # A workload named like markup, to prove names from the cluster stay text.
+                mock.costs["report"]["by_workload"][0]["name"] = UNSAFE
+                mock.costs["report"]["findings"][0]["target"] = UNSAFE
+                page.goto(url + "#costs")
+                expect(page.locator("#tab-costs")).to_have_attribute("aria-selected", "true")
+                expect(page.locator("#costs-table tbody tr")).to_have_count(6)
+                report = mock.costs["report"]
+                expect(page.locator("#costs-figs .hero-fig .value")).to_contain_text(f"${round(report['cluster']['monthly_usd']):,}")
+                expect(page.locator("#costs-figs .hero-fig .sub")).to_contain_text("1 budget over")
+                expect(page.locator("#costs-table tbody tr").first).to_contain_text("demo")
+                expect(page.locator("#costs-table tbody tr", has_text="kube-system")).to_contain_text("shared")
+                assert page.locator("#costs-trend g[data-tip]").count() == 30
+                expect(page.locator("#costs-legend")).to_contain_text("Idle capacity")
+                expect(page.locator("#costs-budgets .budget").first).to_contain_text("Over budget")
+                expect(page.locator("#costs-nodes tbody tr")).to_have_count(2)
+                kinds = page.locator("#costs-findings .finding .badge").all_inner_texts()
+                assert {"Abandoned workload", "Unused volume", "No requests set", "Cost spike", "Idle capacity"} <= set(kinds), kinds
+                expect(page.locator("#costs-findings code").first).to_contain_text("kubesage analyze")
+                page.locator("#costs-trend g[data-tip]").last.hover()
+                expect(page.locator("#tip")).to_contain_text("for the day")
+                page.locator('#costs-by [data-by="workload"]').click()
+                expect(page.locator("#costs-table tbody tr")).to_have_count(len(report["by_workload"]))
+                expect(page.locator("#costs-table tbody tr").first.locator(".nm")).to_have_text(UNSAFE)
+                page.locator('#costs-by [data-by="team"]').click()
+                expect(page.locator("#costs-table tbody tr", has_text="shared services")).to_have_count(1)
+                with page.expect_download() as download:
+                    page.locator("#costs-export").click()
+                csv = Path(download.value.path()).read_text()
+                assert csv.startswith("name,namespace,kind,team") and "storefront" in csv and len(csv.splitlines()) == 5, csv
+                assert not page.evaluate("window.__untrusted_html_executed")
+                # The view only reads: no POST, and the window choice is sent as ?days=.
+                page.locator("#costs-days").select_option("7")
+                expect(page.locator("#costs-table tbody tr").first).to_be_visible()
+                assert ("/api/costs", None) in mock.requests and not [r for r in mock.requests if r[1] is not None]
+                assert any("days=7" in u for u in page.evaluate("performance.getEntriesByType('resource').map(e => e.name)"))
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                page.screenshot(path=str(output / "costs-1400-light.png"), full_page=True)
+                # A failed read says so and keeps the last report on screen.
+                mock.failures["/api/costs"] = (502, {"error": "metrics query failed: connection refused"})
+                page.locator("#costs-refresh").click()
+                expect(page.locator("#costs-notice")).to_contain_text("connection refused")
+                expect(page.locator("#costs-table tbody tr").first).to_be_visible()
+
+            scenario("costs-view", costs_view)
+
+            def costs_phone(page, mock):
+                page.goto(url + "#costs")
+                expect(page.locator("#costs-table tbody tr")).to_have_count(6)
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                page.screenshot(path=str(output / "costs-390-dark.png"), full_page=True)
+
+            scenario("costs-phone-width", costs_phone, width=390, theme="dark")
+
+            def costs_unavailable(page, mock):
+                mock.failures["/api/costs"] = (502, {"error": "metrics query failed: connection refused"})
+                page.goto(url + "#costs")
+                expect(page.locator("#costs-notice")).to_contain_text("Could not read the cluster's costs")
+                expect(page.locator("#costs-figs .hero-fig .value")).to_have_text("—")
+                expect(page.locator("#costs-export")).to_be_disabled()
+
+            scenario("costs-unavailable", costs_unavailable)
 
             def responsive(page, mock):
                 mock.cluster["traffic"] = traffic_fixture(errors=20)

@@ -72,9 +72,10 @@ def to_jsonl(series: Iterable[Series]) -> Iterator[str]:
 
 
 def import_to_vm(vm_url: str, series: list[Series], *, namespace: str, replace: bool = True,
-                 record: list[dict] | None = None) -> int:
+                 record: list[dict] | None = None, delete_match: str | None = None) -> int:
     """Backfill series into VictoriaMetrics and make them immediately queryable. Returns sample count.
-    `record` receives each HTTP request as sent (the import body as a short preview and its size)."""
+    `record` receives each HTTP request as sent (the import body as a short preview and its size).
+    `delete_match` is the series selector a re-run replaces; by default the namespace's series."""
     lines = list(to_jsonl(series))
     body = gzip.compress("\n".join(lines).encode(), compresslevel=5)
 
@@ -95,7 +96,8 @@ def import_to_vm(vm_url: str, series: list[Series], *, namespace: str, replace: 
     with httpx.Client(base_url=vm_url.rstrip("/"), timeout=120) as http:
         if replace:
             # Re-running the simulator must not interleave two datasets under the same labels.
-            call(http, "POST", "/api/v1/admin/tsdb/delete_series", params={"match[]": f'{{namespace="{namespace}"}}'})
+            call(http, "POST", "/api/v1/admin/tsdb/delete_series",
+                 params={"match[]": delete_match or f'{{namespace="{namespace}"}}'})
         call(http, "POST", "/api/v1/import", content=body, headers={"Content-Encoding": "gzip"})
         call(http, "GET", "/internal/force_flush")
         call(http, "GET", "/internal/resetRollupResultCache")

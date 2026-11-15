@@ -1,4 +1,4 @@
-"""kubesage simulate | stats | analyze"""
+"""kubesage simulate | stats | analyze | costs | budgets | apply | serve ..."""
 from __future__ import annotations
 
 import argparse
@@ -22,6 +22,14 @@ def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--days", type=int, default=30)
 
 
+def _cluster_wide(p: argparse.ArgumentParser) -> None:
+    """Arguments of the commands that read every namespace."""
+    p.add_argument("--vm", default=os.environ.get("KUBESAGE_VM_URL", "http://localhost:8428"),
+                   help="Prometheus/VictoriaMetrics base URL")
+    p.add_argument("--tz", default=os.environ.get("KUBESAGE_TZ", "Asia/Colombo"), help="timezone the days are labelled in")
+    p.add_argument("--days", type=int, default=30)
+
+
 def cmd_simulate(args: argparse.Namespace) -> None:
     from kubesage.simulate.backfill import generate, import_to_vm, to_jsonl
     from kubesage.simulate.scenarios import DEMO_WORKLOADS
@@ -31,6 +39,10 @@ def cmd_simulate(args: argparse.Namespace) -> None:
     series = generate(DEMO_WORKLOADS, namespace=args.namespace, days=args.days, end=end, step=args.step,
                       tz=args.tz, seed=args.seed)
     if args.out:
+        if args.fleet:
+            from kubesage.simulate import fleet
+
+            series = series + fleet.generate_fleet(days=args.days, end=end, tz=args.tz, seed=args.seed)
         Path(args.out).write_text("\n".join(to_jsonl(series)) + "\n")
         console.print(f"wrote {len(series)} series to {args.out}")
         return
@@ -39,6 +51,16 @@ def cmd_simulate(args: argparse.Namespace) -> None:
                   f"in {time.perf_counter() - started:.1f}s")
     for w in DEMO_WORKLOADS:
         console.print(f"  [cyan]{w.name:<16}[/] {w.story}")
+    if args.fleet:
+        from kubesage.simulate import fleet
+
+        started = time.perf_counter()
+        around = fleet.generate_fleet(days=args.days, end=end, tz=args.tz, seed=args.seed)
+        samples = import_to_vm(args.vm, around, namespace=args.namespace, replace=not args.keep_existing,
+                               delete_match=fleet.DELETE_MATCH)
+        console.print(f"backfilled the rest of the cluster for `kubesage costs`: {samples:,} samples, "
+                      f"{len(fleet.FLEET)} workloads in {', '.join(fleet.namespaces())} on {len(fleet.NODES)} nodes, "
+                      f"in {time.perf_counter() - started:.1f}s")
 
 
 def cmd_stats(args: argparse.Namespace) -> None:
@@ -53,6 +75,52 @@ def cmd_stats(args: argparse.Namespace) -> None:
         print("[" + ",".join(s.model_dump_json() for s in stats) + "]")
     else:
         print_stats(console, stats)
+
+
+def _cost_report(args: argparse.Namespace):
+    from kubesage.config import load_costs
+    from kubesage.costs import costs_now
+    from kubesage.metrics.client import PromClient, PromError
+
+    try:
+        report = costs_now(vm=args.vm, days=args.days, tz=args.tz, end=time.time(), cfg=load_costs(),
+                           catalog=load_skus(), client=PromClient(args.vm, journal=False))
+    except PromError as exc:
+        sys.exit(f"metrics query failed: {exc}")
+    if not report.by_namespace:
+        sys.exit(f"no pods found at {args.vm} in the last {args.days} days; run `kubesage simulate` first")
+    return report
+
+
+def cmd_costs(args: argparse.Namespace) -> None:
+    from kubesage.report import print_costs
+
+    report = _cost_report(args)
+    if args.json:
+        print(report.model_dump_json(indent=2))
+    elif args.prometheus:
+        from kubesage.costs import prometheus_text
+
+        print(prometheus_text(report), end="")
+    else:
+        print_costs(console, report, by=args.by, top=args.top)
+
+
+def cmd_budgets(args: argparse.Namespace) -> None:
+    """Exit 1 when a budget is over, so a pipeline or a cron job can act on it."""
+    report = _cost_report(args)
+    if not report.budgets:
+        sys.exit("no budgets configured: add some to config/costs.yaml")
+    if args.json:
+        print("[" + ",".join(b.model_dump_json() for b in report.budgets) + "]")
+    else:
+        for b in report.budgets:
+            run_rate = "nothing ran" if b.monthly_usd is None else f"${b.monthly_usd:,.2f} of ${b.budget_usd:,.2f} ({b.used_pct:.0f}%)"
+            style = {"over": "bold red", "at-risk": "yellow", "ok": "green", "unknown": "dim"}[b.status]
+            console.print(f"  [{style}]{b.status:<8}[/] {b.scope:<9} {b.name:<16} {run_rate}")
+    over = [b for b in report.budgets if b.status == "over"]
+    if over:
+        sys.exit(f"{len(over)} budget(s) over: {', '.join(f'{b.scope} {b.name}' for b in over)}")
 
 
 def cmd_analyze(args: argparse.Namespace) -> None:
@@ -292,7 +360,23 @@ def main(argv: list[str] | None = None) -> None:
     sim.add_argument("--seed", type=int, default=42)
     sim.add_argument("--out", help="write VictoriaMetrics JSON lines to this file instead of importing")
     sim.add_argument("--keep-existing", action="store_true", help="do not delete the namespace's old series first")
+    sim.add_argument("--no-fleet", dest="fleet", action="store_false",
+                     help="only the demo namespace: skip the other namespaces, nodes and volumes `kubesage costs` reads")
     sim.set_defaults(func=cmd_simulate)
+
+    co = sub.add_parser("costs", help="cost allocation for the whole cluster: by namespace, workload or team, "
+                                      "with idle cost, budgets and waste findings (no LLM)")
+    _cluster_wide(co)
+    co.add_argument("--by", choices=("namespace", "workload", "team"), default="namespace")
+    co.add_argument("--top", type=int, default=25, help="rows to print")
+    co.add_argument("--json", action="store_true", help="the whole report as JSON")
+    co.add_argument("--prometheus", action="store_true", help="Prometheus exposition text, as served on /metrics")
+    co.set_defaults(func=cmd_costs)
+
+    bu = sub.add_parser("budgets", help="check config/costs.yaml budgets; exits 1 when one is over")
+    _cluster_wide(bu)
+    bu.add_argument("--json", action="store_true")
+    bu.set_defaults(func=cmd_budgets)
 
     st = sub.add_parser("stats", help="Stage 1 only: deterministic stats, no LLM calls")
     _common(st)

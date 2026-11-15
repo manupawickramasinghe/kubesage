@@ -1,0 +1,35 @@
+# Cost allocation: who owns what, which costs everyone shares, and what each may spend.
+# Read by `kubesage costs`, `kubesage budgets`, /api/costs and the Costs view. Every key is optional.
+
+# The pod label that names the owning team. A pod without it takes its namespace's label, then the
+# namespace_teams entry below, and is "unassigned" otherwise. kube-state-metrics only exports labels it is
+# told to: start it with --metric-labels-allowlist=pods=[team],namespaces=[team],nodes=[*]
+team_label: team
+namespace_teams:
+  demo: storefront
+  staging: storefront
+  data: data
+  platform: platform
+  monitoring: platform
+
+# Namespaces every team depends on. Their cost, and the cost of idle node capacity, is spread across the
+# other namespaces in proportion to what each spends: that is the "with shared" column.
+shared_namespaces: [kube-system, monitoring]
+
+# Disks: list price per provisioned GiB per month (Azure Premium SSD v1 is roughly $0.08-$0.15).
+storage_usd_per_gib_month: 0.08
+
+# Budgets compare the last seven days, as a monthly run rate, against a monthly limit.
+# `kubesage budgets` exits 1 when any is over, so a pipeline can stop on it.
+budgets:
+  - {scope: cluster, monthly_usd: 600}
+  - {scope: team, name: storefront, monthly_usd: 260}
+  - {scope: team, name: data, monthly_usd: 90}
+  - {scope: namespace, name: staging, monthly_usd: 30}
+budget_warn_ratio: 0.8        # "at risk" from 80% of the budget
+
+# Findings
+idle_capacity_warn_pct: 35    # flag the cluster when this much of the node bill is idle
+spike_pct: 30                 # a day 30% above the namespace's usual day is a cost spike...
+spike_min_usd_per_day: 0.5    # ...when it is also at least this much more in dollars
+min_finding_usd: 1.0          # ignore findings worth less than this per month
