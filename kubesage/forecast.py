@@ -12,9 +12,9 @@ and a replica count sized at the CPU target. Confidence is stated, never hidden:
 often the peak recurred and how much history backs it; calendar events are operator-declared, so they score
 high on timing and rest on the declared multiplier.
 
-Weekly windows fit the KEDA cron subset and guardrails can enforce them. Dated events (a specific sale
-day, a holiday week) cannot be expressed as a weekly cron, so they are forecast and priced only: the
-recommendation must carry a follow-up to apply the timed scale-up before the date.
+Weekly windows fit the weekly cron subset the models write and guardrails can enforce them. Dated events (a
+specific sale day, a holiday week) are not the models' to schedule: recommend/timed.py turns each into a
+KEDA cron trigger with a day of the month and a month, added to the workload's ScaledObject at render time.
 """
 from __future__ import annotations
 
@@ -44,6 +44,10 @@ class ForecastWindow(BaseModel):
     prewarm_minutes: int
     cron_start: str | None = None  # KEDA cron for the pre-warm; None when the event is dated, not weekly
     cron_end: str | None = None
+    first_day: str | None = None  # dated events: ISO date of the first day of the next occurrence
+    last_day: str | None = None  # ...and of its last day (the same day for a one-day event)
+    repeat_yearly: bool = False
+    cooldown_minutes: int = 0
     baseline_total_cpu: float
     expected_total_cpu: float
     multiplier: float  # expected / baseline
@@ -171,6 +175,33 @@ def _event_schedule(event: CalendarEvent, today: date) -> str:
     return f"{event.start_date} to {event.end_date}, {event.start_time}-{event.end_time} daily"
 
 
+def _event_days(event: CalendarEvent, today: date) -> tuple[str | None, str | None]:
+    """(first day, last day) of a dated event's next occurrence, as ISO dates; (None, None) for weekly events
+    and for dates that don't parse. A yearly range that has started and not ended counts as this year's."""
+    try:
+        if event.date:
+            when = date.fromisoformat(event.date)
+            if event.repeat_yearly:
+                when = when.replace(year=today.year)
+                if when < today:
+                    when = when.replace(year=today.year + 1)
+            return when.isoformat(), when.isoformat()
+        if event.start_date and event.end_date:
+            (m1, d1), (m2, d2) = (tuple(int(x) for x in v.split("-")) for v in (event.start_date, event.end_date))
+            first, last = date(today.year, m1, d1), date(today.year, m2, d2)
+            if last < first:  # the range crosses New Year
+                if date(today.year - 1, m1, d1) <= today <= last:
+                    first = date(today.year - 1, m1, d1)
+                else:
+                    last = date(today.year + 1, m2, d2)
+            if last < today:
+                first, last = first.replace(year=first.year + 1), last.replace(year=last.year + 1)
+            return first.isoformat(), last.isoformat()
+    except ValueError:
+        pass
+    return None, None
+
+
 def _calendar_windows(s: WorkloadStats, calendar: BusinessCalendar, baseline: float, capacity: float,
                       today: date) -> list[ForecastWindow]:
     windows = []
@@ -184,6 +215,7 @@ def _calendar_windows(s: WorkloadStats, calendar: BusinessCalendar, baseline: fl
         prewarm = event.prewarm_minutes if event.prewarm_minutes is not None else calendar.prewarm_minutes
         start_min = _parse_hhmm(event.start_time)
         weekly = event.weekly
+        first_day, last_day = (None, None) if weekly else _event_days(event, today)
         windows.append(ForecastWindow(
             source="calendar", event=event.name, kind=event.kind,
             schedule=_event_schedule(event, today),
@@ -192,14 +224,16 @@ def _calendar_windows(s: WorkloadStats, calendar: BusinessCalendar, baseline: fl
             prewarm_time=_hhmm(start_min - prewarm), prewarm_minutes=prewarm,
             cron_start=_cron_at(event.days or "*", start_min - prewarm) if weekly else None,
             cron_end=_cron_at(event.days or "*", _parse_hhmm(event.end_time) + event.cooldown_minutes) if weekly else None,
+            first_day=first_day, last_day=last_day, repeat_yearly=event.repeat_yearly or event.start_date is not None,
+            cooldown_minutes=event.cooldown_minutes,
             baseline_total_cpu=round(baseline, 3), expected_total_cpu=round(expected, 3),
             multiplier=round(expected / baseline, 2) if baseline > 0 else round(event.traffic_multiplier, 2),
             replicas_needed=_replicas(expected, capacity),
             # Declared by the operator: timing is trusted; the multiplier is their estimate.
             confidence=0.85 if weekly else 0.8,
             note=event.note or ("Declared in config/calendar.yaml." if weekly else
-                                "Declared in config/calendar.yaml. Dated event: apply a timed scale-up before "
-                                "the date; a weekly cron cannot express a one-off date.")))
+                                "Declared in config/calendar.yaml. Dated event: the autoscaler gets a cron "
+                                "trigger for these dates, so the scale-up needs no manual step.")))
     return windows
 
 

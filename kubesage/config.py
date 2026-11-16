@@ -1,8 +1,9 @@
-"""Typed loaders for config/models.yaml and config/skus.yaml."""
+"""Typed loaders for config/models.yaml, config/skus.yaml, config/calendar.yaml and config/costs.yaml."""
 from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -164,3 +165,39 @@ def load_calendar() -> BusinessCalendar:
     if not path.exists():
         return BusinessCalendar()
     return BusinessCalendar.model_validate(yaml.safe_load(path.read_text()) or {})
+
+
+class Budget(BaseModel):
+    """What a namespace, a team or the whole cluster may cost per month."""
+
+    scope: Literal["cluster", "namespace", "team"]
+    name: str = ""  # the namespace or team; empty for the cluster
+    monthly_usd: float = Field(gt=0)
+
+    def model_post_init(self, __context) -> None:
+        if self.scope != "cluster" and not self.name:
+            raise ValueError(f"a {self.scope} budget needs a name")
+
+
+class CostsConfig(BaseModel):
+    """config/costs.yaml: who owns what, which costs are shared, and the budgets. Every field has a default,
+    so cost allocation works on a cluster nobody has configured yet."""
+
+    team_label: str = "team"  # pod or namespace label that names the owning team
+    namespace_teams: dict[str, str] = Field(default_factory=dict)  # fallback when the label is absent
+    shared_namespaces: list[str] = Field(default_factory=lambda: ["kube-system"])
+    storage_usd_per_gib_month: float = Field(default=0.08, ge=0)
+    budgets: list[Budget] = Field(default_factory=list)
+    budget_warn_ratio: float = Field(default=0.8, gt=0, le=1)
+    idle_capacity_warn_pct: float = Field(default=35, ge=0, le=100)
+    spike_pct: float = Field(default=30, gt=0)  # a day this much above the namespace's usual day is a spike
+    spike_min_usd_per_day: float = Field(default=0.5, ge=0)  # ...if it is also at least this many dollars more
+    min_finding_usd: float = Field(default=1.0, ge=0)  # findings worth less than this per month are not listed
+
+
+def load_costs() -> CostsConfig:
+    """config/costs.yaml; an absent file means the defaults (no teams, no budgets)."""
+    path = CONFIG_DIR / "costs.yaml"
+    if not path.exists():
+        return CostsConfig()
+    return CostsConfig.model_validate(yaml.safe_load(path.read_text()) or {})

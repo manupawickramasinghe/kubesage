@@ -18,10 +18,13 @@ metadata:
   name: kubesage-kube-state-metrics
 rules:
   - apiGroups: [""]
-    resources: [pods, nodes]
+    resources: [pods, nodes, namespaces, persistentvolumeclaims]
     verbs: [list, watch]
   - apiGroups: [apps]
-    resources: [deployments]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
     verbs: [list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -49,7 +52,13 @@ spec:
       containers:
         - name: kube-state-metrics
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0
-          args: ["--resources=pods,deployments,nodes", "--port=8080", "--telemetry-port=8081"]
+          # Cost allocation (kubesage costs) rolls pods up to their controller and team and prices nodes by their
+          # SKU label. kube-state-metrics only exports the labels it is told to: the team label and the two SKU labels.
+          args:
+            - --resources=pods,deployments,nodes,namespaces,replicasets,statefulsets,daemonsets,jobs,cronjobs,persistentvolumeclaims
+            - --metric-labels-allowlist=nodes=[kubesage.io/sku,node.kubernetes.io/instance-type],pods=[team],namespaces=[team]
+            - --port=8080
+            - --telemetry-port=8081
           ports: [{containerPort: 8080}]
           readinessProbe: {httpGet: {path: /readyz, port: 8081}}
           resources:
@@ -115,7 +124,7 @@ data:
         static_configs: [{targets: [kube-state-metrics.monitoring.svc:8080]}]
         metric_relabel_configs:
           - source_labels: [__name__]
-            regex: kube_pod_container_resource_(requests|limits)|kube_pod_container_status_restarts_total|kube_deployment_spec_replicas|kube_deployment_status_replicas_available|kube_pod_status_phase|kube_pod_info|kube_pod_owner|kube_pod_container_status_last_terminated_reason|kube_node_status_(capacity|allocatable)
+            regex: kube_pod_container_resource_(requests|limits)|kube_pod_container_status_restarts_total|kube_deployment_spec_replicas|kube_deployment_status_replicas_available|kube_pod_status_phase|kube_pod_info|kube_pod_owner|kube_pod_container_status_last_terminated_reason|kube_node_status_(capacity|allocatable)|kube_node_info|kube_node_labels|kube_pod_labels|kube_namespace_labels|kube_replicaset_owner|kube_job_owner|kube_persistentvolumeclaim_resource_requests_storage_bytes|kube_pod_spec_volumes_persistentvolumeclaims_info
             action: keep
       # The lab test cases' own metrics (api-gateway's latency histogram), from pods annotated prometheus.io/scrape.
       - job_name: lab-pods

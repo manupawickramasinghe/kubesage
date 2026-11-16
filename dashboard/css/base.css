@@ -54,7 +54,7 @@ header.top { position: sticky; top: 0; z-index: 10; container-type: inline-size;
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -.01em; margin-right: 4px; }
 .brand .ic { width: 22px; height: 22px; }
 .brand span { color: var(--muted); font-weight: 400; }
-.actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .progress { height: 2px; opacity: 0; transition: opacity .2s; background-size: 200% 100%;
   background-image: linear-gradient(90deg, transparent, #7c5cff, #1fc8ff, #ff3dc0, transparent); }
 body.busy .progress { opacity: 1; animation: pan 1.3s linear infinite; }
@@ -160,16 +160,16 @@ h2 { margin: 0; font: 400 28px/1.1 var(--serif); letter-spacing: -.01em; }
 
 /* View switcher */
 .viewtabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--secondary); }
-.viewtab { height: 30px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--fg-2);
+.viewtab { height: 30px; padding: 0 9px; border: 0; border-radius: 8px; background: transparent; color: var(--fg-2);
   font: 500 13px var(--sans); cursor: pointer; white-space: nowrap; }
 .viewtab[aria-selected="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
 .viewtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .vt-short { display: none; }
 @media (max-width: 900px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
   .top-inner { column-gap: 8px; } .actions { gap: 4px; } .actions .btn-icon, #btn-side, #btn-chat { width: 32px; padding: 0; }
-  .mode-llm { display: none; } .viewtab { padding: 0 9px; } }
+  .mode-llm { display: none; } .viewtab { padding: 0 7px; } .top-inner { column-gap: 6px; } }
 /* The header's own width decides too, so it stays one row with every button in it. */
-@container (max-width: 1240px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
+@container (max-width: 1300px) { .vt-long { display: none; } .vt-short { display: inline; } .brand span { display: none; }
   #btn-side, #btn-chat { padding: 0 8px; } #btn-side span, #btn-chat span { display: none; } }
 @media (max-width: 600px) {
   .brand span { display: none; }

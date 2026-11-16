@@ -6,6 +6,7 @@ import yaml
 from kubesage.llm.schemas import Recommendation
 
 MANAGED_BY = {"app.kubernetes.io/managed-by": "kubesage"}
+ANNOTATION = "kubesage.io/dated-events"  # what the dated cron triggers are for, in words
 
 
 def cpu_qty(millicores: int) -> str:
@@ -20,8 +21,13 @@ def _dump(doc: dict) -> str:
     return yaml.safe_dump(doc, sort_keys=False)
 
 
-def render(rec: Recommendation, *, namespace: str, name: str, container: str, tz: str) -> dict[str, str]:
-    """Return {filename: yaml}. Patches apply with `kubectl patch deployment --type strategic --patch-file`."""
+def render(rec: Recommendation, *, namespace: str, name: str, container: str, tz: str,
+           dated: list | None = None, current_replicas: int = 1) -> dict[str, str]:
+    """Return {filename: yaml}. Patches apply with `kubectl patch deployment --type strategic --patch-file`.
+
+    `dated` are the calendar's dated events as KEDA cron triggers (recommend/timed.py). They join the
+    ScaledObject the plan asks for; a workload whose plan is a fixed replica count, or no scaling change at
+    all, gets a ScaledObject that holds that count and only moves for the events."""
     files: dict[str, str] = {}
     pod_spec: dict = {}
     if rec.resources is not None:
@@ -31,21 +37,28 @@ def render(rec: Recommendation, *, namespace: str, name: str, container: str, tz
             "requests": {"cpu": cpu_qty(r.cpu_request_m), "memory": mem_qty(r.mem_request_mi)}, "limits": limits}}]
 
     plan = rec.scaling
+    floor = plan.min_replicas if plan is not None else current_replicas
+    # An event that needs no more replicas than the workload always has changes nothing: leave it out.
+    dated = [d for d in (dated or []) if d.replicas > floor]
     patch: dict = {}
-    if plan is not None and not plan.cron_windows and plan.cpu_utilization_target is None:
+    if plan is not None and not plan.cron_windows and plan.cpu_utilization_target is None and not dated:
         patch["replicas"] = plan.min_replicas  # fixed replica count: no autoscaler needed
-    elif plan is not None:
-        triggers = [{"type": "cron", "metadata": {"timezone": tz, "start": w.start, "end": w.end,
-                                                  "desiredReplicas": str(w.desired_replicas)}}
-                    for w in plan.cron_windows]
-        if plan.cpu_utilization_target is not None:
+    elif plan is not None or dated:
+        ceiling = max([plan.max_replicas if plan is not None else current_replicas, floor, 1, *(d.replicas for d in dated)])
+        cron = lambda start, end, replicas: {"type": "cron", "metadata": {
+            "timezone": tz, "start": start, "end": end, "desiredReplicas": str(replicas)}}
+        triggers = [cron(w.start, w.end, w.desired_replicas) for w in (plan.cron_windows if plan is not None else [])]
+        triggers += [cron(d.start, d.end, d.replicas) for d in dated]
+        if plan is not None and plan.cpu_utilization_target is not None:
             triggers.append({"type": "cpu", "metricType": "Utilization",
                              "metadata": {"value": str(plan.cpu_utilization_target)}})
+        metadata: dict = {"name": name, "namespace": namespace, "labels": MANAGED_BY}
+        if dated:
+            metadata["annotations"] = {ANNOTATION: "; ".join(dict.fromkeys(d.label for d in dated))}
         files[f"{name}.keda.yaml"] = _dump({
-            "apiVersion": "keda.sh/v1alpha1", "kind": "ScaledObject",
-            "metadata": {"name": name, "namespace": namespace, "labels": MANAGED_BY},
-            "spec": {"scaleTargetRef": {"name": name}, "minReplicaCount": plan.min_replicas,
-                     "maxReplicaCount": plan.max_replicas, "triggers": triggers}})
+            "apiVersion": "keda.sh/v1alpha1", "kind": "ScaledObject", "metadata": metadata,
+            "spec": {"scaleTargetRef": {"name": name}, "minReplicaCount": floor,
+                     "maxReplicaCount": ceiling, "triggers": triggers}})
     if pod_spec:
         patch["template"] = {"spec": pod_spec}
     if patch:

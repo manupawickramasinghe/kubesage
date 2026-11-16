@@ -132,9 +132,9 @@ def recommend(s: WorkloadStats, item: TriageItem, forecast: WorkloadForecast | N
                           f"(confidence {top.confidence:.0%}).")
         for w in forecast.windows:
             if not w.cron_start:
-                follow_ups.append(f"Before {w.schedule}: apply a timed scale-up to {w.replicas_needed} replica(s) "
-                                  f"for {w.event} (expected {w.multiplier:.1f}x normal traffic, pre-warm "
-                                  f"{w.prewarm_time}); a weekly cron cannot express this dated event.")
+                follow_ups.append(f"{w.event} ({w.schedule}): the autoscaler gets a dated trigger for "
+                                  f"{w.replicas_needed} replica(s) from {w.prewarm_time} (expected "
+                                  f"{w.multiplier:.1f}x normal traffic); check the node pool has room for them that day.")
 
     cpu_lim = None if s.cpu_limit_cores is None else max(cpu_req * 1.25, s.cpu_pod_max * 1.2)
     if cpu_lim and risk == "high":

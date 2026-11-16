@@ -74,9 +74,27 @@ capacity than the cluster has today.
 ## Weekly vs dated events
 
 Weekly events render as KEDA cron triggers and guardrails enforce them. Dated events (a specific sale
-day, a holiday week) cannot be a weekly cron, so KubeSage does not fake one: the recommendation covers
-them with `max_replicas` headroom plus a CPU trigger, and carries a follow-up — *"Before 2026-11-27
-08:00: apply a timed scale-up…"* — for the operator or a future timed ScaledObject.
+day, a holiday week) are not weekly, so the models never schedule them and KubeSage does not fake a
+weekly window. At render time each one becomes a cron trigger with its date on the workload's own
+ScaledObject (`kubesage/recommend/timed.py`):
+
+```yaml
+- type: cron            # Black Friday sale: 8 replicas, 2026-11-27
+  metadata: {timezone: Asia/Colombo, start: "30 7 27 11 *", end: "0 23 27 11 *", desiredReplicas: "8"}
+- type: cron            # Christmas shopping peak: 20 to 26 December, every day
+  metadata: {timezone: Asia/Colombo, start: "40 8 20-26 12 *", end: "30 21 20-26 12 *", desiredReplicas: "8"}
+```
+
+- The start is the event's start minus its pre-warm; the end is its end plus its cooldown.
+- A range opens and closes every day of the range. One that crosses a month end becomes one trigger per month.
+- KEDA takes the largest active trigger, so the event raises the replica floor for its hours and changes
+  nothing else. An event that needs no more replicas than the workload always runs adds no trigger.
+- A cron repeats every year. A one-off event says so in the `kubesage.io/dated-events` annotation, and the
+  next Analyze drops its trigger once the date has passed.
+- The node pool is sized for the weekly peaks, not for dated ones: check it has room on the day.
+
+Earlier releases rendered a pair of `kubectl scale` CronJobs per event. They are gone; `scripts/demo-reset.sh`
+deletes any that an older Apply left behind.
 
 ## What the models may and may not do
 

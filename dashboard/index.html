@@ -6,6 +6,7 @@
 <title>KubeSage · AI Control Center</title>
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/finops.css">
+<link rel="stylesheet" href="css/costs.css">
 <link rel="stylesheet" href="css/lab.css">
 <link rel="stylesheet" href="css/agents.css">
 <link rel="stylesheet" href="css/tmux.css">
@@ -22,6 +23,7 @@
     <nav class="viewtabs" role="tablist" aria-label="Views">
       <button class="viewtab" role="tab" id="tab-demo" data-view="demo" aria-controls="demo" aria-selected="true">Demo</button>
       <button class="viewtab" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="main" aria-selected="false" tabindex="-1">FinOps</button>
+      <button class="viewtab" role="tab" id="tab-costs" data-view="costs" aria-controls="costs" aria-selected="false" tabindex="-1">Costs</button>
       <button class="viewtab" role="tab" id="tab-agents" data-view="agents" aria-controls="agents" aria-selected="false" tabindex="-1"><span class="vt-long">Agent team</span><span class="vt-short">Agents</span></button>
       <button class="viewtab" role="tab" id="tab-lab" data-view="lab" aria-controls="lab" aria-selected="false" tabindex="-1"><span class="vt-long">Under the hood</span><span class="vt-short">Lab</span></button>
       <button class="viewtab" role="tab" id="tab-tmux" data-view="tmux" aria-controls="tmuxview" aria-selected="false" tabindex="-1">tmux</button>
@@ -170,6 +172,55 @@
     <div class="card-body"><ol class="log" id="log"></ol></div>
   </section>
 </main>
+
+<div id="costs" class="lab costs" role="tabpanel" aria-labelledby="tab-costs" data-panel="costs" tabindex="-1" hidden>
+  <section class="lab-hero">
+    <div><p class="eyebrow" id="costs-info">Reading the cluster's bill…</p>
+      <h1>Where the <em>money goes.</em></h1>
+      <p>Every namespace, workload and team in the cluster, billed for the larger of what it requested and what it used.
+        What the nodes cost beyond that is idle. No model is called for any of this.</p></div>
+    <div class="lab-actions">
+      <label class="field">Window <select id="costs-days" aria-label="Days of history">
+        <option value="7">7 days</option><option value="14">14 days</option><option value="30" selected>30 days</option></select></label>
+      <button id="costs-refresh" class="btn btn-outline btn-sm">Refresh</button>
+      <button id="costs-export" class="btn btn-outline btn-sm" disabled>Download CSV</button>
+    </div>
+  </section>
+  <div id="costs-notice" class="notice" role="status" hidden><div id="costs-notice-text"></div></div>
+  <div class="figures" id="costs-figs"></div>
+
+  <section class="card" id="costs-trend-card">
+    <div class="card-head"><div><h2>Daily cost</h2><p class="muted">Each bar is one day of the node and volume bill, split by who it was for.</p></div>
+      <div class="legend" id="costs-legend"></div></div>
+    <div class="card-body"><div id="costs-trend" class="costs-trend"></div></div>
+  </section>
+
+  <section class="card" id="costs-table-card">
+    <div class="card-head"><div><h2>Allocation</h2><p class="muted" id="costs-table-note"></p></div>
+      <div class="chips" role="group" aria-label="Group costs by" id="costs-by">
+        <button class="chip" data-by="namespace" aria-pressed="true">Namespace</button>
+        <button class="chip" data-by="workload" aria-pressed="false">Workload</button>
+        <button class="chip" data-by="team" aria-pressed="false">Team</button></div></div>
+    <div class="card-body"><div class="costs-scroll"><table class="costs-table" id="costs-table"></table></div></div>
+  </section>
+
+  <div class="costs-two">
+    <section class="card" id="costs-budgets-card">
+      <div class="card-head"><div><h2>Budgets</h2><p class="muted">The last seven days as a monthly run rate, against the limits in <code>config/costs.yaml</code>.</p></div></div>
+      <div class="card-body" id="costs-budgets"></div>
+    </section>
+    <section class="card" id="costs-nodes-card">
+      <div class="card-head"><div><h2>Nodes</h2><p class="muted">What the bill is made of, at list prices from <code>config/skus.yaml</code>.</p></div></div>
+      <div class="card-body" id="costs-nodes"></div>
+    </section>
+  </div>
+
+  <section class="card" id="costs-findings-card">
+    <div class="card-head"><div><h2>Findings</h2><p class="muted" id="costs-findings-note"></p></div></div>
+    <div class="card-body" id="costs-findings"></div>
+  </section>
+  <ul class="costs-notes muted" id="costs-notes"></ul>
+</div>
 
 <div id="agents" class="lab" role="tabpanel" aria-labelledby="tab-agents" data-panel="agents" tabindex="-1" hidden>
   <section class="lab-hero">
@@ -335,6 +386,7 @@
 
 <script src="js/core.js"></script>
 <script src="js/finops.js"></script>
+<script src="js/costs.js"></script>
 <script src="js/lab.js"></script>
 <script src="js/agents.js"></script>
 <script src="js/tmux.js"></script>

@@ -11,6 +11,8 @@ other websites can't trigger actions. There's no authentication beyond that.
 | GET | `/api/config` | `{namespace, mode: "live"\|"mock", tiers: {triage: model, …}, gitops: bool, operation}` |
 | GET | `/api/reports` | Up to 50 completed runs, newest first, for the configured namespace: `{runs: [{run, generated_at, mode, namespace, llm_cost_usd, monthly_savings_usd}]}`. Savings can be negative. |
 | GET | `/api/report?run=<id>` | `{run, report}` for a selected run; omit `run` for the latest valid report. 404 before the first analysis. |
+| GET | `/api/costs?days=<1-90>` | Cost allocation for every namespace: `{report, config: {team_label, shared_namespaces, budgets}}`. `report` is the object `kubesage costs --json` prints (see [costs.md](costs.md#api-and-metrics)). Read-only, no LLM; cached for a minute. 400 for a bad `days`, 502 when the metrics can't be read. |
+| GET | `/metrics` | The cost report as Prometheus text: cluster, idle and potential-saving gauges, cost by namespace and team, efficiency and budget ratios. |
 | GET | `/api/cluster` | live nodes, pods, scaling (see below), or `{available: false}` |
 | POST | `/api/analyze` | Runs the full pipeline and atomically stores a report and manifests: `{run, report}`. 502 for metrics or LLM errors. |
 | POST | `/api/apply` | `{run?, dry_run: bool}` → `{run, dry_run, ok, error, steps: [{file, ok, skipped, output}]}`. Selected run is pinned for the whole operation. An omitted `run` means the newest run, and is refused if that run belongs to another namespace: writes never fall back to an older run. |

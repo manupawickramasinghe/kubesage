@@ -64,8 +64,8 @@ It also attaches **signals**, the deterministic tags triage sees:
 expected peak load, a pre-warm time (scale *before* the rush), replicas needed at a 70% CPU target, the
 off-peak scale-down count and a confidence. The calendar is the only source of future dates: prompts
 forbid the models from inventing or moving an event, and guardrails re-add any weekly calendar pre-warm
-window a model drops. Dated events are forecast and priced but carried as timed follow-ups, since the
-cron subset is weekly. Savings are reported in dollars **and percent** (`costing.savings_pct`) per
+window a model drops. Dated events are forecast and priced, and each becomes a dated cron trigger on
+the ScaledObject when the plan is rendered ([calendar.md](calendar.md#weekly-vs-dated-events)). Savings are reported in dollars **and percent** (`costing.savings_pct`) per
 workload and for the node pool, including the chosen SKU's price improvement over the current pool.
 
 ## Stage 2: triage

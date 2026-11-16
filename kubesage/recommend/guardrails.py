@@ -145,7 +145,7 @@ def _slo_guard(plan: ScalingPlan, s: WorkloadStats, slo: SLOSnapshot | None, not
 def _forecast_windows(plan: ScalingPlan, forecast: WorkloadForecast | None, notes: list[str]) -> None:
     """A declared calendar rush must be pre-warmed even if the model forgot it: scale up *before* the
     window opens, to at least the forecast replica count, and leave room above it. Dated events have no
-    weekly cron to enforce; they surface as follow-ups from the recommendation stage instead."""
+    weekly cron to enforce; recommend/timed.py adds a dated trigger for each when the plan is rendered."""
     if forecast is None:
         return
     have = {w.start for w in plan.cron_windows}

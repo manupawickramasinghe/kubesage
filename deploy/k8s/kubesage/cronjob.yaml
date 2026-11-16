@@ -24,6 +24,10 @@ spec:
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001
+            # The git key is mounted root-owned. fsGroup gives it this group, and mode 0440 below lets the group
+            # read it; ssh accepts that because the file is not owned by the user running it. With 0400 and no
+            # fsGroup, uid 10001 could not read the key and every scheduled run failed at `git clone`.
+            fsGroup: 10001
             seccompProfile: {type: RuntimeDefault}
           containers:
             - name: analyze
@@ -48,4 +52,4 @@ spec:
                 - {name: git-key, mountPath: /secrets/git, readOnly: true}
           volumes:
             - name: git-key
-              secret: {secretName: kubesage-git-key, defaultMode: 0o400}
+              secret: {secretName: kubesage-git-key, defaultMode: 0440}  # octal, as Kubernetes reads it

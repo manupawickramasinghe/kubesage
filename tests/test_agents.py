@@ -348,6 +348,28 @@ def _origin(tmp_path) -> str:
     return str(tmp_path / "origin.git")
 
 
+def test_the_executor_commits_on_a_machine_with_no_git_identity(tmp_path, monkeypatch):
+    from kubesage.agents import repo
+
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")   # a container or a CI runner: nobody ran `git config`
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    clone = tmp_path / "clone"
+    subprocess.run(["git", "clone", "-q", _origin(tmp_path), str(clone)], check=True)
+    author = lambda: subprocess.run(["git", "-C", str(clone), "log", "-1", "--format=%an <%ae>"], capture_output=True, text=True).stdout.strip()
+    (clone / "gitops" / "one.txt").write_text("1\n")
+    repo.commit(clone, "first")
+    assert author() == "KubeSage Executor <kubesage@localhost>"
+    monkeypatch.setenv("KUBESAGE_GIT_USER_NAME", "Platform Bot")
+    monkeypatch.setenv("KUBESAGE_GIT_USER_EMAIL", "bot@example.com")
+    (clone / "gitops" / "two.txt").write_text("2\n")
+    repo.commit(clone, "second")
+    assert author() == "Platform Bot <bot@example.com>"
+    subprocess.run(["git", "-C", str(clone), "config", "user.name", "A Person"], check=True)  # a configured name wins
+    (clone / "gitops" / "three.txt").write_text("3\n")
+    repo.commit(clone, "third")
+    assert author() == "A Person <bot@example.com>"
+
+
 def _render(target):
     """policy.render without kubectl: an app folder's own files, in the namespace its kustomization names."""
     if not target.is_dir():

@@ -19,6 +19,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        fsGroup: 10001  # the runs volume must be writable by the non-root user
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: kubesage

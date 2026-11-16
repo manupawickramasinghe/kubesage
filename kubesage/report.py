@@ -117,3 +117,62 @@ def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, 
                   f"{_usd(b['raw_series_to_strategist'])}")
     for n in res.notes:
         console.print(f"[magenta]note[/] {n}")
+
+
+BUDGET_STYLE = {"over": "bold red", "at-risk": "yellow", "ok": "green", "unknown": "dim"}
+FINDING_STYLE = {"saving": "green", "risk": "yellow", "info": "cyan"}
+
+
+def _bar(daily: list[float], width: int = 14) -> str:
+    """A sparkline of the last `width` days."""
+    values = daily[-width:]
+    top = max(values, default=0)
+    if top <= 0:
+        return ""
+    return "".join(" ▁▂▃▄▅▆▇█"[min(8, round(v / top * 8))] for v in values)
+
+
+def print_costs(console: Console, report, by: str = "namespace", top: int = 25) -> None:
+    """`kubesage costs`: the cluster bill, one breakdown, budgets and findings. `report` is a costs.CostReport."""
+    c = report.cluster
+    console.rule(f"KubeSage · cost allocation, last {report.observed_days} of {report.window_days} days ($0.00, no LLM)")
+    eff = "—" if c.efficiency is None else f"{c.efficiency:.0%}"
+    console.print(
+        f"Cluster [bold]${c.monthly_usd:,.2f}[/] a month: nodes ${c.nodes_monthly_usd:,.2f}, volumes "
+        f"${c.storage_monthly_usd:,.2f}. Pods are billed ${c.allocated_monthly_usd:,.2f}; "
+        f"[bold]${c.idle_monthly_usd:,.2f} ({c.idle_pct:.0f}%)[/] of the node bill is idle.\n"
+        f"CPU: {c.cpu_capacity_cores:g} cores on the nodes, {c.cpu_request_cores:g} requested, {c.cpu_used_cores:g} used. "
+        f"Memory: {c.mem_capacity_gib:g} GiB, {c.mem_request_gib:g} requested, {c.mem_used_gib:g} used. "
+        f"Efficiency {eff}.")
+    rows = {"namespace": report.by_namespace, "workload": report.by_workload, "team": report.by_team}[by]
+    t = Table(title=f"\nBy {by}", title_justify="left")
+    cols = (["namespace"] if by == "workload" else []) + [by, "pods", "cpu req", "cpu used", "mem req", "mem used",
+                                                          "efficiency", "$/month", "with shared", "share", "trend"]
+    for col in cols:
+        t.add_column(col, justify="left" if col in (by, "namespace", "trend") else "right", overflow="fold")
+    for l in rows[:top]:
+        name = f"{l.name} [dim](shared)[/]" if l.shared else l.name
+        cells = ([l.namespace or ""] if by == "workload" else []) + [
+            name, str(l.pods), f"{l.cpu_request_cores:.2f}", f"{l.cpu_used_cores:.2f}", f"{l.mem_request_gib:.2f}Gi",
+            f"{l.mem_used_gib:.2f}Gi", "—" if l.efficiency is None else f"{l.efficiency:.0%}", f"${l.monthly_usd:,.2f}",
+            "·" if l.shared else f"${l.monthly_loaded_usd:,.2f}", "·" if l.shared else f"{l.share_pct:.0f}%", _bar(l.daily_usd)]
+        t.add_row(*cells)
+    console.print(t)
+    if len(rows) > top:
+        console.print(f"  … {len(rows) - top} more; --top {len(rows)} shows all")
+    if report.budgets:
+        b = Table(title="\nBudgets (monthly run rate against the limit)", title_justify="left")
+        for col in ("scope", "name", "budget", "run rate", "used", "status"):
+            b.add_column(col, justify="right" if col in ("budget", "run rate", "used") else "left")
+        for x in report.budgets:
+            b.add_row(x.scope, x.name, f"${x.budget_usd:,.2f}", "—" if x.monthly_usd is None else f"${x.monthly_usd:,.2f}",
+                      "—" if x.used_pct is None else f"{x.used_pct:.0f}%", f"[{BUDGET_STYLE[x.status]}]{x.status}[/]")
+        console.print(b)
+    if report.findings:
+        console.print(f"\n[bold]Findings[/] · ${report.potential_monthly_usd:,.2f} a month in savings to check")
+        for f in report.findings:
+            money = f"  ${f.monthly_usd:,.2f}/mo" if f.monthly_usd else ""
+            console.print(f"  [{FINDING_STYLE[f.severity]}]{f.kind:<14}[/] [bold]{f.target}[/]{money}\n"
+                          f"                 {f.title}. {f.detail}\n                 [dim]→ {f.action}[/]")
+    for note in report.notes:
+        console.print(f"[dim]note: {note}[/]")

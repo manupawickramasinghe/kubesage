@@ -6,6 +6,8 @@ export KUBECONFIG="${KUBECONFIG:-$BIN_DIR/kubeconfig}"
 
 kubectl -n demo delete scaledobjects.keda.sh -l app.kubernetes.io/managed-by=kubesage --ignore-not-found
 kubectl -n demo delete jobs -l app.kubernetes.io/managed-by=kubesage --ignore-not-found
+# Releases before dated events became KEDA triggers left a pair of CronJobs per event, under this label.
+kubectl -n demo delete cronjobs -l kubesage.io/managed-by=kubesage --ignore-not-found
 kubectl apply -k "$REPO_ROOT/deploy/k8s/demo/" >/dev/null
 # `kubectl apply` would keep fields that `kubectl patch` added, so replace the Deployments outright.
 kubectl kustomize "$REPO_ROOT/deploy/k8s/demo/" \
