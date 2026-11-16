@@ -43,5 +43,31 @@ RUN=$(ls -d "$OUT"/runs/*/ | tail -1)
 grep -q 'kubesage.io/dated-events' "$RUN/manifests/checkout-web.keda.yaml"
 ! ls "$RUN"/manifests/*.timed.yaml >/dev/null 2>&1
 "$KUBESAGE" realized --vm "$VM" --out-dir "$OUT/runs" > /dev/null
+
+# The whole cluster in one run: workloads found through their owners, the node pool read from the real nodes.
+"$KUBESAGE" analyze --vm "$VM" --all-namespaces --mode mock --out-dir "$OUT/all" > /dev/null
+ALL=$(ls -d "$OUT"/all/*/ | tail -1)
+"$PY" - "$ALL" "$RUN" <<'PY'
+import json, pathlib, sys, yaml
+run, one = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+r = json.loads((run / "report.json").read_text())
+assert r["namespaces"] == ["data", "demo", "platform", "staging"], r["namespaces"]   # not kube-system, not monitoring
+stats = {s["id"]: s for s in r["stats"]}
+assert stats["data/orders-db"]["kind"] == "StatefulSet", stats["data/orders-db"]["kind"]
+web = stats["staging/checkout-web"]
+assert (web["container"], web["sidecars"]) == ("app", ["envoy"]), web        # the main container, not the proxy
+assert "platform/node-problem-detector" not in stats                           # a DaemonSet is not right-sized
+pool = r["node_pool"]
+assert (pool["before_sku"], pool["before_nodes"]) == ("D8s_v5", 2), pool      # the cluster's nodes, not the config's
+assert pool["background_pods"] == 6, pool["background_pods"]                  # kube-system, monitoring, the sidecar
+patch = yaml.safe_load((run / "manifests" / "staging.checkout-web.patch.yaml").read_text())
+assert patch["spec"]["template"]["spec"]["containers"][0]["name"] == "app", patch
+assert yaml.safe_load((run / "manifests" / "data.orders-db.migrate.yaml").read_text())["kind"] == "StatefulSet"
+# One namespace alone still counts everything else on the nodes.
+single = json.loads((one / "report.json").read_text())["node_pool"]
+assert single["before_nodes"] == 2 and single["background_pods"] > 10, single
+print(f"whole cluster: {len(stats)} workloads in {len(r['namespaces'])} namespaces, pool {pool['before_nodes']}x "
+      f"{pool['before_sku']} -> {pool['choice']['nodes']}x {pool['choice']['sku']}, {pool['background_pods']} pods left alone")
+PY
 "$KUBESAGE" whatif --vm "$VM" --multiplier 5 --json > /dev/null
 echo "end-to-end: ok"

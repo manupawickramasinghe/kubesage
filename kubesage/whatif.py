@@ -54,7 +54,7 @@ def simulate(stats: list[WorkloadStats], calendar: BusinessCalendar | None = Non
         cpu_req, mem_req = s.cpu_request_cores or 0.0, s.mem_request_mib or 0.0
 
         windows: list[tuple[str, float, bool]] = []  # (event, active fraction of time, is_dated)
-        for event in calendar.for_workload(s.name):
+        for event in calendar.for_workload(s.name, s.namespace):
             if event_name and event.name != event_name:
                 continue
             if event.weekly and event.days:

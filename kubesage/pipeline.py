@@ -50,6 +50,11 @@ class NodePoolResult(BaseModel):
     demand_before: costing.Demand
     demand_after: costing.Demand
     demand_burst: costing.Demand | None = None  # every CPU autoscaler at its maximum; checked, not sized for
+    # Pods the analysis does not resize but the nodes must still hold: other namespaces, DaemonSets, sidecars.
+    # They are part of every demand above, at their current requests.
+    background_pods: int = 0
+    background_cpu_cores: float = 0.0
+    background_mem_mib: float = 0.0
     node_label: str
     migrations: dict[str, str] = {}  # filename -> nodeSelector patch, empty when the SKU doesn't change
     notes: list[str] = []
@@ -58,7 +63,8 @@ class NodePoolResult(BaseModel):
 class AnalysisResult(BaseModel):
     generated_at: str
     mode: str
-    namespace: str
+    namespace: str  # the analysed namespace; several are joined with commas
+    namespaces: list[str] = []
     window_days: int
     tiers: dict[str, str] = {}  # tier key -> display label, so a report renders the same wherever it's opened
     stats: list[WorkloadStats]
@@ -96,7 +102,13 @@ def write_run(result: AnalysisResult, run_dir: Path, trace: list[dict] | None = 
 
 
 def _compact(s: WorkloadStats) -> dict:
-    return s.model_dump(exclude_none=True)
+    """What a model is shown. The common shape (a Deployment, one container named like it) adds nothing."""
+    out = s.model_dump(exclude_none=True)
+    if s.kind == "Deployment":
+        del out["kind"]
+    if not s.sidecars:
+        del out["sidecars"]
+    return out
 
 
 def _burst_note(burst: costing.Demand, pool: "NodePoolResult", catalog: SkuCatalog) -> str:
@@ -129,9 +141,17 @@ def _demand(rows: list[tuple[float, float, float]]) -> costing.Demand:
 
 
 def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, namespace: str, days: int,
-            tz: str, raw_points: int, calendar: BusinessCalendar | None = None) -> AnalysisResult:
+            tz: str, raw_points: int, calendar: BusinessCalendar | None = None,
+            background: list[tuple[float, float]] | None = None, notes: list[str] | None = None) -> AnalysisResult:
+    """`background` is every pod the analysis leaves alone, as (CPU cores, MiB) requested: the node pool has to
+    hold them too. `notes` are carried into the report (what the cluster inventory could not find)."""
     ledger: list[LedgerEntry] = []
-    notes: list[str] = []
+    notes = list(notes or [])
+    background = [(c, m) for c, m in (background or []) if c > 0 or m > 0]
+    namespaces = sorted({s.namespace for s in stats})
+    # One namespace: files are named after the workload, as always. Several: <namespace>.<name>, so two
+    # namespaces' workloads of the same name don't overwrite each other.
+    stem = (lambda s: f"{s.namespace}.{s.name}") if len(namespaces) > 1 else (lambda s: s.name)
 
     # Stage 1.5: deterministic forecast ($0, no LLM). History peaks plus the operator's business calendar
     # become expected load, pre-warm times and replica counts the models reason about but never invent.
@@ -193,8 +213,9 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
             burst_rows.append((cpu_new, mem_new, costing.burst_replicas(rec.scaling, s.replicas)))
             # Dated calendar events (Black Friday) are not the model's to schedule: they join the ScaledObject as
             # cron triggers with a date, in the same run, or the forecast's promise is never applied.
-            manifests = render.render(rec, namespace=s.namespace, name=s.name, container=s.name, tz=tz,
-                                      dated=timed.dated_triggers(forecast_by_id[s.id]), current_replicas=s.replicas)
+            manifests = render.render(rec, namespace=s.namespace, name=s.name, container=s.container or s.name, tz=tz,
+                                      dated=timed.dated_triggers(forecast_by_id[s.id]), current_replicas=s.replicas,
+                                      kind=s.kind, stem=stem(s))
             result = result.model_copy(update=dict(
                 tier=tier, recommendation=rec, guardrail_notes=gnotes, monthly_after_usd=round(after, 2),
                 monthly_savings_usd=round(before - after, 2),
@@ -207,8 +228,17 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
 
     node_pool = None
     if done:
-        node_pool = _plan_nodes(llm, catalog, stats, _demand(before_rows), _demand(after_rows), ledger)
-        burst = _demand(burst_rows)
+        fixed = [(c, m, 1) for c, m in background]  # unchanged before and after, but the nodes must hold them
+        node_pool = _plan_nodes(llm, catalog, stats, _demand(before_rows + fixed), _demand(after_rows + fixed), ledger, stem)
+        burst = _demand(burst_rows + fixed)
+        if node_pool and background:
+            node_pool.background_pods = len(background)
+            node_pool.background_cpu_cores = round(sum(c for c, _ in background), 3)
+            node_pool.background_mem_mib = round(sum(m for _, m in background), 1)
+            node_pool.notes.append(
+                f"Counts {len(background)} pod(s) this analysis does not resize (other namespaces, DaemonSets, sidecars) "
+                f"at their current requests: {node_pool.background_cpu_cores:g} cores, "
+                f"{node_pool.background_mem_mib / 1024:.1f} GiB.")
         if node_pool and (burst.cpu_cores, burst.mem_mib) != (node_pool.demand_after.cpu_cores, node_pool.demand_after.mem_mib):
             node_pool.demand_burst = burst
             node_pool.notes.append(_burst_note(burst, node_pool, catalog))
@@ -228,14 +258,14 @@ def analyze(stats: list[WorkloadStats], *, llm: LLMClient, catalog: SkuCatalog, 
         "raw_series_to_strategist": round(strategist.cost(raw_points * RAW_TOKENS_PER_POINT, 0, out_tokens), 6),
     }
     return AnalysisResult(generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), mode=llm.mode,
-                          namespace=namespace, window_days=days, stats=stats, forecasts=forecasts,
+                          namespace=namespace, namespaces=namespaces, window_days=days, stats=stats, forecasts=forecasts,
                           tiers={name: t.label or name for name, t in llm.models.tiers.items()},
                           workloads=results, node_pool=node_pool,
                           ledger=ledger, notes=notes, llm_cost_usd=round(llm_cost, 6), baselines_usd=baselines)
 
 
 def _plan_nodes(llm: LLMClient, catalog: SkuCatalog, stats: list[WorkloadStats], before: costing.Demand,
-                after: costing.Demand, ledger: list[LedgerEntry]) -> NodePoolResult | None:
+                after: costing.Demand, ledger: list[LedgerEntry], stem=lambda s: s.name) -> NodePoolResult | None:
     candidates = costing.node_candidates(after, catalog)
     if not candidates:
         return None
@@ -258,7 +288,7 @@ def _plan_nodes(llm: LLMClient, catalog: SkuCatalog, stats: list[WorkloadStats],
         choice = choice.model_copy(update={"nodes": match.nodes})
     migrations = {}
     if choice.sku != current.sku:
-        migrations = {f"{s.name}.migrate.yaml": render.migration(s.namespace, s.name, catalog.node_label, choice.sku)
+        migrations = {f"{stem(s)}.migrate.yaml": render.migration(s.namespace, s.name, catalog.node_label, choice.sku, s.kind)
                       for s in stats}
     before_usd = costing.pool_monthly(current.sku, current.nodes, catalog)
     after_usd = costing.pool_monthly(choice.sku, choice.nodes, catalog)

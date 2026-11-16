@@ -141,8 +141,12 @@ class BusinessCalendar(BaseModel):
     prewarm_minutes: int = Field(default=15, ge=0, le=240)
     events: list[CalendarEvent] = Field(default_factory=list)
 
-    def for_workload(self, name: str) -> list[CalendarEvent]:
-        return [e for e in self.events if "*" in e.workloads or name in e.workloads]
+    def for_workload(self, name: str, namespace: str | None = None) -> list[CalendarEvent]:
+        """Events that name this workload. An entry `namespace/name` means that one workload; a bare `name` means
+        the workload of that name in any namespace, which is right for one namespace and too wide for a cluster
+        whose staging copy shares its names with production."""
+        wanted = {"*", name} | ({f"{namespace}/{name}"} if namespace else set())
+        return [e for e in self.events if wanted & set(e.workloads)]
 
 
 def _load(name: str) -> dict:

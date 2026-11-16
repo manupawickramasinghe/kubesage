@@ -25,6 +25,9 @@ class WorkloadStats(BaseModel):
     id: str
     namespace: str
     name: str
+    kind: str = "Deployment"  # the controller: Deployment or StatefulSet
+    container: str | None = None  # the container these numbers describe; None: it is named like the workload
+    sidecars: list[str] = []  # the pod's other containers: measured for the node pool, not right-sized
     window_days: float
     replicas: int
     cpu_request_cores: float | None
@@ -121,7 +124,8 @@ def memory_growth(ts: np.ndarray, mem_mib: np.ndarray, restarts: np.ndarray) -> 
 
 def summarize(*, namespace: str, name: str, ts: np.ndarray, cpu_pod: np.ndarray, cpu_total: np.ndarray,
               mem_pod: np.ndarray, restarts: np.ndarray, replicas: int, cpu_request: float | None,
-              cpu_limit: float | None, mem_request: float | None, mem_limit: float | None, tz: str) -> WorkloadStats:
+              cpu_limit: float | None, mem_request: float | None, mem_limit: float | None, tz: str,
+              kind: str = "Deployment", container: str | None = None, sidecars: list[str] | None = None) -> WorkloadStats:
     """Inputs are aligned arrays (NaN = missing); memory in bytes, CPU in cores."""
     ok = np.isfinite(cpu_pod) & np.isfinite(cpu_total) & np.isfinite(mem_pod)
     ts, cpu_pod, cpu_total, mem = ts[ok], cpu_pod[ok], cpu_total[ok], mem_pod[ok] / MI
@@ -148,7 +152,8 @@ def summarize(*, namespace: str, name: str, ts: np.ndarray, cpu_pod: np.ndarray,
     n_restarts = int(restarts[-1] - restarts[0])
 
     s = dict(
-        id=f"{namespace}/{name}", namespace=namespace, name=name,
+        id=f"{namespace}/{name}", namespace=namespace, name=name, kind=kind,
+        container=None if container == name else container, sidecars=sorted(sidecars or []),
         window_days=round(float(ts[-1] - ts[0]) / 86400, 1), replicas=replicas,
         cpu_request_cores=cpu_request, cpu_limit_cores=cpu_limit,
         mem_request_mib=mem_request_mib, mem_limit_mib=mem_limit_mib,

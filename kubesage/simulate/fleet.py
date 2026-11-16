@@ -9,6 +9,9 @@ three teams. Four problems are baked in, one per finding cost allocation should 
 - `platform/node-problem-detector` runs without requests;
 - `staging/load-test` appears on the last day and triples the namespace's cost (a cost spike).
 
+`staging/checkout-web` is shaped like a real chart's pod: its container is called `app`, not `checkout-web`,
+and an `envoy` sidecar runs beside it. Right-sizing has to find the main container and leave the sidecar alone.
+
 Every series carries `kubesage_sim="fleet"`, which is how a re-run replaces them without touching anything a
 real cluster scraped. Owner references, team labels, node labels and capacity are written the way
 kube-state-metrics exports them, so the same queries work on a real cluster.
@@ -41,6 +44,9 @@ class FleetWorkload:
     swing: float = 0.3  # how much of the average follows the time of day
     last_hours: float | None = None  # only exists for the last N hours of the window
     volume_gib: int = 0  # one claim per pod, StatefulSet style
+    container: str | None = None  # the main container's name; None: named like the workload
+    # A second container in every pod: (name, cpu request, memory request, average cores, average bytes)
+    sidecar: tuple[str, float, int, float, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -58,7 +64,9 @@ FLEET: list[FleetWorkload] = [
     FleetWorkload("data", "orders-db", "StatefulSet", "data", 1, 1.0, 2 * GI, 0.42, int(1.6 * GI), volume_gib=50),
     FleetWorkload("data", "redis-cache", "Deployment", "data", 1, 0.25, 512 * MI, 0.11, 300 * MI),
     FleetWorkload("data", "legacy-export", "Deployment", "data", 1, 0.5, 1 * GI, 0.002, 64 * MI, swing=0.0),
-    FleetWorkload("staging", "checkout-web", "Deployment", "storefront", 1, 0.25, 256 * MI, 0.04, 140 * MI),
+    # Built the way real charts are: the container is called "app", and a proxy rides along in every pod.
+    FleetWorkload("staging", "checkout-web", "Deployment", "storefront", 1, 0.25, 256 * MI, 0.04, 140 * MI,
+                  container="app", sidecar=("envoy", 0.05, 64 * MI, 0.01, 40 * MI)),
     FleetWorkload("staging", "catalog-api", "Deployment", "storefront", 1, 0.1, 128 * MI, 0.03, 90 * MI),
     FleetWorkload("staging", "payment-service", "Deployment", "storefront", 1, 0.5, 1 * GI, 0.04, 380 * MI),
     FleetWorkload("staging", "load-test", "Deployment", "storefront", 3, 1.0, 512 * MI, 0.85, 300 * MI, swing=0.1,
@@ -110,6 +118,9 @@ def generate_fleet(*, days: int, end: int, tz: str, seed: int = 42, step: int = 
         if w.kind == "Deployment":
             const("kube_replicaset_owner", {"namespace": w.namespace, "replicaset": f"{w.name}-{template}",
                                             "owner_kind": "Deployment", "owner_name": w.name}, 1, alive)
+            const("kube_deployment_spec_replicas", {"namespace": w.namespace, "deployment": w.name}, w.replicas, alive)
+        elif w.kind == "StatefulSet":
+            const("kube_statefulset_replicas", {"namespace": w.namespace, "statefulset": w.name}, w.replicas, alive)
         for i in range(w.replicas):
             pod = {"Deployment": f"{w.name}-{template}-{_suffix(rng, 5)}", "StatefulSet": f"{w.name}-{i}",
                    "DaemonSet": f"{w.name}-{_suffix(rng, 5)}"}[w.kind]
@@ -119,14 +130,21 @@ def generate_fleet(*, days: int, end: int, tz: str, seed: int = 42, step: int = 
             cpu = np.clip(w.cpu_used * wave * rng.uniform(0.95, 1.05) + rng.normal(0, w.cpu_used * 0.05, n), 0.0005, None)
             mem = np.clip(w.mem_used * (1 + 0.1 * w.swing * (2 * _diurnal(t.hour[alive]) - 1))
                           + rng.normal(0, w.mem_used * 0.01, n), MI, None)
-            box = {**labels, "container": w.name}
-            out.append(Series({"__name__": "container_cpu_usage_seconds_total", **kubelet, **box}, ts_ms[alive],
-                              np.cumsum(cpu * step)))
-            out.append(Series({"__name__": "container_memory_working_set_bytes", **kubelet, **box}, ts_ms[alive], np.round(mem)))
-            if w.cpu_request is not None:
-                const("kube_pod_container_resource_requests", {**box, "resource": "cpu", "unit": "core"}, w.cpu_request, alive)
-            if w.mem_request is not None:
-                const("kube_pod_container_resource_requests", {**box, "resource": "memory", "unit": "byte"}, w.mem_request, alive)
+            boxes = [(w.container or w.name, w.cpu_request, w.mem_request, cpu, mem)]
+            if w.sidecar:
+                name, cpu_req, mem_req, cpu_used, mem_used = w.sidecar
+                boxes.append((name, cpu_req, mem_req, np.clip(cpu_used + rng.normal(0, cpu_used * 0.05, n), 0.0005, None),
+                              np.clip(mem_used + rng.normal(0, mem_used * 0.01, n), MI, None)))
+            for name, cpu_req, mem_req, cpu_used, mem_used in boxes:
+                box = {**labels, "container": name}
+                out.append(Series({"__name__": "container_cpu_usage_seconds_total", **kubelet, **box}, ts_ms[alive],
+                                  np.cumsum(cpu_used * step)))
+                out.append(Series({"__name__": "container_memory_working_set_bytes", **kubelet, **box}, ts_ms[alive],
+                                  np.round(mem_used)))
+                if cpu_req is not None:
+                    const("kube_pod_container_resource_requests", {**box, "resource": "cpu", "unit": "core"}, cpu_req, alive)
+                if mem_req is not None:
+                    const("kube_pod_container_resource_requests", {**box, "resource": "memory", "unit": "byte"}, mem_req, alive)
             owner = (("ReplicaSet", f"{w.name}-{template}") if w.kind == "Deployment" else (w.kind, w.name))
             const("kube_pod_owner", {**labels, "owner_kind": owner[0], "owner_name": owner[1],
                                      "owner_is_controller": "true"}, 1, alive)

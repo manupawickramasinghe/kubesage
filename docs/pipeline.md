@@ -24,13 +24,34 @@ flowchart TB
 
 ## Stage 1: statistics
 
-`metrics/collect.py` queries per container:
+`metrics/collect.py` reads every pod and container of a namespace and groups them into workloads:
 
-- CPU per pod, max and total across pods;
-- memory working set;
-- restarts;
-- requests and limits (from kube-state-metrics);
-- replicas.
+- **Which workload.** A pod belongs to the controller its owner references name (ReplicaSet → Deployment), read
+  from `kube_pod_owner` and `kube_replicaset_owner`. Without those series the pod's name is read instead.
+  Deployments and StatefulSets are right-sized. DaemonSets, Jobs and bare pods are not: their replica count is
+  not theirs to set, or they don't live long enough to have a history.
+- **Which container.** The record describes the pod's main container, the one that reserves and uses the most,
+  under its real name. Other containers are listed as `sidecars` and left alone.
+- **What is read:** CPU per pod (max and total across pods), memory working set, restarts, requests and limits
+  (the newest pods', so a request that was just lowered is not hidden by the pods it replaced) and replicas.
+
+`kubesage analyze --namespace a,b` or `--all-namespaces` (every namespace except the shared ones in
+`config/costs.yaml`) puts several namespaces in one run. Its manifests are then named
+`<namespace>.<workload>.patch.yaml`, so two namespaces' workloads of the same name don't collide. The web UI and
+`kubesage gitops` still work on one namespace at a time.
+
+### The rest of the cluster
+
+A node pool has to hold every pod, not only the ones being resized. `metrics/cluster.py` reads, at the newest
+moment the database has samples for:
+
+- **every pod's requests**: the pods the run leaves alone (other namespaces, DaemonSets, Jobs, the sidecars of
+  resized workloads) are added to the node-pool demand at their current requests, before and after;
+- **the nodes**: when they are all one catalog SKU, that is the pool the plan is compared with. Mixed or unknown
+  nodes keep `current_pool` from `config/skus.yaml`, and the report says so.
+
+The node-pool result carries `background_pods`, `background_cpu_cores` and `background_mem_mib`. A database with
+no pod inventory gives a note and a pool sized for the analysed namespaces alone, as before.
 
 Workloads with **under an hour of samples are skipped**: a debug pod or a just-deployed workload has no history
 worth analysing, and one used to abort the whole run. `metrics/stats.py` reduces each workload to a compact

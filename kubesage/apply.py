@@ -18,6 +18,7 @@ import yaml
 
 REPO_BIN = Path(__file__).resolve().parent.parent / ".bin"
 MANAGED_LABEL = "app.kubernetes.io/managed-by=kubesage"
+PATCHED_KINDS = ("Deployment", "StatefulSet")
 NO_KIND = "doesn't have a resource type"
 
 
@@ -88,8 +89,12 @@ def plan(run_dir: Path, *, dry_run: bool = False, kubectl: list[str] | None = No
         if report_file.exists() else {}
 
     def patch(f: Path) -> Step:
-        meta = yaml.safe_load(f.read_text())["metadata"]
-        return Step(f, [*kubectl, "-n", meta["namespace"], "patch", "deployment", meta["name"],
+        doc = yaml.safe_load(f.read_text())
+        meta = doc["metadata"]
+        kind = doc.get("kind", "Deployment")
+        if kind not in PATCHED_KINDS:  # the file names a kind; never hand kubectl one KubeSage doesn't render
+            raise ValueError(f"{f.name}: cannot patch a {kind}")
+        return Step(f, [*kubectl, "-n", meta["namespace"], "patch", kind.lower(), meta["name"],
                         "--type", "strategic", "--patch-file", str(f), *extra])
 
     def unscale(f: Path) -> Step | None:
@@ -97,7 +102,9 @@ def plan(run_dir: Path, *, dry_run: bool = False, kubectl: list[str] | None = No
         # KEDA made for it keeps resizing the Deployment the patch just pinned.
         doc = yaml.safe_load(f.read_text())
         meta = doc["metadata"]
-        if (doc.get("spec") or {}).get("replicas") is None or (manifests / f"{meta['name']}.keda.yaml").exists():
+        # The ScaledObject for this workload sits beside the patch under the same stem (the workload's name, or
+        # <namespace>.<name> in a run over several namespaces).
+        if (doc.get("spec") or {}).get("replicas") is None or (manifests / (f.name.removesuffix(".patch.yaml") + ".keda.yaml")).exists():
             return None
         return Step(f, [*kubectl, "-n", meta["namespace"], "delete", "scaledobjects.keda.sh", "-l", MANAGED_LABEL,
                         "--field-selector", f"metadata.name={meta['name']}", "--ignore-not-found", *extra])

@@ -15,7 +15,8 @@
 #   traffic_multiplier  expected load vs the workload's normal (off-peak) baseline: 3.0 = three times normal
 #   prewarm_minutes     start scaling this many minutes *before* the window opens (default: top-level default)
 #   cooldown_minutes    keep the extra replicas this long after the window closes (default 0)
-#   workloads           workload names this event drives, or ["*"] for all of them
+#   workloads           the workloads this event drives: "namespace/name" for one, a bare "name" for that name
+#                       in every namespace, or ["*"] for all of them
 #   note                why this event exists; the model quotes it, it does not edit it
 #
 # Weekly events can be rendered as KEDA cron triggers. Dated events cannot (the cron subset is weekly), so
@@ -32,7 +33,7 @@ events:
     end_time: "17:00"
     traffic_multiplier: 1.8
     prewarm_minutes: 15
-    workloads: [checkout-web, catalog-api, auth-api]
+    workloads: [demo/checkout-web, demo/catalog-api, demo/auth-api]
     note: Staff and customers arrive from 09:00 on weekdays; pre-warm a few minutes before, scale down after 17:00.
 
   - name: Black Friday sale
@@ -44,7 +45,7 @@ events:
     traffic_multiplier: 3.0
     prewarm_minutes: 30
     cooldown_minutes: 60
-    workloads: [checkout-web, payment-service, catalog-api]
+    workloads: [demo/checkout-web, demo/payment-service, demo/catalog-api]
     note: Biggest retail day of the year. Expect roughly triple normal checkout traffic; never scale to zero before it.
 
   - name: Christmas shopping peak
@@ -56,7 +57,7 @@ events:
     traffic_multiplier: 2.2
     prewarm_minutes: 20
     cooldown_minutes: 30
-    workloads: [checkout-web, payment-service, catalog-api]
+    workloads: [demo/checkout-web, demo/payment-service, demo/catalog-api]
     note: Holiday shopping week. Sustained elevated traffic, lower than Black Friday but all week.
 
   - name: New Year sale
@@ -68,5 +69,5 @@ events:
     traffic_multiplier: 2.0
     prewarm_minutes: 20
     cooldown_minutes: 30
-    workloads: [checkout-web, catalog-api]
+    workloads: [demo/checkout-web, demo/catalog-api]
     note: New Year promotions drive about double normal storefront traffic.

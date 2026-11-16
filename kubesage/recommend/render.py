@@ -22,13 +22,19 @@ def _dump(doc: dict) -> str:
 
 
 def render(rec: Recommendation, *, namespace: str, name: str, container: str, tz: str,
-           dated: list | None = None, current_replicas: int = 1) -> dict[str, str]:
-    """Return {filename: yaml}. Patches apply with `kubectl patch deployment --type strategic --patch-file`.
+           dated: list | None = None, current_replicas: int = 1, kind: str = "Deployment",
+           stem: str | None = None) -> dict[str, str]:
+    """Return {filename: yaml}. Patches apply with `kubectl patch <kind> --type strategic --patch-file`.
+
+    `kind` is the controller (Deployment or StatefulSet) and `container` the container the recommendation is
+    for. `stem` names the files; it defaults to the workload's name, and a run over several namespaces passes
+    `<namespace>.<name>` so two namespaces' workloads of the same name don't overwrite each other.
 
     `dated` are the calendar's dated events as KEDA cron triggers (recommend/timed.py). They join the
     ScaledObject the plan asks for; a workload whose plan is a fixed replica count, or no scaling change at
     all, gets a ScaledObject that holds that count and only moves for the events."""
     files: dict[str, str] = {}
+    stem = stem or name
     pod_spec: dict = {}
     if rec.resources is not None:
         r = rec.resources
@@ -55,23 +61,23 @@ def render(rec: Recommendation, *, namespace: str, name: str, container: str, tz
         metadata: dict = {"name": name, "namespace": namespace, "labels": MANAGED_BY}
         if dated:
             metadata["annotations"] = {ANNOTATION: "; ".join(dict.fromkeys(d.label for d in dated))}
-        files[f"{name}.keda.yaml"] = _dump({
+        target = {"name": name} if kind == "Deployment" else {"kind": kind, "name": name}  # KEDA defaults to Deployment
+        files[f"{stem}.keda.yaml"] = _dump({
             "apiVersion": "keda.sh/v1alpha1", "kind": "ScaledObject", "metadata": metadata,
-            "spec": {"scaleTargetRef": {"name": name}, "minReplicaCount": floor,
+            "spec": {"scaleTargetRef": target, "minReplicaCount": floor,
                      "maxReplicaCount": ceiling, "triggers": triggers}})
     if pod_spec:
         patch["template"] = {"spec": pod_spec}
     if patch:
-        files[f"{name}.patch.yaml"] = _dump(deployment_patch(namespace, name, patch))
+        files[f"{stem}.patch.yaml"] = _dump(workload_patch(kind, namespace, name, patch))
     return files
 
 
-def migration(namespace: str, name: str, label: str, sku: str) -> str:
-    """Patch that moves a Deployment's pods onto nodes of another SKU."""
-    return _dump(deployment_patch(namespace, name, {"template": {"spec": {"nodeSelector": {label: sku}}}}))
+def migration(namespace: str, name: str, label: str, sku: str, kind: str = "Deployment") -> str:
+    """Patch that moves a workload's pods onto nodes of another SKU."""
+    return _dump(workload_patch(kind, namespace, name, {"template": {"spec": {"nodeSelector": {label: sku}}}}))
 
 
-def deployment_patch(namespace: str, name: str, spec: dict) -> dict:
+def workload_patch(kind: str, namespace: str, name: str, spec: dict) -> dict:
     """A strategic-merge patch with a full header, so it works with both `kubectl patch` and kustomize."""
-    return {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": name, "namespace": namespace},
-            "spec": spec}
+    return {"apiVersion": "apps/v1", "kind": kind, "metadata": {"name": name, "namespace": namespace}, "spec": spec}
