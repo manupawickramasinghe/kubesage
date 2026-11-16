@@ -41,7 +41,7 @@ def generate(workloads: Iterable[Workload], *, namespace: str, days: int, end: i
         return Series({"__name__": name, **labels}, spec_ms, np.full(len(spec_ms), value))
 
     for w in workloads:
-        template_hash = f"{rng.integers(16**10):010x}"[:10]
+        template_hash = _safe_hash(int(rng.integers(16**10)))
         out.append(spec("kube_deployment_spec_replicas",
                         {"job": "kube-state-metrics", "namespace": namespace, "deployment": w.name}, w.replicas))
         for _ in range(w.replicas):
@@ -61,6 +61,17 @@ def generate(workloads: Iterable[Workload], *, namespace: str, days: int, end: i
                     out.append(spec(metric, {**ksm, "resource": "cpu", "unit": "core"}, cpu_v))
                 if mem_v is not None:
                     out.append(spec(metric, {**ksm, "resource": "memory", "unit": "byte"}, mem_v))
+    return out
+
+
+def _safe_hash(number: int, length: int = 10) -> str:
+    """A pod-template hash in the alphabet Kubernetes uses for generated names (no vowels, no look-alike digits),
+    so the simulated pods are named like real ones."""
+    alphabet = "bcdfghjklmnpqrstvwxz2456789"
+    out = ""
+    for _ in range(length):
+        number, digit = divmod(number, len(alphabet))
+        out += alphabet[digit]
     return out
 
 

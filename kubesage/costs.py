@@ -30,6 +30,7 @@ import numpy as np
 from pydantic import BaseModel
 
 from kubesage.config import CostsConfig, SkuCatalog
+from kubesage.metrics import owners
 from kubesage.metrics.client import PromClient, PromError
 
 DAY = 86400
@@ -133,16 +134,9 @@ def fetch(client: PromClient, *, days: int, end: float, cfg: CostsConfig, catalo
             raw.pods[key] = PodUsage(cpu_used.get(key, zero), cpu_req.get(key, zero), mem_used.get(key, zero),
                                      mem_req.get(key, zero))
 
-    for r in meta(f"max by (namespace, pod, owner_kind, owner_name) (last_over_time(kube_pod_owner{win}))", "pod owners"):
-        m = r["metric"]
-        if m.get("owner_name") and m.get("owner_kind") not in (None, "", "<none>"):
-            raw.owners[(m.get("namespace", ""), m.get("pod", ""))] = (m["owner_kind"], m["owner_name"])
-    for metric, key, target in (("kube_replicaset_owner", "replicaset", raw.rs_owners),
-                                ("kube_job_owner", "job_name", raw.job_owners)):
-        for r in meta(f"max by (namespace, {key}, owner_kind, owner_name) (last_over_time({metric}{win}))", metric):
-            m = r["metric"]
-            if m.get("owner_name") and m.get("owner_kind") not in (None, "", "<none>"):
-                target[(m.get("namespace", ""), m.get(key, ""))] = (m["owner_kind"], m["owner_name"])
+    found = owners.fetch(client, at=end, days=days)
+    raw.owners, raw.rs_owners, raw.job_owners = found.pods, found.replicasets, found.jobs
+    raw.notes += found.notes
 
     team = _label(cfg.team_label)
     for r in meta(f'max by (namespace, pod, {team}) (last_over_time(kube_pod_labels{{{team}!=""}}{win}))', "pod labels"):
@@ -270,38 +264,10 @@ class CostReport(BaseModel):
     notes: list[str]
 
 
-_DEPLOY_POD = re.compile(r"(.+)-[a-z0-9]{5,10}-[a-z0-9]{5}")
-_SET_POD = re.compile(r"(.+)-\d+")
-_HASHED_POD = re.compile(r"(.+)-[a-z0-9]{5}")
-_RS_NAME = re.compile(r"(.+)-[a-z0-9]{5,10}")
-_JOB_NAME = re.compile(r"(.+)-\d{8,10}")
-
-
 def workload_of(namespace: str, pod: str, raw: RawCosts) -> tuple[str, str]:
-    """(kind, name) of the controller that owns a pod. Follows the owner references kube-state-metrics exports
-    (ReplicaSet -> Deployment, Job -> CronJob); without them it reads the pod name, which is a guess and says so
-    through the kind 'Workload'."""
-    owner = raw.owners.get((namespace, pod))
-    if owner:
-        kind, name = owner
-        if kind == "ReplicaSet":
-            parent = raw.rs_owners.get((namespace, name))
-            if parent:
-                return parent
-            m = _RS_NAME.fullmatch(name)
-            return ("Deployment", m.group(1)) if m else (kind, name)
-        if kind == "Job":
-            parent = raw.job_owners.get((namespace, name))
-            if parent:
-                return parent
-            m = _JOB_NAME.fullmatch(name)
-            return ("CronJob", m.group(1)) if m else (kind, name)
-        return kind, name
-    for pattern, kind in ((_DEPLOY_POD, "Deployment"), (_SET_POD, "StatefulSet"), (_HASHED_POD, "Workload")):
-        m = pattern.fullmatch(pod)
-        if m:
-            return kind, m.group(1)
-    return "Pod", pod
+    """(kind, name) of the controller that owns a pod: the owner references kube-state-metrics exports, or the
+    pod's name when there are none (see metrics/owners.py)."""
+    return owners.resolve(namespace, pod, raw.owners, raw.rs_owners, raw.job_owners)
 
 
 def _price_nodes(raw: RawCosts, catalog: SkuCatalog, observed: np.ndarray):

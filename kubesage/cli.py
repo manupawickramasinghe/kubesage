@@ -17,7 +17,9 @@ console = Console()
 def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--vm", default=os.environ.get("KUBESAGE_VM_URL", "http://localhost:8428"),
                    help="Prometheus/VictoriaMetrics base URL")
-    p.add_argument("--namespace", default="demo")
+    p.add_argument("--namespace", default="demo", help="the namespace to read; several separated by commas")
+    p.add_argument("-A", "--all-namespaces", dest="namespace", action="store_const", const="*",
+                   help="every namespace except the shared ones in config/costs.yaml")
     p.add_argument("--tz", default=os.environ.get("KUBESAGE_TZ", "Asia/Colombo"), help="timezone for daily patterns")
     p.add_argument("--days", type=int, default=30)
 

@@ -112,7 +112,7 @@ same object.
 ```
 kubesage_cluster_monthly_cost_usd 582.24
 kubesage_cluster_idle_monthly_cost_usd 268.11
-kubesage_potential_monthly_savings_usd 170.44
+kubesage_potential_monthly_savings_usd 171.29
 kubesage_monthly_cost_usd{scope="namespace",name="demo"} 169.25
 kubesage_efficiency_ratio{namespace="demo"} 0.18
 kubesage_budget_used_ratio{scope="namespace",name="staging"} 1.1077

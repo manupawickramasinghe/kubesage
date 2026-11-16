@@ -1,6 +1,6 @@
 # Testing
 
-**15 November 2026:** `261 passed` (pytest) and `43/43` browser scenarios on the cost-allocation branch, plus the
+**17 November 2026:** `279 passed` (pytest) and `43/43` browser scenarios, plus the
 end-to-end script against a real VictoriaMetrics. The same three jobs run on every push and pull request
 (`.github/workflows/tests.yml`): `unit` on Python 3.11 and 3.13, `end-to-end` and `browser`.
 
@@ -12,7 +12,9 @@ docker compose up -d victoriametrics && scripts/ci-e2e.sh       # end to end: si
 
 `scripts/ci-e2e.sh` simulates 30 days of a six-namespace cluster, then checks the cost report (the node bill, the
 "with shared" column adding up to it, the five baked-in findings, controller kinds), the Prometheus exposition, the
-budget exit code, and that a mock analysis renders dated events as triggers and no CronJobs. No model is called.
+budget exit code, that a mock analysis renders dated events as triggers and no CronJobs, and a whole-cluster
+analysis (`--all-namespaces`): the StatefulSet, the main container beside its sidecar, the DaemonSet left out, the
+node pool read from the real nodes and the pods the run leaves alone. No model is called.
 
 The history below is from the October reviews.
 
@@ -47,6 +49,7 @@ KUBESAGE_RING="$review_ring_dir/ring" KUBESAGE_RING_MB=4 .venv/bin/python -m pyt
 | `test_pipeline.py` | Stage 1 signals, routing, recommendations, resource/replica guardrails, replica cuts against the measured total, a note for every bound the guardrails move, CPU scaling headroom, node sizing at CPU maximum replicas and by packing pods onto nodes, invalid and overnight cron windows, overlapping schedule costs; a plan the 20-replica cap can't make cover the measured total gets bigger pods, or is marked high risk with a follow-up |
 | `test_apply.py` | Patch ordering, Ready/schedulable target node capacity, migration skips, removing the autoscaler a fixed replica count replaces, apply timeouts and stopping after failures, ignoring incomplete runs |
 | `test_costs.py` | Cost allocation: a pod billed for the larger of request and use, idle per resource, the "with shared" column adding up to the bill, days without data left out of the run rate, node pricing by label, by size and by the configured pool, pods rolled up to controllers, team from pod, namespace then config, volumes billed to the workload that mounts them, budgets graded against the run rate, one finding for each problem in the simulated cluster and none for a new or departed workload, the queries (whole days, optional metadata failing as a note), the Prometheus text, `/api/costs` and `/metrics`, the `costs` and `budgets` commands, and that the live scrape keeps every series the queries read |
+| `test_collect.py` | Right-sizing on a cluster shaped like a real one, against simulated series (`prom_fixture.py`): workloads found through owner references and, without them, pod names; the main container picked and the sidecar left alone; StatefulSets in, DaemonSets out; a lowered request not hidden by old pods; the cluster inventory (nodes, every pod's requests, history that ended hours ago, mixed nodes, no inventory); the background demand; every namespace in one run with namespaced file names; StatefulSet patches and scale targets; apply refusing a kind it does not render |
 | `test_timed.py` | Dated calendar events as KEDA cron triggers: the date, pre-warm and cooldown, a range of days and a month end, one-offs dropped once past, windows kept inside their day; triggers joining the plan's ScaledObject, a fixed replica count becoming a ScaledObject only when an event needs more |
 | `test_cli_tools.py` | `kubesage whatif`, `calendar suggest` and `calendar import` (nothing written without `--approve`), `realized` |
 | `test_service.py` | Atomic report publication, failed writes preserve the previous report, existing runs cannot be overwritten |

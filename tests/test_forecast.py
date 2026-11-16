@@ -12,11 +12,24 @@ from kubesage.summary import markdown
 
 def test_calendar_file_loads_and_matches_workloads():
     cal = load_calendar()
-    assert [e.name for e in cal.for_workload("checkout-web")] == [
+    assert [e.name for e in cal.for_workload("checkout-web", "demo")] == [
         "Weekday working hours", "Black Friday sale", "Christmas shopping peak", "New Year sale"]
-    assert cal.for_workload("report-worker") == []  # a nightly batch job has no sale calendar
+    assert cal.for_workload("report-worker", "demo") == []  # a nightly batch job has no sale calendar
+    # The shipped events name demo's workloads: staging's copy of the same name gets no Black Friday.
+    assert cal.for_workload("checkout-web", "staging") == [] and cal.for_workload("checkout-web") == []
     black_friday = next(e for e in cal.events if e.name == "Black Friday sale")
     assert not black_friday.weekly and black_friday.traffic_multiplier == 3.0
+
+
+def test_a_bare_workload_name_matches_every_namespace_and_a_star_matches_everything():
+    cal = BusinessCalendar(events=[
+        CalendarEvent(name="by name", days="1-5", workloads=["web"]),
+        CalendarEvent(name="by id", days="1-5", workloads=["shop/web"]),
+        CalendarEvent(name="everything", days="1-5", workloads=["*"])])
+    names = lambda *a: [e.name for e in cal.for_workload(*a)]
+    assert names("web", "shop") == ["by name", "by id", "everything"]
+    assert names("web", "staging") == ["by name", "everything"]
+    assert names("api", "shop") == ["everything"]
 
 
 def test_calendar_event_needs_exactly_one_schedule():

@@ -71,6 +71,12 @@ them only around the window is where the saving comes from. Reports state it as
 `$280.32 → $246.74/mo · saves 12.0%` — and, honestly, as `costs 32.0%` when a forecast plan buys more
 capacity than the cluster has today.
 
+## Which workloads an event drives
+
+`workloads` takes `namespace/name` for one workload, a bare `name` for the workload of that name in every
+namespace, or `"*"` for all. The shipped calendar names `demo/checkout-web`, not `checkout-web`: a staging
+copy of the storefront shares its names with production and should not be pre-warmed for Black Friday.
+
 ## Weekly vs dated events
 
 Weekly events render as KEDA cron triggers and guardrails enforce them. Dated events (a specific sale

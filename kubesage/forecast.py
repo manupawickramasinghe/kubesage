@@ -205,7 +205,7 @@ def _event_days(event: CalendarEvent, today: date) -> tuple[str | None, str | No
 def _calendar_windows(s: WorkloadStats, calendar: BusinessCalendar, baseline: float, capacity: float,
                       today: date) -> list[ForecastWindow]:
     windows = []
-    for event in calendar.for_workload(s.name):
+    for event in calendar.for_workload(s.name, s.namespace):
         expected = baseline * event.traffic_multiplier
         # A declared rush must never forecast below a peak the metrics already prove happens: a sale day
         # still contains the normal rush, plus the sale. The stated multiplier is against normal load;

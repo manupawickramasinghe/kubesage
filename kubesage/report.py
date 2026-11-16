@@ -98,7 +98,7 @@ def print_analysis(console: Console, res: AnalysisResult, models: ModelsConfig, 
                       f"{_pct(np_.before_monthly_usd, np_.after_monthly_usd)}[/])")
         console.print(f"  {np_.choice.rationale}")
         if np_.migrations:
-            console.print(f"  [cyan]migration[/] {len(np_.migrations)} Deployments -> nodeSelector "
+            console.print(f"  [cyan]migration[/] {len(np_.migrations)} workloads -> nodeSelector "
                           f"{np_.node_label}={np_.choice.sku} (*.migrate.yaml; skipped by apply if no such node)")
         for n in np_.notes:
             console.print(f"  [magenta]guardrail[/] {n}")

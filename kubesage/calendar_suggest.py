@@ -22,7 +22,7 @@ def suggest_events(stats: list[WorkloadStats], calendar: BusinessCalendar | None
     calendar = calendar or BusinessCalendar()
     out: list[CalendarEvent] = []
     for s in stats:
-        covered = {(e.days, e.start_time) for e in calendar.for_workload(s.name) if e.weekly}
+        covered = {(e.days, e.start_time) for e in calendar.for_workload(s.name, s.namespace) if e.weekly}
         baseline = _baseline(s)
         for peak in s.peaks:
             if any(days == peak.days for days, _ in covered):

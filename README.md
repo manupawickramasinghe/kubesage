@@ -13,7 +13,7 @@ use, diagnoses live incidents, and ships every fix as a reviewable git commit.
 [![KEDA](https://img.shields.io/badge/autoscaling-KEDA-0b6bcb)](docs/pipeline.md)
 [![LLM](https://img.shields.io/badge/LLM-any%20OpenAI--compatible%20API-6e56cf)](docs/configuration.md)
 [![Tests](https://github.com/manupawickramasinghe/kubesage/actions/workflows/tests.yml/badge.svg)](https://github.com/manupawickramasinghe/kubesage/actions/workflows/tests.yml)
-[![Suite](https://img.shields.io/badge/tests-261%20unit%20%C2%B7%2043%20browser-2ea44f)](docs/testing.md)
+[![Suite](https://img.shields.io/badge/tests-279%20unit%20%C2%B7%2043%20browser-2ea44f)](docs/testing.md)
 
 **[▶ Demo video](demo/video/kubesage-demo.mp4)** · [Quickstart](#quickstart) · [How it works](#how-it-works) ·
 [Cost allocation](#cost-allocation-where-the-money-goes) · [KubeSage and Kubecost](#kubesage-and-kubecost) ·
@@ -140,18 +140,18 @@ idle capacity can be spread over the rest, which gives a "with shared" column th
 
 ```text
 $ kubesage costs --by team
-Cluster $582.24 a month: nodes $560.64, volumes $21.60. Pods are billed $292.53; $268.11 (48%) of the node bill is idle.
+Cluster $582.24 a month: nodes $560.64, volumes $21.60. Pods are billed $293.84; $266.80 (48%) of the node bill is idle.
 
  team             pods  cpu req  cpu used  efficiency  $/month  with shared  share
- storefront         14     7.19      1.19         19%  $202.47      $410.56    70%
- data                3     1.75      0.52         35%   $70.66      $143.27    25%
- shared services     5     0.90      0.31         40%   $26.99            ·      ·
- platform            5     0.45      0.31         63%   $14.01       $28.41     5%
+ storefront         14     7.24      1.21         19%  $203.77      $411.31    71%
+ data                3     1.75      0.52         35%   $70.66      $142.62    24%
+ shared services     5     0.90      0.32         40%   $26.99            ·      ·
+ platform            5     0.45      0.31         63%   $14.03       $28.31     5%
 
-Findings · $170.44 a month in savings to check
+Findings · $171.29 a month in savings to check
   idle-workload   data/legacy-export           $14.47/mo   has used 0.4% of its requested CPU for a week
   unused-volume   data/orders-db-backup-2025   $16.00/mo   200 GiB, mounted by nothing
-  cost-spike      staging                      $2.99 on the last day, 285% above its usual day: mostly load-test
+  cost-spike      staging                      $3.02 on the last day, 269% above its usual day: mostly load-test
 ```
 
 Budgets per cluster, namespace and team live in [`config/costs.yaml`](config/costs.yaml); `kubesage budgets` exits
@@ -172,6 +172,12 @@ flowchart TB
     ST --> G
     G --> OUT["patches · ScaledObjects · node-pool plan · dollar math"]
 ```
+
+`kubesage analyze` takes one namespace, several (`--namespace demo,staging`) or the whole cluster
+(`--all-namespaces`). Workloads are found through the pod owner references the cluster exports, so a container
+called `app` inside a Deployment called `checkout-web` is handled, a sidecar is left alone, and StatefulSets are
+right-sized like Deployments. The node-pool plan starts from the cluster's real nodes and counts every pod the
+run does not resize, so a plan for one namespace does not assume the rest of the cluster is empty.
 
 Models return parameters, never YAML. Deterministic guardrails clamp anything below observed usage and report
 every clamp, so a model can't size a pod below what it was measured using. Floors come from history, so they don't
@@ -222,12 +228,12 @@ into changes a person can review, and on the things a cost tool does not do at a
 | Network, load balancer and GPU costs | Yes | **No** |
 | Many clusters in one view, SSO, long retention | Yes, in the paid tiers | **No.** One cluster |
 | Budgets and alerts | Yes | Budgets with an exit code for pipelines and `/metrics` for your Alertmanager |
-| Right-sizing | Recommendations from usage | Recommendations a model writes and guardrails check against 30 days of peaks, plus a node-pool plan that packs the pods |
+| Right-sizing | Recommendations from usage, for every workload kind | Deployments and StatefulSets, one namespace or the whole cluster: recommendations a model writes and guardrails check against 30 days of peaks, plus a node-pool plan that packs every pod on the cluster |
 | Scaling ahead of known rushes | No | A business calendar (working hours, Black Friday, Christmas week) becomes KEDA triggers, with pre-warm times |
 | From finding to change | Mostly yours to make | Patches, ScaledObjects and a GitOps pull request; a person applies |
 | Checking its own predictions | Partly | `kubesage realized` compares what a plan promised with what the cluster now reserves |
 | Incidents | No | An agent team gathers evidence, finds the root cause and writes the fix as a commit |
-| Maturity | Years in production at large companies | A hackathon project: 261 tests, one small real cluster, simulated data for cost allocation |
+| Maturity | Years in production at large companies | A hackathon project: 279 tests, one small real cluster, simulated data for cost allocation |
 
 The two can run side by side: KubeSage reads the same Prometheus and installs nothing in the cluster.
 
@@ -300,7 +306,7 @@ lists every environment variable.
 | `kubesage costs` | Cost allocation for every namespace: by namespace, workload or team, with idle cost, budgets and findings |
 | `kubesage budgets` | Check the budgets in `config/costs.yaml`; exits 1 when one is over |
 | `kubesage stats` | Stage 1 only: deterministic statistics, no LLM calls |
-| `kubesage analyze` | The full pipeline: stats → triage → recommendations → node pool |
+| `kubesage analyze` | The full pipeline: stats → triage → recommendations → node pool. `--namespace a,b` or `--all-namespaces` covers more than one |
 | `kubesage apply` | Apply a run's manifests (the latest by default; `--dry-run` for a server-side check) |
 | `kubesage gitops` | Commit a run to a GitOps repo as a kustomize overlay, optionally opening a PR |
 | `kubesage realized` | Did the saving a run promised show up? Compares its snapshot with the cluster now |
@@ -355,7 +361,7 @@ tests/               pytest suite and browser checks
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest -q                                          # 261 tests, no cluster or API key needed
+.venv/bin/python -m pytest -q                                          # 279 tests, no cluster or API key needed
 .venv/bin/pip install playwright && .venv/bin/python -m playwright install chromium
 .venv/bin/python tests/browser_smoke.py --output-dir /tmp/kubesage-browser   # 43 UI checks against a mocked API
 ```

@@ -11,7 +11,7 @@ import yaml
 
 from kubesage import summary
 from kubesage.pipeline import AnalysisResult
-from kubesage.recommend.render import deployment_patch
+from kubesage.recommend.render import workload_patch
 
 MANAGED_SUFFIXES = (".patch.yaml", ".migrate.yaml", ".keda.yaml", ".timed.yaml")
 MANAGED_FILES = ("kustomization.yaml", "REPORT.md")
@@ -57,9 +57,10 @@ def overlay(run_dir: Path, kustomize_base: str) -> dict[str, str]:
     # and the HPA fight over it. In a strategic-merge patch, null deletes the field.
     for keda in [n for n in files if n.endswith(".keda.yaml")]:
         so = yaml.safe_load(files[keda])
-        name, namespace = so["spec"]["scaleTargetRef"]["name"], so["metadata"]["namespace"]
-        patch = f"{name}.patch.yaml"
-        doc = yaml.safe_load(files[patch]) if patch in files else deployment_patch(namespace, name, {})
+        target, namespace = so["spec"]["scaleTargetRef"], so["metadata"]["namespace"]
+        patch = keda.removesuffix(".keda.yaml") + ".patch.yaml"
+        doc = (yaml.safe_load(files[patch]) if patch in files
+               else workload_patch(target.get("kind", "Deployment"), namespace, target["name"], {}))
         doc["spec"]["replicas"] = None
         files[patch] = yaml.safe_dump(doc, sort_keys=False)
     kustomization = {
@@ -76,9 +77,13 @@ def export(run_dir: Path, repo: Path, *, path: str, kustomize_base: str, branch:
            base_branch: str | None = None, remote: str = "origin", push: bool = False,
            open_pr: bool = False) -> Exported:
     repo = Path(repo).resolve()
+    report = AnalysisResult.model_validate_json((run_dir / "report.json").read_text())
+    if len(report.namespaces) > 1:
+        # An overlay patches one kustomize base, and a base holds one namespace's workloads.
+        raise GitOpsError(f"run {run_dir.name} covers {len(report.namespaces)} namespaces ({', '.join(report.namespaces)}); "
+                          "a GitOps overlay holds one. Analyze each namespace on its own to export it.")
     if _git(repo, "status", "--porcelain"):
         raise GitOpsError(f"{repo} has uncommitted changes; commit or stash them first")
-    report = AnalysisResult.model_validate_json((run_dir / "report.json").read_text())
     original = _git(repo, "rev-parse", "--abbrev-ref", "HEAD")
     base_branch = base_branch or original
     branch = branch or f"kubesage/rightsize-{run_dir.name}"
