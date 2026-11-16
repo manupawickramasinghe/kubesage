@@ -8,6 +8,7 @@
 use, diagnoses live incidents, and ships every fix as a reviewable git commit.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f)](LICENSE)
 [![Kubernetes](https://img.shields.io/badge/kubernetes-k3s%20%C2%B7%20k3d-326CE5?logo=kubernetes&logoColor=white)](docs/cluster.md)
 [![KEDA](https://img.shields.io/badge/autoscaling-KEDA-0b6bcb)](docs/pipeline.md)
 [![LLM](https://img.shields.io/badge/LLM-any%20OpenAI--compatible%20API-6e56cf)](docs/configuration.md)
@@ -354,11 +355,16 @@ tests/               pytest suite and browser checks
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest -q                                          # 226 tests, no cluster or API key needed
+.venv/bin/python -m pytest -q                                          # 261 tests, no cluster or API key needed
 .venv/bin/pip install playwright && .venv/bin/python -m playwright install chromium
-.venv/bin/python tests/browser_smoke.py --output-dir /tmp/kubesage-browser   # 40 UI checks against a mocked API
+.venv/bin/python tests/browser_smoke.py --output-dir /tmp/kubesage-browser   # 43 UI checks against a mocked API
 ```
 
 The browser checks drive the FinOps steps, the agent team, the tmux mirror, the agent chat and the demo guide,
 check layouts in light and dark mode at phone, tablet and desktop widths, and confirm that untrusted model text is
 always rendered as text.
+
+## License
+
+[MIT](LICENSE). The vendored fonts in `dashboard/fonts/` are under the SIL Open Font License; their licence files
+sit beside them.
