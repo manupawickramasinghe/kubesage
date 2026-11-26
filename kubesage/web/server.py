@@ -51,7 +51,13 @@ class Settings:
     alertmanager: str = "http://localhost:9193"
     agent_prs: bool = False   # let the Executor push branches and open pull requests
     auto_agents: bool = True  # run the agent team when a lab alert fires
-    api_token: str | None = None  # KUBESAGE_API_TOKEN: when set, mutating POSTs need it (see do_POST)
+    api_token: str | None = None  # KUBESAGE_API_TOKEN: required (fail-closed) for all /api/* and /metrics routes
+
+
+def _resolve_api_token(settings: Settings) -> str:
+    """Resolve the API token from explicit Settings or KUBESAGE_API_TOKEN (trimmed)."""
+    raw = settings.api_token if settings.api_token is not None else os.environ.get("KUBESAGE_API_TOKEN", "")
+    return raw.strip()
 
 
 def _kubectl_json(*args: str) -> dict | None:
@@ -254,7 +260,7 @@ class Api:
     def config(self) -> tuple[int, dict]:
         models = load_models()
         return 200, {"namespace": self.s.namespace, "mode": resolve_mode(self.s.mode, models),
-                     "auth_required": bool(self.s.api_token or os.environ.get("KUBESAGE_API_TOKEN")),
+                     "auth_required": True,
                      "tiers": {name: tier.model for name, tier in models.tiers.items()},
                      "gitops": self.s.gitops_repo is not None and self.s.gitops_base is not None,
                      "operation": self.operation}
@@ -814,11 +820,33 @@ def make_handler(api: Api):
     key_names = _api_key_names()
 
     class Handler(BaseHTTPRequestHandler):
+        def _secrets(self) -> list[str]:
+            secrets = [value for name in key_names if len(value := os.environ.get(name, "")) >= 8]
+            token = _resolve_api_token(api.s)
+            if len(token) >= 8:
+                secrets.append(token)
+            return secrets
+
+        def _authorize(self) -> bool:
+            expected = _resolve_api_token(api.s)
+            if not expected:
+                self._send(503, {"error": "server misconfigured: KUBESAGE_API_TOKEN must be set",
+                                 "auth_required": True})
+                return False
+            auth_header = self.headers.get("Authorization") or ""
+            bearer = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
+            given = (self.headers.get("X-KubeSage-Token") or bearer).strip()
+            if not given or not hmac.compare_digest(given, expected):
+                self._send(401, {"error": "unauthorized: a valid API token is required",
+                                 "auth_required": True})
+                return False
+            return True
+
         def _send(self, status: int, payload: dict | bytes, content_type: str = "application/json",
                   cache: str = "no-store") -> None:
             api.team.record_access(self.client_address[0], self.command, self.path, status,
                                    self.headers.get("User-Agent", ""), getattr(self, "refused", None))
-            secrets = [value for name in key_names if len(value := os.environ.get(name, "")) >= 8]
+            secrets = self._secrets()
             body = payload if isinstance(payload, bytes) else json.dumps(_redact(payload, secrets)).encode()
             self.send_response(status)
             self.send_header("Content-Type", content_type)
@@ -830,6 +858,9 @@ def make_handler(api: Api):
         def do_GET(self):
             path = urlsplit(self.path)
             query = parse_qs(path.query)
+            if path.path == "/healthz":
+                self._send(200, {"ok": True})
+                return
             routes = {"/api/config": api.config, "/api/report": lambda: api.report(query.get("run", [None])[0]),
                       "/api/reports": api.reports, "/api/cluster": api.cluster, "/api/lab": api.lab,
                       "/api/events": lambda: api.events(query.get("after", [None])[0]),
@@ -839,6 +870,9 @@ def make_handler(api: Api):
                       "/api/ring": lambda: api.team.ring_read(*(query.get(k, [None])[0] for k in ("after", "streams", "limit", "tail"))),
                       "/api/ring/stat": api.team.ring_stat,
                       "/api/costs": lambda: api.costs(query.get("days", [None])[0])}
+            if path.path == "/api/ring/dump" or path.path == "/metrics" or path.path in routes or path.path.startswith("/api/"):
+                if not self._authorize():
+                    return
             if path.path == "/api/ring/dump":
                 self._dump(query)
             elif path.path == "/metrics":
@@ -866,7 +900,7 @@ def make_handler(api: Api):
                 self._send(400, {"error": str(exc)})
                 return
             api.team.record_access(self.client_address[0], self.command, self.path, 200, self.headers.get("User-Agent", ""))
-            secrets = [value for name in key_names if len(value := os.environ.get(name, "")) >= 8]
+            secrets = self._secrets()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Disposition", f'attachment; filename="kubesage-ring-{time.strftime("%Y%m%d-%H%M%S")}.log"')
@@ -887,14 +921,8 @@ def make_handler(api: Api):
             if self.headers.get("X-KubeSage") != "1":
                 self._send(403, {"error": "missing X-KubeSage header"})
                 return
-            token = api.s.api_token or os.environ.get("KUBESAGE_API_TOKEN")
-            if token:
-                given = (self.headers.get("X-KubeSage-Token") or
-                         (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip())
-                if not given or not hmac.compare_digest(given, token):
-                    self._send(401, {"error": "unauthorized: a valid API token is required for changes",
-                                     "auth_required": True})
-                    return
+            if not self._authorize():
+                return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
             except ValueError:
@@ -939,6 +967,8 @@ def make_handler(api: Api):
 
 def serve(settings: Settings, host: str, port: int, *, background: bool = False) -> ThreadingHTTPServer:
     """background: also start the kubelet-stats exporter, the alert watcher and the lab log followers."""
+    if not _resolve_api_token(settings):
+        raise ValueError("KUBESAGE_API_TOKEN must be set (fail-closed); set KUBESAGE_API_TOKEN or Settings.api_token")
     api = Api(settings)
     if background:
         kubestats.start(settings.vm)

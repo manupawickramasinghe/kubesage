@@ -23,6 +23,11 @@ spec:
       labels: {app: payment-service}
     spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: payment-service
           image: python:3.13.12-alpine3.22
@@ -30,7 +35,11 @@ spec:
           env: [{name: BASELINE_CPU, value: "0.10"}]
           ports: [{containerPort: 8080}]
           readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
-          volumeMounts: [{name: app, mountPath: /app}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: app, mountPath: /app, readOnly: true}]
           resources:
             requests: {cpu: "2", memory: 4Gi}
             limits: {cpu: "2", memory: 4Gi}
@@ -51,6 +60,11 @@ spec:
       labels: {app: report-worker}
     spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: report-worker
           image: python:3.13.12-alpine3.22
@@ -58,7 +72,11 @@ spec:
           env: [{name: BASELINE_CPU, value: "0.005"}]
           ports: [{containerPort: 8080}]
           readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
-          volumeMounts: [{name: app, mountPath: /app}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: app, mountPath: /app, readOnly: true}]
           resources:
             requests: {cpu: "2", memory: 2Gi}
             limits: {cpu: "2", memory: 2Gi}
@@ -79,6 +97,11 @@ spec:
       labels: {app: auth-api}
     spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: auth-api
           image: python:3.13.12-alpine3.22
@@ -86,7 +109,11 @@ spec:
           env: [{name: BASELINE_CPU, value: "0.06"}]
           ports: [{containerPort: 8080}]
           readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
-          volumeMounts: [{name: app, mountPath: /app}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: app, mountPath: /app, readOnly: true}]
           resources:
             requests: {cpu: 250m, memory: 512Mi}
             limits: {cpu: 500m, memory: 1Gi}
@@ -107,6 +134,11 @@ spec:
       labels: {app: checkout-web}
     spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: checkout-web
           image: python:3.13.12-alpine3.22
@@ -114,7 +146,11 @@ spec:
           env: [{name: BASELINE_CPU, value: "0.05"}]
           ports: [{containerPort: 8080}]
           readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
-          volumeMounts: [{name: app, mountPath: /app}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: app, mountPath: /app, readOnly: true}]
           resources:
             requests: {cpu: 500m, memory: 512Mi}
             limits: {cpu: "1", memory: 768Mi}
@@ -145,6 +181,11 @@ spec:
       labels: {app: catalog-api}
     spec:
       nodeSelector: {kubesage.io/sku: D8s_v5}  # starts on the "expensive" pool; see config/skus.yaml
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: catalog-api
           image: python:3.13.12-alpine3.22
@@ -152,7 +193,11 @@ spec:
           env: [{name: BASELINE_CPU, value: "0.12"}]
           ports: [{containerPort: 8080}]
           readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
-          volumeMounts: [{name: app, mountPath: /app}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: app, mountPath: /app, readOnly: true}]
           resources:
             requests: {cpu: 250m, memory: 256Mi}
             limits: {cpu: 500m, memory: 384Mi}

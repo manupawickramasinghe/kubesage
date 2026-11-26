@@ -9,16 +9,32 @@ variable "location" {
   default = "eastus"
 }
 
+variable "api_server_authorized_ip_ranges" {
+  type        = list(string)
+  description = "CIDR blocks allowed to reach the AKS API server (override via terraform.tfvars)."
+  default     = ["10.0.0.0/8"]
+}
+
 resource "azurerm_resource_group" "kubesage" {
   name     = "kubesage-demo"
   location = var.location
 }
 
 resource "azurerm_kubernetes_cluster" "kubesage" {
-  name                = "kubesage"
-  location            = azurerm_resource_group.kubesage.location
-  resource_group_name = azurerm_resource_group.kubesage.name
-  dns_prefix          = "kubesage"
+  name                              = "kubesage"
+  location                          = azurerm_resource_group.kubesage.location
+  resource_group_name               = azurerm_resource_group.kubesage.name
+  dns_prefix                        = "kubesage"
+  role_based_access_control_enabled = true
+
+  api_server_access_profile {
+    authorized_ip_ranges = var.api_server_authorized_ip_ranges
+  }
+
+  network_profile {
+    network_plugin = "azure"
+    network_policy = "azure"
+  }
 
   default_node_pool {
     name       = "system"

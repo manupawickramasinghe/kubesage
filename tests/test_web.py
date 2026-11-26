@@ -15,26 +15,32 @@ from kubesage.pipeline import write_run
 from kubesage.web import server as web
 
 
+TEST_TOKEN = "test-api-token-123456"
+
+
 @pytest.fixture
 def base_url(result, tmp_path, monkeypatch):
     write_run(result, tmp_path / "out/20260101-000000")
     monkeypatch.setattr(web, "_kubectl_json", lambda *args: None)  # no cluster in tests
     settings = web.Settings(vm="http://127.0.0.1:9", namespace="demo", days=30, tz="UTC", mode="mock",
-                            out_dir=tmp_path / "out")
+                            out_dir=tmp_path / "out", api_token=TEST_TOKEN)
     srv = web.serve(settings, "127.0.0.1", 0)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}"
     srv.shutdown()
 
 
-def get(url):
-    with urllib.request.urlopen(url) as resp:
+def get(url, token=TEST_TOKEN):
+    headers = {"X-KubeSage-Token": token} if token else {}
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as resp:
         return resp.status, resp.read()
 
 
-def post(url, body, header=True):
-    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
-                                 headers={"Content-Type": "application/json", **({"X-KubeSage": "1"} if header else {})})
+def post(url, body, header=True, token=TEST_TOKEN):
+    headers = {"Content-Type": "application/json", **({"X-KubeSage": "1"} if header else {}),
+               **({"X-KubeSage-Token": token} if token else {})}
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST", headers=headers)
     try:
         with urllib.request.urlopen(req) as resp:
             return resp.status, json.loads(resp.read())
@@ -301,7 +307,7 @@ def test_responses_redact_api_keys_but_not_other_settings(tmp_path, monkeypatch)
     monkeypatch.setattr(web.Api, "config", lambda self: (200, {"node": "admin-node", "tokens": "4096",
                                                                  "leak": "key csk-test-not-a-real-key"}))
     srv = web.serve(web.Settings(vm="http://127.0.0.1:9", namespace="demo", days=30, tz="UTC", mode="mock",
-                                 out_dir=tmp_path), "127.0.0.1", 0)
+                                 out_dir=tmp_path, api_token=TEST_TOKEN), "127.0.0.1", 0)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         body = json.loads(get(f"http://127.0.0.1:{srv.server_address[1]}/api/config")[1])

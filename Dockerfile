@@ -1,7 +1,7 @@
 # KubeSage in a container: the FinOps pipeline + Control Center, for running in-cluster
 # (see deploy/k8s/kubesage/ and docs/in-cluster.md) or anywhere Docker runs.
 # Build:  docker build -t ghcr.io/YOU/kubesage:latest .
-# Run UI: docker run -p 8600:8600 -e MODEL_API_KEY=... ghcr.io/YOU/kubesage:latest
+# Run UI: docker run -p 8600:8600 -e KUBESAGE_API_TOKEN=... -e MODEL_API_KEY=... ghcr.io/YOU/kubesage:latest
 FROM python:3.12-slim
 
 ARG KUBECTL_VERSION=v1.36.4

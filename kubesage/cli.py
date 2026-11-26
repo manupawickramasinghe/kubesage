@@ -302,18 +302,17 @@ def cmd_serve(args: argparse.Namespace) -> None:
 
     faulthandler.register(signal.SIGUSR1)  # `kill -USR1 <pid>` prints every thread's stack, for a stuck run
 
+    token = os.environ.get("KUBESAGE_API_TOKEN", "").strip()
+    if not token:
+        sys.exit("error: KUBESAGE_API_TOKEN must be set before starting `kubesage serve` (fail-closed)")
+
     settings = Settings(vm=args.vm, namespace=args.namespace, days=args.days, tz=args.tz, mode=args.mode,
                         out_dir=Path(args.out_dir), gitops_repo=Path(args.gitops_repo) if args.gitops_repo else None,
                         gitops_base=args.gitops_base, gitops_path=args.gitops_path, alertmanager=args.alertmanager,
-                        agent_prs=args.agent_prs, auto_agents=not args.no_auto_agents)
+                        agent_prs=args.agent_prs, auto_agents=not args.no_auto_agents, api_token=token)
     server = serve(settings, args.host, args.port, background=True)
     console.print(f"KubeSage AI Control Center on http://{args.host}:{args.port}  (Ctrl+C to stop)")
-    if args.host not in ("127.0.0.1", "localhost", "::1"):
-        if os.environ.get("KUBESAGE_API_TOKEN"):
-            console.print("[yellow]note[/] non-loopback bind: mutating POSTs require the KUBESAGE_API_TOKEN")
-        else:
-            console.print("[red]warning[/] anyone who can reach this address can apply changes to the cluster; "
-                          "set KUBESAGE_API_TOKEN to require a token for changes")
+    console.print("[yellow]note[/] all /api/* and /metrics routes require KUBESAGE_API_TOKEN")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
