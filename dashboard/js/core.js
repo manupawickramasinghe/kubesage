@@ -78,7 +78,7 @@ async function api(path, body, retried) {
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({error: res.statusText}));
   if (res.status === 401 && data.auth_required && !retried) {
-    const entered = window.prompt("This KubeSage server requires an API token for changes. Paste it here (kept only for this tab):");
+    const entered = window.prompt("This KubeSage server requires an API token. Paste it here (kept only for this tab):");
     if (entered) {
       sessionStorage.setItem("kubesage-api-token", entered.trim());
       return api(path, body, true);

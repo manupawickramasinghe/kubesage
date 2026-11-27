@@ -30,25 +30,31 @@ spec:
             - name: MODEL_API_KEY
               valueFrom:
                 secretKeyRef: {name: kubesage-secrets, key: MODEL_API_KEY, optional: true}
-            # When set, mutating POSTs require this token (the UI prompts for it once per tab).
-            # In-cluster you SHOULD set it: the Service is reachable by every pod in the cluster.
+            # Required (fail-closed): all /api/* and /metrics routes require this token (the UI prompts for it once per tab).
             - name: KUBESAGE_API_TOKEN
               valueFrom:
-                secretKeyRef: {name: kubesage-secrets, key: API_TOKEN, optional: true}
+                secretKeyRef: {name: kubesage-secrets, key: API_TOKEN}
             - {name: KUBESAGE_VM_URL, value: "http://victoriametrics.kubesage-metrics.svc:8428"}  # EDIT: your Prometheus/VM service
             - {name: KUBESAGE_TZ, value: "Asia/Colombo"}  # EDIT: your workloads' timezone
           resources:
             requests: {cpu: 250m, memory: 256Mi}
             limits: {cpu: 500m, memory: 512Mi}
           readinessProbe:
-            httpGet: {path: /api/config, port: http}
+            httpGet: {path: /healthz, port: http}
             initialDelaySeconds: 5
             periodSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
           volumeMounts:
             - {name: runs, mountPath: /app/out}
+            - {name: tmp, mountPath: /tmp}
+            - {name: home, mountPath: /home/kubesage}
       volumes:
         - name: runs
           persistentVolumeClaim: {claimName: kubesage-runs}
+        - name: tmp
+          emptyDir: {}
+        - name: home
+          emptyDir: {}

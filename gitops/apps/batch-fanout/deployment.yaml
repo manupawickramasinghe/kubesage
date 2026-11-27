@@ -13,9 +13,18 @@ spec:
     spec:
       nodeSelector: {kubesage.io/pool: lab}
       terminationGracePeriodSeconds: 2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: batch-fanout
           image: docker.io/rancher/mirrored-pause:3.10.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
           resources:
             requests: {cpu: "1", memory: 16Mi}
             limits: {memory: 16Mi}

@@ -13,6 +13,11 @@ spec:
     spec:
       nodeSelector: {kubesage.io/pool: lab}
       terminationGracePeriodSeconds: 2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ledger-cache
           image: python:3.13.12-alpine3.22
@@ -22,10 +27,14 @@ spec:
             - {name: CHUNK_MB, value: "16"}
             - {name: EVERY_S, value: "2"}
           readinessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 5}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
           resources:
             requests: {cpu: 50m, memory: 256Mi}
             limits: {cpu: 500m, memory: 512Mi}
           volumeMounts:
-            - {name: src, mountPath: /src}
+            - {name: src, mountPath: /src, readOnly: true}
       volumes:
         - {name: src, configMap: {name: ledger-cache-src}}

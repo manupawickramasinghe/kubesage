@@ -1,0 +1,9 @@
+# kubesage/lab/debug-tools.yaml is an intentional security-agent test fixture
+# (see kubesage/lab/__init__.py: "deliberately misconfigured bare Pod").
+misconfigurations:
+  - id: KSV-0014
+    paths:
+      - kubesage/lab/debug-tools.yaml
+  - id: KSV-0118
+    paths:
+      - kubesage/lab/debug-tools.yaml

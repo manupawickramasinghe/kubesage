@@ -49,6 +49,11 @@ spec:
     spec:
       serviceAccountName: kube-state-metrics
       nodeSelector: {node-role.kubernetes.io/control-plane: "true"}  # next to VictoriaMetrics' docker network
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: kube-state-metrics
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0
@@ -61,6 +66,10 @@ spec:
             - --telemetry-port=8081
           ports: [{containerPort: 8080}]
           readinessProbe: {httpGet: {path: /readyz, port: 8081}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
           resources:
             requests: {cpu: 20m, memory: 32Mi}
             limits: {memory: 128Mi}
@@ -156,6 +165,12 @@ spec:
     spec:
       serviceAccountName: vmagent
       nodeSelector: {node-role.kubernetes.io/control-plane: "true"}  # next to VictoriaMetrics' docker network
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: vmagent
           image: victoriametrics/vmagent:v1.110.0
@@ -166,8 +181,16 @@ spec:
           env:
             - name: REMOTE_WRITE_URL
               valueFrom: {configMapKeyRef: {name: vmagent-remote, key: url}}
-          volumeMounts: [{name: config, mountPath: /config}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
           resources:
             requests: {cpu: 20m, memory: 64Mi}
             limits: {memory: 256Mi}
-      volumes: [{name: config, configMap: {name: vmagent-scrape}}]
+      volumes:
+        - {name: config, configMap: {name: vmagent-scrape}}
+        - {name: tmp, emptyDir: {}}

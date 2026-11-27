@@ -13,16 +13,25 @@ spec:
     spec:
       nodeSelector: {kubesage.io/pool: lab}
       terminationGracePeriodSeconds: 2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: risk-scorer
           image: python:3.13.12-alpine3.22
           command: [python, -u, /src/risk_scorer.py]
           env:
             - {name: WORKERS, value: "3"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
           resources:
             requests: {cpu: "3", memory: 128Mi}
             limits: {cpu: "3", memory: 256Mi}
           volumeMounts:
-            - {name: src, mountPath: /src}
+            - {name: src, mountPath: /src, readOnly: true}
       volumes:
         - {name: src, configMap: {name: risk-scorer-src}}

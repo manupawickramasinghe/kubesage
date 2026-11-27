@@ -146,6 +146,19 @@ def test_as_approved_checks_the_named_container():
     assert team._as_approved([obj], [bad]), "unknown container must be reported"
 
 
+def test_serve_fails_closed_without_api_token(tmp_path, monkeypatch):
+    from kubesage.web import server as web
+    monkeypatch.delenv("KUBESAGE_API_TOKEN", raising=False)
+    settings = web.Settings(vm="http://127.0.0.1:9", namespace="demo", days=30, tz="UTC", mode="mock",
+                            out_dir=tmp_path / "out")
+    with pytest.raises(ValueError, match="KUBESAGE_API_TOKEN"):
+        web.serve(settings, "127.0.0.1", 0)
+    settings_blank = web.Settings(vm="http://127.0.0.1:9", namespace="demo", days=30, tz="UTC", mode="mock",
+                                  out_dir=tmp_path / "out", api_token="   ")
+    with pytest.raises(ValueError, match="KUBESAGE_API_TOKEN"):
+        web.serve(settings_blank, "127.0.0.1", 0)
+
+
 def test_mutating_posts_require_the_api_token_when_set(result, tmp_path, monkeypatch):
     from kubesage.pipeline import write_run
     from kubesage.web import server as web
@@ -158,6 +171,14 @@ def test_mutating_posts_require_the_api_token_when_set(result, tmp_path, monkeyp
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
     try:
+        def get_code(path, headers=None):
+            req = urllib.request.Request(base + path, headers=headers or {})
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    return resp.status, resp.read()
+            except urllib.error.HTTPError as exc:
+                return exc.code, exc.read()
+
         def post(headers):
             req = urllib.request.Request(base + "/api/spike", data=b"{}", method="POST",
                                          headers={"Content-Type": "application/json", "X-KubeSage": "1", **headers})
@@ -166,12 +187,27 @@ def test_mutating_posts_require_the_api_token_when_set(result, tmp_path, monkeyp
                     return resp.status
             except urllib.error.HTTPError as exc:
                 return exc.code
+
+        # POST routes require valid token
         assert post({}) == 401                      # no token
         assert post({"X-KubeSage-Token": "wrong"}) == 401
+        assert post({"Authorization": "test-token-123"}) == 401  # missing Bearer scheme
         assert post({"X-KubeSage-Token": "test-token-123"}) != 401   # gate passes (spike itself may fail)
         assert post({"Authorization": "Bearer test-token-123"}) != 401
-        with urllib.request.urlopen(base + "/api/config") as resp:
-            assert json.loads(resp.read())["auth_required"] is True
+
+        # GET /api/* and /metrics require valid token (fail-closed)
+        for path in ("/api/config", "/api/report", "/api/reports", "/api/cluster", "/api/lab",
+                     "/api/events", "/api/agents", "/api/ring/stat", "/api/costs", "/metrics", "/api/nonexistent"):
+            assert get_code(path)[0] == 401, f"GET {path} must reject unauthenticated requests"
+            assert get_code(path, {"X-KubeSage-Token": "wrong"})[0] == 401
+
+        status, body = get_code("/api/config", {"Authorization": "Bearer test-token-123"})
+        assert status == 200 and json.loads(body)["auth_required"] is True
+
+        # Minimal /healthz probe and static UI shell stay accessible without token
+        h_status, h_body = get_code("/healthz")
+        assert h_status == 200 and json.loads(h_body) == {"ok": True}
+        assert get_code("/")[0] == 200
     finally:
         srv.shutdown()
 

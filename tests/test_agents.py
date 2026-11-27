@@ -296,7 +296,8 @@ def test_an_approved_action_cannot_carry_unrelated_changes(tmp_path, monkeypatch
     sneaky = [limit, Edit(path=dep, find=image, replace="image: docker.io/evil/miner:1", action="A1")]
     applied, rejected = team._materialize(clone, sneaky, set(), "model", [a], ["lab"], INV["nodes"])
     assert applied == [] and "image changed, which no approved action" in rejected[0]["reason"]
-    priv = [limit, Edit(path=dep, find=image, replace=image + "\n          securityContext: {privileged: true}", action="A1")]
+    priv = [limit, Edit(path=dep, find="allowPrivilegeEscalation: false",
+                        replace="allowPrivilegeEscalation: false\n            privileged: true", action="A1")]
     applied, rejected = team._materialize(clone, priv, set(), "model", [a], ["lab"], INV["nodes"])
     assert applied == [] and "privileged=True is never allowed" in rejected[0]["reason"]
     extra = yaml.safe_load(text)
@@ -525,7 +526,7 @@ def server(tmp_path, monkeypatch):
     monkeypatch.setattr(ring, "_shared", None)
     monkeypatch.setattr(lab, "lab_pods", lambda: {"items": []})
     srv = web.serve(web.Settings(vm="http://127.0.0.1:9", namespace="demo", days=30, tz="UTC", mode="mock", out_dir=tmp_path,
-                                 alertmanager="http://127.0.0.1:9"), "127.0.0.1", 0)
+                                 alertmanager="http://127.0.0.1:9", api_token="test-agent-token"), "127.0.0.1", 0)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield srv
     srv.shutdown()
@@ -535,7 +536,8 @@ def _req(srv, path, body=None, headers=None):
     import urllib.error
     import urllib.request
     req = urllib.request.Request(f"http://127.0.0.1:{srv.server_address[1]}{path}", data=None if body is None else json.dumps(body).encode(),
-                                 headers={"X-KubeSage": "1", "Content-Type": "application/json", **(headers or {})})
+                                 headers={"X-KubeSage": "1", "X-KubeSage-Token": "test-agent-token",
+                                          "Content-Type": "application/json", **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, r.read().decode(), dict(r.headers)

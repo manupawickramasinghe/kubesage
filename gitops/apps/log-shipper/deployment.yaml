@@ -13,6 +13,12 @@ spec:
     spec:
       nodeSelector: {kubesage.io/pool: lab}
       terminationGracePeriodSeconds: 2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: log-shipper
           image: python:3.13.12-alpine3.22
@@ -20,11 +26,15 @@ spec:
           env:
             - {name: WRITE_MBPS, value: "20"}
             - {name: BLOCK_KB, value: "256"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
           resources:
             requests: {cpu: 100m, memory: 64Mi}
             limits: {cpu: 500m, memory: 128Mi}
           volumeMounts:
-            - {name: src, mountPath: /src}
+            - {name: src, mountPath: /src, readOnly: true}
             - {name: spool, mountPath: /data}
       volumes:
         - {name: src, configMap: {name: log-shipper-src}}

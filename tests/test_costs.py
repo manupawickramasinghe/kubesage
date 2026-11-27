@@ -346,7 +346,8 @@ def api(tmp_path, monkeypatch, simulated):
         return simulated
 
     monkeypatch.setattr(costs, "costs_now", fake)
-    a = server.Api(server.Settings(vm="http://vm", namespace="demo", days=30, tz=TZ, mode="mock", out_dir=tmp_path))
+    a = server.Api(server.Settings(vm="http://vm", namespace="demo", days=30, tz=TZ, mode="mock", out_dir=tmp_path,
+                                   api_token="test-costs-token"))
     a.calls = calls
     return a
 
@@ -374,9 +375,10 @@ def test_metrics_and_costs_are_served_over_http(api):
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
         base = f"http://127.0.0.1:{httpd.server_port}"
-        with urllib.request.urlopen(f"{base}/metrics") as res:
+        auth = {"Authorization": "Bearer test-costs-token"}
+        with urllib.request.urlopen(urllib.request.Request(f"{base}/metrics", headers=auth)) as res:
             assert res.headers["Content-Type"].startswith("text/plain") and b"kubesage_budget_used_ratio" in res.read()
-        with urllib.request.urlopen(f"{base}/api/costs?days=14") as res:
+        with urllib.request.urlopen(urllib.request.Request(f"{base}/api/costs?days=14", headers=auth)) as res:
             assert json.load(res)["report"]["window_days"] == 30  # the fixture's report, whatever was asked
         with urllib.request.urlopen(f"{base}/js/costs.js") as res:
             assert b"/api/costs" in res.read()
